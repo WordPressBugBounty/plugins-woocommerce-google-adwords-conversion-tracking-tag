@@ -4,7 +4,7 @@ Tags: woocommerce, google analytics, google ads, facebook pixel, conversion trac
 Requires at least: 3.7
 Tested up to: 6.6
 Requires PHP: 7.3
-Stable tag: 1.44.1
+Stable tag: 1.44.2
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -295,6 +295,16 @@ We are committed to ensuring the security of our customers and their data. If yo
 1. Settings page
 
 == Changelog ==
+
+= 1.44.2  =
+*Release date - 03.10.2024*
+
+* Tweak: Reenabled the new variations selection logic, added some safeguards and only activate it in case the PMW is lazy loaded.
+* Tweak: Added support for GA4 add_payment_info and add_shipping_info events for WooCommerce Blocks.
+* Tweak: Updated vendor packages.
+* Tweak: Handle missing product IDs in data layer on view-item events more gracefully.
+* Tweak: Updated a documentation link.
+* Fix: Fixed a wrong status output in the advanced Google settings for the enhanced e-commmerce event output.
 
 = 1.44.1  =
 *Release date - 11.09.2024*

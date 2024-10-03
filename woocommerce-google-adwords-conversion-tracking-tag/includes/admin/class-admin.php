@@ -715,15 +715,15 @@ JS;
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // add fields for the Google enhanced e-commerce
+            add_settings_field(
+                'wpm_setting_google_analytics_eec',
+                esc_html__( 'Enhanced E-Commerce', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+                [$this, 'info_html_google_analytics_eec'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             if ( wpm_fs()->can_use_premium_code__premium_only() || Options::pro_version_demo_active() ) {
-                // add fields for the Google enhanced e-commerce
-                add_settings_field(
-                    'wpm_setting_google_analytics_eec',
-                    esc_html__( 'Enhanced E-Commerce', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                    [$this, 'info_html_google_analytics_eec'],
-                    'wpm_plugin_options_page',
-                    $section_ids['settings_name']
-                );
                 // add fields for the Google GA4 API secret
                 add_settings_field(
                     'wpm_setting_google_analytics_4_api_secret',
@@ -3441,8 +3441,7 @@ JS;
 
     public function info_html_google_analytics_eec() {
         esc_html_e( 'Google Analytics Enhanced E-Commerce is ', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        self::display_status_icon( wpm_fs()->can_use_premium_code__premium_only() && Options::is_google_analytics_active() );
-        self::html_pro_feature();
+        self::display_status_icon( Options::is_google_analytics_active() );
         //		self::get_documentation_html_by_key('eec');
     }
 

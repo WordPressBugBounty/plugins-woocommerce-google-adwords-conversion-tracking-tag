@@ -1433,6 +1433,7 @@ class Pixel_Manager {
             'consent_management'         => [
                 'explicit_consent' => Options::is_consent_management_explicit_consent_active(),
             ],
+            'lazy_load_pmw'              => Options::is_lazy_load_pmw_active(),
         ];
         if ( Options::are_restricted_consent_regions_set() ) {
             $data['consent_management']['restricted_regions'] = Options::get_restricted_consent_regions();

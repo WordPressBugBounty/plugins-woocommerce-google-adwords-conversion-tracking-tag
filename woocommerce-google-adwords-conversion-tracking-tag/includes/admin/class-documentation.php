@@ -351,7 +351,7 @@ class Documentation {
 			],
 			'google_tcf_support'                                     => [
 				'default' => '/docs/wpm/consent-management/google#google-tcf-support',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/consent-management/google-consent-mode/#section-6',
 			],
 			'logger_activation'                                      => [
 				'default' => '/docs/wpm/developers/logs#logger-activation',

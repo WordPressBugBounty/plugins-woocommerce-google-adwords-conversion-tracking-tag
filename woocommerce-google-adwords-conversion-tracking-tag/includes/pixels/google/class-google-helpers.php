@@ -152,12 +152,10 @@ class Google_Helpers {
         );
         $google_ads_conversion_identifiers = apply_filters( 'pmw_google_ads_conversion_identifiers', $google_ads_conversion_identifiers );
         $formatted_conversion_ids = [];
-        if ( Environment::is_woocommerce_active() ) {
-            foreach ( $google_ads_conversion_identifiers as $conversion_id => $conversion_label ) {
-                $conversion_id = self::extract_google_ads_id( $conversion_id );
-                if ( $conversion_id ) {
-                    $formatted_conversion_ids['AW-' . $conversion_id] = $conversion_label;
-                }
+        foreach ( $google_ads_conversion_identifiers as $conversion_id => $conversion_label ) {
+            $conversion_id = self::extract_google_ads_id( $conversion_id );
+            if ( $conversion_id ) {
+                $formatted_conversion_ids['AW-' . $conversion_id] = $conversion_label;
             }
         }
         return $formatted_conversion_ids;
