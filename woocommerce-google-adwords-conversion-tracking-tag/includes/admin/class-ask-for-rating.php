@@ -54,7 +54,7 @@ class Ask_For_Rating {
 	// server side php ajax handler for the admin rating notice
 	public function ajax_rating_notice_handler() {
 
-		if (!current_user_can('manage_options')) {
+		if (!Environment::get_user_edit_capability()) {
 			wp_die();
 		}
 
@@ -95,7 +95,7 @@ class Ask_For_Rating {
 	public function ask_for_rating_notice() {
 
 		// Don't show if were not an admin
-		if (!current_user_can('manage_options')) {
+		if (!Environment::get_user_edit_capability()) {
 			return;
 		}
 

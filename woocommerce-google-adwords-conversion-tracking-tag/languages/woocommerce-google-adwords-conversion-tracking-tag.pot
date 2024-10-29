@@ -2,14 +2,14 @@
 # This file is distributed under the GNU General Public License v3.0.
 msgid ""
 msgstr ""
-"Project-Id-Version: Pixel Manager for WooCommerce 1.44.0-beta.3\n"
+"Project-Id-Version: Pixel Manager for WooCommerce 1.45.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/src\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2024-09-05T07:19:38+00:00\n"
+"POT-Creation-Date: 2024-10-29T09:31:16+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.11.0\n"
 "X-Domain: woocommerce-google-adwords-conversion-tracking-tag\n"
@@ -249,1030 +249,1038 @@ msgstr ""
 msgid "Conversion Cart Data"
 msgstr ""
 
-#: includes/admin/class-admin.php:1056
+#: includes/admin/class-admin.php:1054
 msgid "Enhanced E-Commerce"
 msgstr ""
 
-#: includes/admin/class-admin.php:1068
+#: includes/admin/class-admin.php:1069
 msgid "GA4 API secret"
 msgstr ""
 
-#: includes/admin/class-admin.php:1080
+#: includes/admin/class-admin.php:1081
 msgid "GA4 Property ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1092
+#: includes/admin/class-admin.php:1093
 msgid "GA4 Data API Credentials"
 msgstr ""
 
-#: includes/admin/class-admin.php:1107
+#: includes/admin/class-admin.php:1108
 msgid "GA4 Page Load Time Tracking"
 msgstr ""
 
-#: includes/admin/class-admin.php:1121
+#: includes/admin/class-admin.php:1122
 msgid "Google User ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1135
+#: includes/admin/class-admin.php:1136
 #: includes/admin/opportunities/pro/class-google-enhanced-conversions-opportunity.php:37
 msgid "Google Enhanced Conversions"
 msgstr ""
 
-#: includes/admin/class-admin.php:1150
+#: includes/admin/class-admin.php:1151
 msgid "Google Ads Phone Conversion Number"
 msgstr ""
 
-#: includes/admin/class-admin.php:1162
+#: includes/admin/class-admin.php:1163
 msgid "Google Ads Phone Conversion Label"
 msgstr ""
 
-#: includes/admin/class-admin.php:1176
+#: includes/admin/class-admin.php:1177
 msgid "Google Ads Conversion Adjustments: Conversion Name"
 msgstr ""
 
-#: includes/admin/class-admin.php:1188
+#: includes/admin/class-admin.php:1189
 msgid "Google Ads Conversion Adjustments: Feed"
 msgstr ""
 
-#: includes/admin/class-admin.php:1204
+#: includes/admin/class-admin.php:1205
 msgid "Automatic Email Link Tracking"
 msgstr ""
 
-#: includes/admin/class-admin.php:1216
+#: includes/admin/class-admin.php:1217
 msgid "Automatic Phone Link Click Tracking"
 msgstr ""
 
-#: includes/admin/class-admin.php:1238
+#: includes/admin/class-admin.php:1239
 msgid "Meta (Facebook) CAPI: token"
 msgstr ""
 
-#: includes/admin/class-admin.php:1250
+#: includes/admin/class-admin.php:1251
 msgid "Meta (Facebook) CAPI: test event code"
 msgstr ""
 
-#: includes/admin/class-admin.php:1262
+#: includes/admin/class-admin.php:1263
 msgid "Meta (Facebook) CAPI: process anonymous hits"
 msgstr ""
 
-#: includes/admin/class-admin.php:1274
+#: includes/admin/class-admin.php:1275
 msgid "Meta (Facebook): Advanced Matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:1290
+#: includes/admin/class-admin.php:1287
+msgid "Meta (Facebook): Domain Verification Meta Tag ID"
+msgstr ""
+
+#: includes/admin/class-admin.php:1303
 msgid "Meta (Facebook) Microdata Tags for Catalogues"
 msgstr ""
 
-#: includes/admin/class-admin.php:1313
+#: includes/admin/class-admin.php:1326
 msgid "Pinterest Ad Account ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1325
+#: includes/admin/class-admin.php:1338
 msgid "Pinterest Events API: token"
 msgstr ""
 
-#: includes/admin/class-admin.php:1337
+#: includes/admin/class-admin.php:1350
 msgid "Pinterest Events API: process anonymous hits"
 msgstr ""
 
-#: includes/admin/class-admin.php:1349
+#: includes/admin/class-admin.php:1362
 #: includes/admin/opportunities/pro/class-pinterest-enhanced-match-opportunity.php:37
 msgid "Pinterest Enhanced Match"
 msgstr ""
 
-#: includes/admin/class-admin.php:1361
+#: includes/admin/class-admin.php:1374
 msgid "Pinterest: Advanced Matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:1383
+#: includes/admin/class-admin.php:1396
 msgid "Snapchat CAPI Token"
 msgstr ""
 
-#: includes/admin/class-admin.php:1395
+#: includes/admin/class-admin.php:1408
 #: includes/admin/opportunities/pro/class-snapchat-advanced-matching-opportunity.php:37
 msgid "Snapchat Advanced Matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:1417
+#: includes/admin/class-admin.php:1430
 msgid "Reddit Advanced Matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:1439
+#: includes/admin/class-admin.php:1452
 msgid "TikTok Events API: token"
 msgstr ""
 
-#: includes/admin/class-admin.php:1451
+#: includes/admin/class-admin.php:1464
 msgid "TikTok EAPI: test event code"
 msgstr ""
 
-#: includes/admin/class-admin.php:1463
+#: includes/admin/class-admin.php:1476
 msgid "TikTok Events API: process anonymous hits"
 msgstr ""
 
-#: includes/admin/class-admin.php:1475
+#: includes/admin/class-admin.php:1488
 msgid "TikTok: Advanced Matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:1497
+#: includes/admin/class-admin.php:1510
 msgid "Microsoft Enhanced Conversions"
 msgstr ""
 
-#: includes/admin/class-admin.php:1529
+#: includes/admin/class-admin.php:1542
 msgid "Search event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1541
+#: includes/admin/class-admin.php:1554
 msgid "View Content event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1553
+#: includes/admin/class-admin.php:1566
 msgid "Add To List event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1565
+#: includes/admin/class-admin.php:1578
 msgid "Add-to-cart event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1577
+#: includes/admin/class-admin.php:1590
 msgid "Start-checkout event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1589
+#: includes/admin/class-admin.php:1602
 msgid "Purchase event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1612
+#: includes/admin/class-admin.php:1625
 msgid "Add To Cart Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1624
+#: includes/admin/class-admin.php:1637
 msgid "Add To Wishlist Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1636
+#: includes/admin/class-admin.php:1649
 msgid "Content View Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1648
+#: includes/admin/class-admin.php:1661
 msgid "Search Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1660
+#: includes/admin/class-admin.php:1673
 msgid "Checkout Initiated Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1672
+#: includes/admin/class-admin.php:1685
 msgid "Add Payment Info Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1684
+#: includes/admin/class-admin.php:1697
 msgid "Purchase Event ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:1696
-#: includes/admin/class-admin.php:1705
+#: includes/admin/class-admin.php:1709
+#: includes/admin/class-admin.php:1718
 msgid "Consent Management"
 msgstr ""
 
-#: includes/admin/class-admin.php:1713
+#: includes/admin/class-admin.php:1726
 msgid "Google Consent Mode v2"
 msgstr ""
 
-#: includes/admin/class-admin.php:1725
+#: includes/admin/class-admin.php:1738
 msgid "Explicit Consent Mode"
 msgstr ""
 
-#: includes/admin/class-admin.php:1737
+#: includes/admin/class-admin.php:1750
 msgid "Explicit Consent Regions"
 msgstr ""
 
-#: includes/admin/class-admin.php:1750
+#: includes/admin/class-admin.php:1763
 msgid "Google TCF Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1764
+#: includes/admin/class-admin.php:1777
 msgid "Cookiebot Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1778
+#: includes/admin/class-admin.php:1791
 msgid "Complianz GDPR Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1792
+#: includes/admin/class-admin.php:1805
 msgid "Cookie Notice Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1806
+#: includes/admin/class-admin.php:1819
 msgid "Cookie Script Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1820
+#: includes/admin/class-admin.php:1833
 msgid "GDPR Cookie Compliance Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1834
+#: includes/admin/class-admin.php:1847
 msgid "CookieYes Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1848
+#: includes/admin/class-admin.php:1861
 msgid "Termly CMP Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:1863
 #: includes/admin/class-admin.php:1876
+#: includes/admin/class-admin.php:1889
 msgid "Logs"
 msgstr ""
 
-#: includes/admin/class-admin.php:1887
+#: includes/admin/class-admin.php:1900
 msgid "Logger"
 msgstr ""
 
-#: includes/admin/class-admin.php:1899
+#: includes/admin/class-admin.php:1912
 msgid "Log Level"
 msgstr ""
 
-#: includes/admin/class-admin.php:1911
+#: includes/admin/class-admin.php:1924
 msgid "Log HTTP Requests"
 msgstr ""
 
-#: includes/admin/class-admin.php:1926
+#: includes/admin/class-admin.php:1939
 msgid "Log Files"
 msgstr ""
 
-#: includes/admin/class-admin.php:1939
-#: includes/admin/class-admin.php:1948
-#: includes/admin/class-admin.php:2201
+#: includes/admin/class-admin.php:1952
+#: includes/admin/class-admin.php:1961
+#: includes/admin/class-admin.php:2214
 msgid "Diagnostics"
 msgstr ""
 
-#: includes/admin/class-admin.php:1956
-#: includes/admin/class-admin.php:1965
+#: includes/admin/class-admin.php:1969
+#: includes/admin/class-admin.php:1978
 msgid "Opportunities"
 msgstr ""
 
-#: includes/admin/class-admin.php:1973
-#: includes/admin/class-admin.php:1982
+#: includes/admin/class-admin.php:1986
+#: includes/admin/class-admin.php:1995
 msgid "Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:2014
+#: includes/admin/class-admin.php:2027
 msgid "Contact"
 msgstr ""
 
-#: includes/admin/class-admin.php:2015
+#: includes/admin/class-admin.php:2028
 msgid "Account"
 msgstr ""
 
-#: includes/admin/class-admin.php:2049
+#: includes/admin/class-admin.php:2062
 msgid ""
 "It looks like you are using some sort of ad- or script-blocker in your browser which is blocking the script and CSS files of this plugin.\n"
 "                    In order for the plugin to work properly you need to disable the script blocker in your browser."
 msgstr ""
 
-#: includes/admin/class-admin.php:2055
+#: includes/admin/class-admin.php:2068
 #: includes/admin/notifications/class-notifications.php:385
 #: includes/admin/opportunities/class-opportunities.php:188
 msgid "Learn more"
 msgstr ""
 
-#: includes/admin/class-admin.php:2103
+#: includes/admin/class-admin.php:2116
 msgid "Profit Driven Marketing by SweetCode"
 msgstr ""
 
-#: includes/admin/class-admin.php:2112
+#: includes/admin/class-admin.php:2125
 msgid "Enabling this will show you the pro settings in the user interface. It won't actually enable the pro features. If you want to try out the pro features head over to sweetcode.com and sign up for a trial."
 msgstr ""
 
-#: includes/admin/class-admin.php:2114
+#: includes/admin/class-admin.php:2127
 msgid "Show Pro version settings:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2138
+#: includes/admin/class-admin.php:2151
 msgid "Visit us here:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2204
+#: includes/admin/class-admin.php:2217
 msgid "Transients are disabled on your site. Transients are required for the diagnostics report."
 msgstr ""
 
-#: includes/admin/class-admin.php:2207
+#: includes/admin/class-admin.php:2220
 msgid "Please enable transients on your site."
 msgstr ""
 
-#: includes/admin/class-admin.php:2218
+#: includes/admin/class-admin.php:2231
 msgid "Payment Gateway Tracking Accuracy Report"
 msgstr ""
 
-#: includes/admin/class-admin.php:2219
-#: includes/admin/class-admin.php:5136
-#: includes/admin/class-admin.php:5146
+#: includes/admin/class-admin.php:2232
+#: includes/admin/class-admin.php:5165
+#: includes/admin/class-admin.php:5175
 msgid "beta"
 msgstr ""
 
-#: includes/admin/class-admin.php:2223
+#: includes/admin/class-admin.php:2236
 msgid "What's this? Follow this link to learn more"
 msgstr ""
 
-#: includes/admin/class-admin.php:2231
+#: includes/admin/class-admin.php:2244
 msgid "Available payment gateways"
 msgstr ""
 
-#: includes/admin/class-admin.php:2238
+#: includes/admin/class-admin.php:2251
 msgid "id"
 msgstr ""
 
-#: includes/admin/class-admin.php:2239
+#: includes/admin/class-admin.php:2252
 msgid "method_title"
 msgstr ""
 
-#: includes/admin/class-admin.php:2240
+#: includes/admin/class-admin.php:2253
 msgid "class"
 msgstr ""
 
-#: includes/admin/class-admin.php:2258
+#: includes/admin/class-admin.php:2271
 msgid "Purchase confirmation page reached per gateway (active and inactive)"
 msgstr ""
 
-#: includes/admin/class-admin.php:2307
+#: includes/admin/class-admin.php:2320
 msgid "Purchase confirmation page reached per gateway (only active), weighted by frequency"
 msgstr ""
 
-#: includes/admin/class-admin.php:2375
+#: includes/admin/class-admin.php:2388
 msgid "Automatic Conversion Recovery (ACR)"
 msgstr ""
 
 #. translators: The number and percentage of orders that were recovered by the Automatic Conversion Recovery (ACR).
-#: includes/admin/class-admin.php:2466
+#: includes/admin/class-admin.php:2479
 msgid "ACR recovered %1$s (%2$s%%) out of %3$s missing conversions."
 msgstr ""
 
-#: includes/admin/class-admin.php:2484
+#: includes/admin/class-admin.php:2497
 msgid "This feature is only available in the pro version of the plugin. Follow the link to learn more about it:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2486
+#: includes/admin/class-admin.php:2499
 msgid "Get the pro version of the Pixel Manager for WooCommerce over here"
 msgstr ""
 
-#: includes/admin/class-admin.php:2488
+#: includes/admin/class-admin.php:2501
 msgid "Go Pro"
 msgstr ""
 
-#: includes/admin/class-admin.php:2521
+#: includes/admin/class-admin.php:2534
 msgid "Contacting Support"
 msgstr ""
 
-#: includes/admin/class-admin.php:2550
+#: includes/admin/class-admin.php:2563
 msgid "Debug Information"
 msgstr ""
 
-#: includes/admin/class-admin.php:2558
+#: includes/admin/class-admin.php:2571
 msgid "copy to clipboard"
 msgstr ""
 
-#: includes/admin/class-admin.php:2568
+#: includes/admin/class-admin.php:2581
 msgid "Export settings"
 msgstr ""
 
-#: includes/admin/class-admin.php:2578
+#: includes/admin/class-admin.php:2591
 msgid "Export to disk"
 msgstr ""
 
-#: includes/admin/class-admin.php:2588
+#: includes/admin/class-admin.php:2601
 msgid "Import settings"
 msgstr ""
 
-#: includes/admin/class-admin.php:2593
-#: includes/admin/class-admin.php:3876
+#: includes/admin/class-admin.php:2606
+#: includes/admin/class-admin.php:3888
 msgid "Settings imported successfully!"
 msgstr ""
 
-#: includes/admin/class-admin.php:2596
+#: includes/admin/class-admin.php:2609
 msgid "Reloading...(in 1 second)!"
 msgstr ""
 
-#: includes/admin/class-admin.php:2602
-#: includes/admin/class-admin.php:3885
+#: includes/admin/class-admin.php:2615
+#: includes/admin/class-admin.php:3897
 msgid "There was an error importing that file! Please try again."
 msgstr ""
 
-#: includes/admin/class-admin.php:2620
+#: includes/admin/class-admin.php:2633
 msgid "Translations"
 msgstr ""
 
-#: includes/admin/class-admin.php:2621
+#: includes/admin/class-admin.php:2634
 msgid "If you want to participate improving the translations of this plugin into your language, please follow this link:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2641
+#: includes/admin/class-admin.php:2654
 msgid "Chat with our fantastic AI bot Pixie (Pixie knows everything we do!):"
 msgstr ""
 
-#: includes/admin/class-admin.php:2645
+#: includes/admin/class-admin.php:2658
 msgid "Chat"
 msgstr ""
 
-#: includes/admin/class-admin.php:2653
+#: includes/admin/class-admin.php:2666
 msgid "Post a support request in the WordPress support forum here: "
 msgstr ""
 
-#: includes/admin/class-admin.php:2656
+#: includes/admin/class-admin.php:2669
 msgid "Support forum"
 msgstr ""
 
-#: includes/admin/class-admin.php:2660
+#: includes/admin/class-admin.php:2673
 msgid "(Never post the debug or other sensitive information to the support forum. Instead send us the information by email.)"
 msgstr ""
 
-#: includes/admin/class-admin.php:2663
+#: includes/admin/class-admin.php:2676
 msgid "Send us an email to the following address:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2677
+#: includes/admin/class-admin.php:2690
 msgid "Send us your support request through the WooCommerce.com dashboard: "
 msgstr ""
 
-#: includes/admin/class-admin.php:2702
+#: includes/admin/class-admin.php:2715
 msgid "The Google Analytics 4 measurement ID looks like this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2722
+#: includes/admin/class-admin.php:2735
 msgid "The conversion ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2742
+#: includes/admin/class-admin.php:2755
 msgid "The purchase conversion label looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2746
+#: includes/admin/class-admin.php:2759
 msgid "Requires an active Google Ads Conversion ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:2766
+#: includes/admin/class-admin.php:2779
 msgid "The VWO account ID looks like this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2784
+#: includes/admin/class-admin.php:2797
 msgid "The Optimizely project ID looks like this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2802
+#: includes/admin/class-admin.php:2815
 msgid "The AB Tasty account ID looks like this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2820
+#: includes/admin/class-admin.php:2833
 msgid "The Meta (Facebook) pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2849
+#: includes/admin/class-admin.php:2862
 msgid "Requires an active Adroll pixel ID."
 msgstr ""
 
-#: includes/admin/class-admin.php:2858
+#: includes/admin/class-admin.php:2871
 msgid "The Adroll advertiser ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2887
+#: includes/admin/class-admin.php:2900
 msgid "Requires an active Adroll advertiser ID."
 msgstr ""
 
-#: includes/admin/class-admin.php:2896
+#: includes/admin/class-admin.php:2909
 msgid "The Adroll pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:2914
+#: includes/admin/class-admin.php:2927
 msgid "Enable Microsoft Enhanced Conversions"
 msgstr ""
 
-#: includes/admin/class-admin.php:2941
+#: includes/admin/class-admin.php:2954
 msgid "The LinkedIn partner ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3086
+#: includes/admin/class-admin.php:3099
 msgid "The Microsoft Advertising UET tag ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3106
+#: includes/admin/class-admin.php:3119
 msgid "The Twitter pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3267
+#: includes/admin/class-admin.php:3280
 msgid "The Outbrain advertiser ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3288
+#: includes/admin/class-admin.php:3301
 msgid "The Pinterest pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3308
+#: includes/admin/class-admin.php:3321
 msgid "Enable Pinterest enhanced match"
 msgstr ""
 
-#: includes/admin/class-admin.php:3335
+#: includes/admin/class-admin.php:3348
 msgid "The Snapchat pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3357
+#: includes/admin/class-admin.php:3370
 msgid "The Taboola account ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3378
+#: includes/admin/class-admin.php:3391
 msgid "The TikTok pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3396
+#: includes/admin/class-admin.php:3409
 msgid "The Hotjar site ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3420
+#: includes/admin/class-admin.php:3433
 msgid "The Reddit pixel ID looks similar to this:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3440
+#: includes/admin/class-admin.php:3453
 msgid "You need to activate the Snapchat pixel"
 msgstr ""
 
-#: includes/admin/class-admin.php:3460
+#: includes/admin/class-admin.php:3473
 msgid "Enable Snapchat Advanced Matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:3482
+#: includes/admin/class-admin.php:3495
 msgid "Enable Reddit advanced matching"
 msgstr ""
 
-#: includes/admin/class-admin.php:3500
+#: includes/admin/class-admin.php:3513
 msgid "Order Subtotal: Doesn't include tax, shipping, and if available, fees like PayPal or Stripe fees (default)"
 msgstr ""
 
-#: includes/admin/class-admin.php:3511
+#: includes/admin/class-admin.php:3524
 msgid "Order Total: Includes tax and shipping"
 msgstr ""
 
-#: includes/admin/class-admin.php:3527
+#: includes/admin/class-admin.php:3540
 msgid "Profit Margin: Only reports the profit margin. Excludes tax, shipping, and where possible, gateway fees."
 msgstr ""
 
-#: includes/admin/class-admin.php:3535
+#: includes/admin/class-admin.php:3548
 msgid "This is the total value reported back to the marketing pixels (such as Google Ads, Meta (Facebook), etc.). It excludes statistics pixels."
 msgstr ""
 
-#: includes/admin/class-admin.php:3540
+#: includes/admin/class-admin.php:3553
 msgid "To use the Profit Margin setting you will need to install one of the following two Cost of Goods plugins:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3543
+#: includes/admin/class-admin.php:3556
 msgid "or"
 msgstr ""
 
-#: includes/admin/class-admin.php:3567
-#: includes/admin/class-admin.php:3594
+#: includes/admin/class-admin.php:3580
+#: includes/admin/class-admin.php:3607
 msgid "open the documentation"
 msgstr ""
 
-#: includes/admin/class-admin.php:3584
+#: includes/admin/class-admin.php:3597
 msgid "advanced settings"
 msgstr ""
 
-#: includes/admin/class-admin.php:3613
+#: includes/admin/class-admin.php:3626
 msgid "Enable Google Consent Mode v2 with standard settings"
 msgstr ""
 
-#: includes/admin/class-admin.php:3639
+#: includes/admin/class-admin.php:3652
 msgid "Enable Explicit Consent Mode"
 msgstr ""
 
-#: includes/admin/class-admin.php:3650
+#: includes/admin/class-admin.php:3663
 msgid "While the Explicit Consent Mode is active no pixels will be fired until the visitor gives consent."
 msgstr ""
 
-#: includes/admin/class-admin.php:3652
+#: includes/admin/class-admin.php:3665
 msgid "With Google Consent Mode enabled, Google will instead use cookieless tracking."
 msgstr ""
 
-#: includes/admin/class-admin.php:3657
+#: includes/admin/class-admin.php:3670
 msgid "Only activate the Explicit Consent Mode if you are also using a Consent Management Platform (a cookie banner) that is compatible with the Pixel Manager. Here's a list of compatible plugins:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3660
+#: includes/admin/class-admin.php:3673
 msgid "Compatible Consent Management Platforms (CMPs)"
 msgstr ""
 
-#: includes/admin/class-admin.php:3662
+#: includes/admin/class-admin.php:3675
 msgid "You can also use our Consent API to make your custom cookie banner compatible with the Pixel Manager:"
 msgstr ""
 
-#: includes/admin/class-admin.php:3665
+#: includes/admin/class-admin.php:3678
 msgid "Consent API"
 msgstr ""
 
-#: includes/admin/class-admin.php:3680
+#: includes/admin/class-admin.php:3693
 msgid "Choose countries"
 msgstr ""
 
-#: includes/admin/class-admin.php:3709
+#: includes/admin/class-admin.php:3722
 msgid "Regions in which tracking with cookies will only be activated after the visitor gives consent."
 msgstr ""
 
-#: includes/admin/class-admin.php:3715
+#: includes/admin/class-admin.php:3728
 msgid "Requires the Explicit Consent Mode to be active."
 msgstr ""
 
-#: includes/admin/class-admin.php:3720
+#: includes/admin/class-admin.php:3733
 msgid "If no region is set, then the restrictions are enabled worldwide. If you specify one or more regions, then the restrictions only apply for the specified regions. For countries outside of those regions, tracking will work without restrictions until the visitor removes consent."
 msgstr ""
 
-#: includes/admin/class-admin.php:3741
+#: includes/admin/class-admin.php:3754
 msgid "Enable Google TCF support"
 msgstr ""
 
-#: includes/admin/class-admin.php:3752
+#: includes/admin/class-admin.php:3765
 msgid "Google Analytics Enhanced E-Commerce is "
 msgstr ""
 
-#: includes/admin/class-admin.php:3775
+#: includes/admin/class-admin.php:3787
 msgid "Google Analytics 4 activation required"
 msgstr ""
 
-#: includes/admin/class-admin.php:3778
+#: includes/admin/class-admin.php:3790
 msgid "If enabled, purchase and refund events will be sent to Google through the measurement protocol for increased accuracy."
 msgstr ""
 
-#: includes/admin/class-admin.php:3798
+#: includes/admin/class-admin.php:3810
 msgid "GA4 Data API Credentials need to be set."
 msgstr ""
 
-#: includes/admin/class-admin.php:3827
+#: includes/admin/class-admin.php:3839
 msgid "Copied the account email to the clipboard"
 msgstr ""
 
-#: includes/admin/class-admin.php:3832
-#: includes/admin/class-admin.php:3840
-#: includes/admin/class-admin.php:4079
-#: includes/admin/class-admin.php:4086
+#: includes/admin/class-admin.php:3844
+#: includes/admin/class-admin.php:3852
+#: includes/admin/class-admin.php:4091
+#: includes/admin/class-admin.php:4098
 msgid "Copy to clipboard"
 msgstr ""
 
-#: includes/admin/class-admin.php:3854
+#: includes/admin/class-admin.php:3866
 msgid "Import credentials"
 msgstr ""
 
-#: includes/admin/class-admin.php:3865
+#: includes/admin/class-admin.php:3877
 msgid "Delete credentials"
 msgstr ""
 
-#: includes/admin/class-admin.php:3879
+#: includes/admin/class-admin.php:3891
 msgid "Reloading...(in 5 seconds)!"
 msgstr ""
 
-#: includes/admin/class-admin.php:3896
+#: includes/admin/class-admin.php:3908
 msgid "The GA4 Property ID needs to be set."
 msgstr ""
 
-#: includes/admin/class-admin.php:3915
+#: includes/admin/class-admin.php:3927
 msgid "GA4 page load time tracking."
 msgstr ""
 
-#: includes/admin/class-admin.php:3939
+#: includes/admin/class-admin.php:3951
 msgid "Enable Google user ID"
 msgstr ""
 
-#: includes/admin/class-admin.php:3950
+#: includes/admin/class-admin.php:3962
 msgid "You need to activate GA4 and/or Google Ads"
 msgstr ""
 
-#: includes/admin/class-admin.php:3970
+#: includes/admin/class-admin.php:3982
 msgid "Enable Enhanced Conversions for Google Ads and GA4"
 msgstr ""
 
-#: includes/admin/class-admin.php:3980
+#: includes/admin/class-admin.php:3992
 msgid "You need to activate Google Ads and or GA4"
 msgstr ""
 
-#: includes/admin/class-admin.php:4000
+#: includes/admin/class-admin.php:4012
 msgid "The Google Ads phone conversion number must be in the same format as on the website."
 msgstr ""
 
-#: includes/admin/class-admin.php:4036
+#: includes/admin/class-admin.php:4048
 msgid "The conversion name must match the conversion name in Google Ads exactly."
 msgstr ""
 
-#: includes/admin/class-admin.php:4044
+#: includes/admin/class-admin.php:4056
 msgid "Requires an active Google Ads Conversion ID and Conversion Label."
 msgstr ""
 
-#: includes/admin/class-admin.php:4074
+#: includes/admin/class-admin.php:4086
 msgid "Copied feed URL to clipboard"
 msgstr ""
 
-#: includes/admin/class-admin.php:4094
+#: includes/admin/class-admin.php:4106
 msgid "The Conversion Name must be set."
 msgstr ""
 
-#: includes/admin/class-admin.php:4102
+#: includes/admin/class-admin.php:4114
 msgid "Automatic email link click tracking is "
 msgstr ""
 
-#: includes/admin/class-admin.php:4108
+#: includes/admin/class-admin.php:4120
 msgid "Automatic phone link click tracking is "
 msgstr ""
 
-#: includes/admin/class-admin.php:4114
+#: includes/admin/class-admin.php:4126
 msgid "Cookiebot detected. Automatic support is:"
 msgstr ""
 
-#: includes/admin/class-admin.php:4120
+#: includes/admin/class-admin.php:4132
 msgid "Complianz GDPR detected. Automatic support is:"
 msgstr ""
 
-#: includes/admin/class-admin.php:4126
+#: includes/admin/class-admin.php:4138
 msgid "Cookie Notice (by hu-manity.co) detected. Automatic support is:"
 msgstr ""
 
-#: includes/admin/class-admin.php:4132
+#: includes/admin/class-admin.php:4144
 msgid "Cookie Script (by cookie-script.com) detected. Automatic support is:"
 msgstr ""
 
-#: includes/admin/class-admin.php:4138
+#: includes/admin/class-admin.php:4150
 msgid "GDPR Cookie Compliance (by Moove Agency) detected. Automatic support is:"
 msgstr ""
 
-#: includes/admin/class-admin.php:4144
+#: includes/admin/class-admin.php:4156
 msgid "CookieYes detected. Automatic support is"
 msgstr ""
 
-#: includes/admin/class-admin.php:4150
+#: includes/admin/class-admin.php:4162
 msgid "Termly CMP detected. Automatic support is:"
 msgstr ""
 
-#: includes/admin/class-admin.php:4170
-#: includes/admin/class-admin.php:4229
-#: includes/admin/class-admin.php:4259
+#: includes/admin/class-admin.php:4182
+#: includes/admin/class-admin.php:4241
+#: includes/admin/class-admin.php:4271
 msgid "You need to activate the Meta (Facebook) pixel"
 msgstr ""
 
-#: includes/admin/class-admin.php:4199
+#: includes/admin/class-admin.php:4211
 msgid "The test event code automatically rotates frequently within Facebook. If you don't see the server events flowing in, first make sure that you've set the latest test event code."
 msgstr ""
 
-#: includes/admin/class-admin.php:4220
+#: includes/admin/class-admin.php:4232
 msgid "Send CAPI hits for anonymous visitors who likely have blocked the Meta (Facebook) pixel."
 msgstr ""
 
-#: includes/admin/class-admin.php:4250
-#: includes/admin/class-admin.php:4379
-#: includes/admin/class-admin.php:4493
+#: includes/admin/class-admin.php:4262
+#: includes/admin/class-admin.php:4408
+#: includes/admin/class-admin.php:4522
 msgid "Send events with additional visitor identifiers, such as email and phone number, if available."
 msgstr ""
 
-#: includes/admin/class-admin.php:4280
+#: includes/admin/class-admin.php:4290
+msgid "The Meta domain verification ID. It looks like this: uk6zwiftxsaywayn14x0aouhz4fhd"
+msgstr ""
+
+#: includes/admin/class-admin.php:4309
 msgid "Enable Meta (Facebook) product microdata output"
 msgstr ""
 
-#: includes/admin/class-admin.php:4289
+#: includes/admin/class-admin.php:4318
 msgid "The Facebook Microdata feature in the Pixel Manager has been deprecated. Please use a dedicated feed plugin for this purpose. The feature will be removed in a future version."
 msgstr ""
 
-#: includes/admin/class-admin.php:4330
 #: includes/admin/class-admin.php:4359
 #: includes/admin/class-admin.php:4388
+#: includes/admin/class-admin.php:4417
 msgid "You need to activate the Pinterest pixel"
 msgstr ""
 
-#: includes/admin/class-admin.php:4350
+#: includes/admin/class-admin.php:4379
 msgid "Send Events API hits for anonymous visitors who likely have blocked the Pinterest pixel."
 msgstr ""
 
-#: includes/admin/class-admin.php:4414
-#: includes/admin/class-admin.php:4473
+#: includes/admin/class-admin.php:4443
 #: includes/admin/class-admin.php:4502
+#: includes/admin/class-admin.php:4531
 msgid "You need to activate the TikTok pixel"
 msgstr ""
 
-#: includes/admin/class-admin.php:4444
+#: includes/admin/class-admin.php:4473
 msgid "The test event code automatically rotates frequently within TikTok. If you don't see the server events flowing in, first make sure that you've set the latest test event code."
 msgstr ""
 
-#: includes/admin/class-admin.php:4464
+#: includes/admin/class-admin.php:4493
 msgid "Send Events API hits for anonymous visitors who likely have blocked the TikTok pixel."
 msgstr ""
 
-#: includes/admin/class-admin.php:4531
+#: includes/admin/class-admin.php:4560
 msgid "Only disable order duplication prevention for testing."
 msgstr ""
 
-#: includes/admin/class-admin.php:4537
+#: includes/admin/class-admin.php:4566
 msgid "Automatically reactivates 6 hours after disabling duplication prevention."
 msgstr ""
 
-#: includes/admin/class-admin.php:4557
+#: includes/admin/class-admin.php:4586
 msgid "Enable the maximum compatibility mode"
 msgstr ""
 
-#: includes/admin/class-admin.php:4594
+#: includes/admin/class-admin.php:4623
 msgid "Automatic Conversion Recovery (ACR) is "
 msgstr ""
 
-#: includes/admin/class-admin.php:4615
+#: includes/admin/class-admin.php:4644
 msgid "Display Pixel Manager related information on the order list page"
 msgstr ""
 
-#: includes/admin/class-admin.php:4639
+#: includes/admin/class-admin.php:4668
 msgid "The Scroll Tracker thresholds. A comma separated list of scroll tracking thresholds in percent where the scroll tracker triggers its events."
 msgstr ""
 
-#: includes/admin/class-admin.php:4661
+#: includes/admin/class-admin.php:4690
 msgid "The multiplier multiplies the conversion value output for initial subscriptions to match the CLV of a subscription more closely."
 msgstr ""
 
-#: includes/admin/class-admin.php:4681
+#: includes/admin/class-admin.php:4710
 msgid "Enable the lifetime value calculation on new orders."
 msgstr ""
 
-#: includes/admin/class-admin.php:4706
+#: includes/admin/class-admin.php:4735
 msgid "Enable the automatic detection and recalculation of the lifetime value."
 msgstr ""
 
-#: includes/admin/class-admin.php:4725
+#: includes/admin/class-admin.php:4754
 msgid "Schedule LTV recalculation"
 msgstr ""
 
-#: includes/admin/class-admin.php:4732
+#: includes/admin/class-admin.php:4761
 msgid "Instant LTV recalculation"
 msgstr ""
 
-#: includes/admin/class-admin.php:4740
+#: includes/admin/class-admin.php:4769
 msgid "Stop all LTV calculations"
 msgstr ""
 
-#: includes/admin/class-admin.php:4746
+#: includes/admin/class-admin.php:4775
 msgid "Recalculation has been scheduled for a run over night. Click one more time to start the recalculation immediately."
 msgstr ""
 
-#: includes/admin/class-admin.php:4752
+#: includes/admin/class-admin.php:4781
 msgid "The recalculation is running."
 msgstr ""
 
-#: includes/admin/class-admin.php:4782
+#: includes/admin/class-admin.php:4811
 msgid "Lazy load the Pixel Manager"
 msgstr ""
 
-#: includes/admin/class-admin.php:4790
+#: includes/admin/class-admin.php:4819
 msgid "Google Optimize is active, but the Google Optimize anti flicker snippet is not. You need to activate the Google Optimize anti flicker snippet, or deactivate Google Optimize."
 msgstr ""
 
-#: includes/admin/class-admin.php:4796
+#: includes/admin/class-admin.php:4825
 msgid "Enabling this feature will give you better page speed scores. Please read the documentation to learn more about the full implications while using this feature."
 msgstr ""
 
-#: includes/admin/class-admin.php:4804
+#: includes/admin/class-admin.php:4833
 msgid "Advanced order duplication prevention is "
 msgstr ""
 
-#: includes/admin/class-admin.php:4806
+#: includes/admin/class-admin.php:4835
 msgid "Basic order duplication prevention is "
 msgstr ""
 
-#: includes/admin/class-admin.php:4820
+#: includes/admin/class-admin.php:4849
 msgid "Dynamic Remarketing is"
 msgstr ""
 
-#: includes/admin/class-admin.php:4839
+#: includes/admin/class-admin.php:4868
 msgid "Enable logger"
 msgstr ""
 
-#: includes/admin/class-admin.php:4876
+#: includes/admin/class-admin.php:4905
 msgid "Enable HTTP request logging"
 msgstr ""
 
-#: includes/admin/class-admin.php:4885
+#: includes/admin/class-admin.php:4914
 msgid "This feature switches web requests from asynchronous (faster, non-blocking) to synchronous (slower, blocking) to record responses. It allows the responses to be analyzed, but also uses more server resources. It's meant for troubleshooting and will turn off automatically after 12 hours. You can extend this time if needed. See the user guide for more details."
 msgstr ""
 
-#: includes/admin/class-admin.php:4903
+#: includes/admin/class-admin.php:4932
 msgid "Show recent log file"
 msgstr ""
 
-#: includes/admin/class-admin.php:4905
+#: includes/admin/class-admin.php:4934
 msgid "No log file found to view"
 msgstr ""
 
-#: includes/admin/class-admin.php:4921
+#: includes/admin/class-admin.php:4950
 msgid "Download recent log file"
 msgstr ""
 
-#: includes/admin/class-admin.php:4923
+#: includes/admin/class-admin.php:4952
 msgid "No log file found to download"
 msgstr ""
 
-#: includes/admin/class-admin.php:4936
+#: includes/admin/class-admin.php:4965
 msgid "Copied!"
 msgstr ""
 
-#: includes/admin/class-admin.php:4940
+#: includes/admin/class-admin.php:4969
 msgid "Copy log file links"
 msgstr ""
 
-#: includes/admin/class-admin.php:4942
+#: includes/admin/class-admin.php:4971
 msgid "No log file links found to copy"
 msgstr ""
 
-#: includes/admin/class-admin.php:4962
+#: includes/admin/class-admin.php:4991
 msgid "Enable variations output"
 msgstr ""
 
-#: includes/admin/class-admin.php:4968
+#: includes/admin/class-admin.php:4997
 msgid "In order for this to work you need to upload your product feed including product variations and the item_group_id. Disable it, if you choose only to upload the parent product for variable products."
 msgstr ""
 
-#: includes/admin/class-admin.php:4985
+#: includes/admin/class-admin.php:5014
 msgid "Retail"
 msgstr ""
 
-#: includes/admin/class-admin.php:4996
+#: includes/admin/class-admin.php:5025
 msgid "Education"
 msgstr ""
 
-#: includes/admin/class-admin.php:5007
+#: includes/admin/class-admin.php:5036
 msgid "Hotels and rentals"
 msgstr ""
 
-#: includes/admin/class-admin.php:5018
+#: includes/admin/class-admin.php:5047
 msgid "Jobs"
 msgstr ""
 
-#: includes/admin/class-admin.php:5029
+#: includes/admin/class-admin.php:5058
 msgid "Local deals"
 msgstr ""
 
-#: includes/admin/class-admin.php:5040
+#: includes/admin/class-admin.php:5069
 msgid "Real estate"
 msgstr ""
 
-#: includes/admin/class-admin.php:5051
+#: includes/admin/class-admin.php:5080
 msgid "Custom"
 msgstr ""
 
-#: includes/admin/class-admin.php:5075
+#: includes/admin/class-admin.php:5104
 msgid "ID of your Google Merchant Center account. It looks like this: 12345678"
 msgstr ""
 
-#: includes/admin/class-admin.php:5087
+#: includes/admin/class-admin.php:5116
 msgid "post ID (default)"
 msgstr ""
 
-#: includes/admin/class-admin.php:5096
+#: includes/admin/class-admin.php:5125
 msgid "SKU"
 msgstr ""
 
-#: includes/admin/class-admin.php:5106
+#: includes/admin/class-admin.php:5135
 msgid "ID for the WooCommerce Google Product Feed. Outputs the post ID with woocommerce_gpf_ prefix *"
 msgstr ""
 
-#: includes/admin/class-admin.php:5116
+#: includes/admin/class-admin.php:5145
 msgid "ID for the WooCommerce Google Listings & Ads Plugin. Outputs the post ID with gla_ prefix **"
 msgstr ""
 
-#: includes/admin/class-admin.php:5120
+#: includes/admin/class-admin.php:5149
 msgid "Choose a product identifier."
 msgstr ""
 
-#: includes/admin/class-admin.php:5123
+#: includes/admin/class-admin.php:5152
 msgid "* This is for users of the WooCommerce Google Product Feed Plugin"
 msgstr ""
 
-#: includes/admin/class-admin.php:5127
+#: includes/admin/class-admin.php:5156
 msgid "** This is for users of the WooCommerce Google Listings & Ads Plugin"
 msgstr ""
 
-#: includes/admin/class-admin.php:5140
+#: includes/admin/class-admin.php:5169
 msgid "experiment"
 msgstr ""
 
-#: includes/admin/class-admin.php:5153
+#: includes/admin/class-admin.php:5182
 msgid "active"
 msgstr ""
 
-#: includes/admin/class-admin.php:5159
+#: includes/admin/class-admin.php:5188
 msgid "inactive"
 msgstr ""
 
-#: includes/admin/class-admin.php:5165
+#: includes/admin/class-admin.php:5194
 msgid "partially active"
 msgstr ""
 
-#: includes/admin/class-admin.php:5171
+#: includes/admin/class-admin.php:5200
 msgid "override"
 msgstr ""
 
-#: includes/admin/class-admin.php:5177
-#: includes/admin/class-admin.php:5182
+#: includes/admin/class-admin.php:5206
+#: includes/admin/class-admin.php:5211
 msgid "deprecated"
 msgstr ""
 
-#: includes/admin/class-admin.php:5193
+#: includes/admin/class-admin.php:5222
 msgid "Pro Feature"
 msgstr ""
 
-#: includes/admin/class-admin.php:5199
+#: includes/admin/class-admin.php:5228
 msgid "Start a free trial"
 msgstr ""
 
@@ -1383,95 +1391,99 @@ msgstr ""
 msgid "You have entered an invalid Meta (Facebook) CAPI test_event_code."
 msgstr ""
 
-#: includes/admin/class-validations.php:277
+#: includes/admin/class-validations.php:283
+msgid "You have entered an invalid Meta (Facebook) domain verification ID."
+msgstr ""
+
+#: includes/admin/class-validations.php:299
 msgid "You have entered an invalid Bing Ads UET tag ID. It only contains 7 to 9 digits."
 msgstr ""
 
-#: includes/admin/class-validations.php:292
+#: includes/admin/class-validations.php:314
 msgid "You have entered an invalid LinkedIn partner ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:312
+#: includes/admin/class-validations.php:334
 msgid "You have entered an invalid Outbrain advertiser ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:327
+#: includes/admin/class-validations.php:349
 msgid "You have entered an invalid Pinterest ad account ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:342
+#: includes/admin/class-validations.php:364
 msgid "You have entered an invalid Pinterest API token."
 msgstr ""
 
-#: includes/admin/class-validations.php:357
+#: includes/admin/class-validations.php:379
 msgid "You have entered an invalid Twitter pixel ID. It only contains 5 to 7 lowercase letters and numbers."
 msgstr ""
 
-#: includes/admin/class-validations.php:381
+#: includes/admin/class-validations.php:403
 msgid "You have entered an invalid Pinterest pixel ID. It only contains 13 digits."
 msgstr ""
 
-#: includes/admin/class-validations.php:396
+#: includes/admin/class-validations.php:418
 msgid "You have entered an invalid Snapchat pixel ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:411
+#: includes/admin/class-validations.php:433
 msgid "You have entered an invalid Snapchat CAPI token."
 msgstr ""
 
-#: includes/admin/class-validations.php:426
+#: includes/admin/class-validations.php:448
 msgid "You have entered an invalid Taboola account ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:441
+#: includes/admin/class-validations.php:463
 msgid "You have entered an invalid TikTok pixel ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:456
+#: includes/admin/class-validations.php:478
 msgid "You have entered an invalid TikTok Events API access token."
 msgstr ""
 
-#: includes/admin/class-validations.php:471
+#: includes/admin/class-validations.php:493
 msgid "You have entered an invalid TikTok EAPI test_event_code."
 msgstr ""
 
-#: includes/admin/class-validations.php:486
+#: includes/admin/class-validations.php:508
 msgid "You have entered an invalid Hotjar site ID. It only contains 6 to 9 digits."
 msgstr ""
 
-#: includes/admin/class-validations.php:501
+#: includes/admin/class-validations.php:523
 msgid "You have entered an invalid Reddit pixel ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:516
+#: includes/admin/class-validations.php:538
 msgid "You have entered an invalid VWO account ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:531
+#: includes/admin/class-validations.php:553
 msgid "You have entered an invalid Optimizely project ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:546
+#: includes/admin/class-validations.php:568
 msgid "You have entered an invalid AB Tasty account ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:577
+#: includes/admin/class-validations.php:599
 msgid "You have entered the Scroll Tracker thresholds in the wrong format. It must be a list of comma separated percentages, like this \"25,50,75,100\""
 msgstr ""
 
-#: includes/admin/class-validations.php:601
+#: includes/admin/class-validations.php:623
 msgid "You have entered an invalid subscription value multiplier. It must be a number and at least 1.00"
 msgstr ""
 
-#: includes/admin/class-validations.php:623
+#: includes/admin/class-validations.php:645
 msgid "You have entered an invalid conversion adjustments conversion name. Special characters, quotes and single quotes are not allowed due to security reasons."
 msgstr ""
 
-#: includes/admin/class-validations.php:654
+#: includes/admin/class-validations.php:676
 msgid "You have entered an invalid Twitter event ID."
 msgstr ""
 
-#: includes/admin/class-validations.php:680
+#: includes/admin/class-validations.php:702
 msgid "You have entered an invalid LinkedIn conversion ID."
 msgstr ""
 

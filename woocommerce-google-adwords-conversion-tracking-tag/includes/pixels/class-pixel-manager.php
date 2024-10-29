@@ -58,6 +58,15 @@ class Pixel_Manager {
         }
         add_action( 'wp_head', function () {
             self::inject_pmw_opening();
+            // Inject Meta domain verification ID
+            if ( wpm_fs()->can_use_premium_code__premium_only() && Options::get_facebook_domain_verification_id() ) {
+                ?>
+				<meta name="facebook-domain-verification"
+					  content="<?php 
+                echo esc_attr( Options::get_facebook_domain_verification_id() );
+                ?>"/>
+				<?php 
+            }
             if ( wpm_fs()->can_use_premium_code__premium_only() && Environment::is_woocommerce_active() && is_product() ) {
                 if ( Options::is_facebook_microdata_active() ) {
                     Facebook_Microdata::inject_schema( wc_get_product( get_the_ID() ) );
@@ -267,7 +276,7 @@ class Pixel_Manager {
             'methods'             => 'POST',
             'callback'            => [$this, 'pmw_save_imported_settings'],
             'permission_callback' => function () {
-                return current_user_can( 'manage_options' );
+                return Environment::get_user_edit_capability();
             },
         ] );
         /**

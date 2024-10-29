@@ -1202,7 +1202,7 @@ class Environment {
 
 		/**
 		 * If Google Site Kit is active, we need to disable the ads and analytics tags.
-		 * 
+		 *
 		 * Source: https://github.com/google/site-kit-wp/blob/774ea23c2471170c96898f11c1909dedf6bc5db3/includes/Core/Modules/Tags/Module_Web_Tag.php#L31
 		 */
 		if (self::is_google_site_kit_active()) {
@@ -1808,5 +1808,22 @@ class Environment {
 	// And it is also above 3.3.0 which is the version that introduced the as_has_scheduled_action function.
 	public static function get_action_scheduler_minimum_version() {
 		return '3.5.3';
+	}
+
+	/**
+	 * Get the user's editing capability
+	 *
+	 * Determines if the current user has permissions to manage WooCommerce if WooCommerce is active,
+	 * else it returns the 'manage_options' capability.
+	 *
+	 * We need to do it this way because the 'manage_woocommerce' capability is only available if WooCommerce is active,
+	 * and we need it to be working for non-WooCommerce admins as well.
+	 *
+	 * @return string 'manage_woocommerce' if the user can manage WooCommerce, otherwise 'manage_options'
+	 *
+	 * @since 1.44.3
+	 */
+	public static function get_user_edit_capability() {
+		return user_can(wp_get_current_user(), 'manage_woocommerce') ? 'manage_woocommerce' : 'manage_options';
 	}
 }

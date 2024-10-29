@@ -4,7 +4,7 @@ Tags: woocommerce, google analytics, google ads, facebook pixel, conversion trac
 Requires at least: 3.7
 Tested up to: 6.6
 Requires PHP: 7.3
-Stable tag: 1.44.2
+Stable tag: 1.45.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -295,6 +295,12 @@ We are committed to ensuring the security of our customers and their data. If yo
 1. Settings page
 
 == Changelog ==
+
+= 1.45.0  =
+*Release date - 29.10.2024*
+
+* Tweak: Allow shop managers to access the settings page.
+* Tweak: Updated vendor packages.
 
 = 1.44.2  =
 *Release date - 03.10.2024*

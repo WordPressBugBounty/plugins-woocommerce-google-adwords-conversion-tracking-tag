@@ -100,6 +100,7 @@ class Options {
 						'send_additional_client_identifiers' => false,
 					],
 				],
+				'domain_verification_id' => '',
 			],
 			'google'     => [
 				'ads'          => [
@@ -340,6 +341,10 @@ class Options {
 
 	public static function is_facebook_microdata_active() {
 		return (bool) self::get_options_obj()->facebook->microdata;
+	}
+
+	public static function get_facebook_domain_verification_id() {
+		return self::get_options_obj()->facebook->domain_verification_id;
 	}
 
 	/**

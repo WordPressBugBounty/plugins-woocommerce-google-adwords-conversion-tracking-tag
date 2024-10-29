@@ -166,7 +166,7 @@ class Borlabs {
 		}
 
 		// Only run if admin
-		if (!current_user_can('manage_options')) {
+		if (!Environment::get_user_edit_capability()) {
 			return false;
 		}
 

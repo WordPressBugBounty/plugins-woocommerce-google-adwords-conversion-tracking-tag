@@ -231,7 +231,7 @@ JS;
             $this->get_submenu_parent_slug(),
             esc_html__( 'Pixel Manager', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             esc_html__( 'Pixel Manager', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-            'manage_options',
+            Environment::get_user_edit_capability(),
             'wpm',
             [$this, 'plugin_options_page']
         );
@@ -871,6 +871,14 @@ JS;
             'wpm_setting_facebook_capi_user_transparency_send_additional_client_identifiers',
             esc_html__( 'Meta (Facebook): Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [$this, 'setting_facebook_advanced_matching'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // add field for the domain verification meta tag
+        add_settings_field(
+            'wpm_setting_facebook_domain_verification_meta_tag_id',
+            esc_html__( 'Meta (Facebook): Domain Verification Meta Tag ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . $this->html_beta(),
+            [$this, 'setting_html_facebook_domain_verification_id'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -4056,6 +4064,31 @@ JS;
             esc_html_e( 'You need to activate the Meta (Facebook) pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
             echo '</p><br>';
         }
+    }
+
+    public function setting_html_facebook_domain_verification_id() {
+        ?>
+		<input class="pmw mono"
+			   type="text"
+			   id="wpm_setting_facebook_domain_verification_id"
+			   name="wgact_plugin_options[facebook][domain_verification_id]"
+			   size="40"
+			   value="<?php 
+        esc_html_e( Options::get_facebook_domain_verification_id() );
+        ?>"
+		/>
+		<?php 
+        self::display_status_icon( Options::get_facebook_domain_verification_id() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'facebook_domain_verification_id' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<br><br>
+		<?php 
+        esc_html_e( 'The Meta domain verification ID. It looks like this: uk6zwiftxsaywayn14x0aouhz4fhd', 'woocommerce-google-adwords-conversion-tracking-tag' );
     }
 
     // TODO: Added deprecated message on 26.04.2024

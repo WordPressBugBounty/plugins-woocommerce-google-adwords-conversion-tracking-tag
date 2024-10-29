@@ -263,6 +263,28 @@ class Validations {
 			}
 		}
 
+		// validate ['facebook']['domain_verification_id']
+		if (isset($input['facebook']['domain_verification_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['facebook']['domain_verification_id'] = Helpers::trim_string($input['facebook']['domain_verification_id']);
+
+			// The input might look like this <meta name= "facebook-domain-verification" content="uk6zwiftxsaywayn14x04ouhz4fhd" / >
+			// or it might look like this uk6zwiftxsaywayn14x04ouhz4fhd
+			// or like this  content="uk6zwiftxsaywayn14x04ouhz4fhd"
+			// We need to extract the content value
+			$input['facebook']['domain_verification_id'] = preg_replace('/^.*content\s*=\s*["\']?([^"\']+?)["\']?\s*\/?\s*>?$/', '$1', $input['facebook']['domain_verification_id']);
+
+			if (!self::is_facebook_domain_verification_id($input['facebook']['domain_verification_id'])) {
+				$input['facebook']['domain_verification_id']
+					= Options::get_facebook_domain_verification_id()
+					? Options::get_facebook_domain_verification_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-meta-domain-verification-id', esc_html__('You have entered an invalid Meta (Facebook) domain verification ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+
 		// validate Bing Ads UET tag ID
 		if (isset($input['bing']['uet_tag_id'])) {
 
@@ -921,6 +943,13 @@ class Validations {
 	public static function is_facebook_capi_test_event_code( $string ) {
 
 		$re = '/^TEST\d{3,7}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_facebook_domain_verification_id( $string ) {
+
+		$re = '/^[a-zA-Z\d]{20,40}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
