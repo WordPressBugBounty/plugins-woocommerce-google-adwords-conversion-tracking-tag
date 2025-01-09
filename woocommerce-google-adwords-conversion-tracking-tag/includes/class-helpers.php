@@ -893,6 +893,13 @@ class Helpers {
         return [];
     }
 
+    /**
+     * Generates an opening script string with its associated attributes.
+     * The attributes may include those from active plugins like Iubenda or Cookiebot
+     * and can be filtered using the 'pmw_opening_script_string_attributes' hook.
+     *
+     * @return string The formatted opening script string with attributes.
+     */
     public static function get_opening_script_string() {
         $script_string = '';
         $attributes = [];
@@ -904,6 +911,12 @@ class Helpers {
         if ( Environment::is_cookiebot_active() ) {
             $attributes['data-cookieconsent'] = ['ignore'];
         }
+        // Elementor burger menus are not working with Cloudflare's Rocket Loader
+        // source: https://secure.helpscout.net/conversation/2793909416/3974/
+        if ( Environment::is_elementor_active() && Environment::is_server_behind_cloudflare() ) {
+            $attributes['data-cfasync'] = ['false'];
+        }
+        $attributes = apply_filters( 'pmw_opening_script_string_attributes', $attributes );
         // Build the attribute string
         foreach ( $attributes as $attribute => $values ) {
             $script_string .= ' ' . $attribute . '="' . implode( ' ', $values ) . '"';
@@ -968,6 +981,18 @@ class Helpers {
             return '';
         }
         return $current_screen->{$screen};
+    }
+
+    public static function is_url_accessible( $url ) {
+        $response = wp_remote_get( $url );
+        if ( is_wp_error( $response ) ) {
+            return false;
+        }
+        $response_code = wp_remote_retrieve_response_code( $response );
+        if ( 200 !== $response_code ) {
+            return false;
+        }
+        return true;
     }
 
 }

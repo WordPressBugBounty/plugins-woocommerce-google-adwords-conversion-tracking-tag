@@ -436,6 +436,14 @@ class Environment {
 		return is_plugin_active('elementor-pro/elementor-pro.php');
 	}
 
+	public static function is_elementor_free_active() {
+		return is_plugin_active('elementor/elementor.php');
+	}
+
+	public static function is_elementor_active() {
+		return self::is_elementor_free_active() || self::is_elementor_pro_active();
+	}
+
 	public static function is_gtranslate_active() {
 		return is_plugin_active('gtranslate/gtranslate.php');
 	}
@@ -1825,5 +1833,17 @@ class Environment {
 	 */
 	public static function get_user_edit_capability() {
 		return user_can(wp_get_current_user(), 'manage_woocommerce') ? 'manage_woocommerce' : 'manage_options';
+	}
+
+	/**
+	 * Check if the server is behind Cloudflare.
+	 *
+	 * @return bool True if the user can manage WooCommerce, false otherwise
+	 *
+	 * @since 1.45.1
+	 */
+	public static function is_server_behind_cloudflare() {
+		$_server = Helpers::get_input_vars(INPUT_SERVER);
+		return isset($_server['HTTP_CF_CONNECTING_IP']) || isset($_server['HTTP_CF_VISITOR']) || isset($_server['HTTP_CF_RAY']);
 	}
 }

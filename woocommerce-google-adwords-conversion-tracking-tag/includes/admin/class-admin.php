@@ -36,8 +36,39 @@ class Admin {
         add_action( 'init', [$this, 'load_plugin_textdomain'] );
         wpm_fs()->add_filter( 'templates/checkout.php', [$this, 'fs_inject_additional_scripts'] );
         wpm_fs()->add_filter( 'checkout/purchaseCompleted', [$this, 'fs_after_purchase_js'] );
+        add_action( 'admin_head', [__CLASS__, 'output_cody_availability'] );
         // output some info into the wpmDataLayer object in the header
         add_action( 'admin_head', [__CLASS__, 'wpm_data_layer'] );
+    }
+
+    /**
+     * Outputs a JavaScript variable indicating the availability of Cody widget.
+     *
+     * This function checks the accessibility of the Cody widget URL and sets a JavaScript variable `codyAvailable`
+     * to either `true` or `false`. It only executes on the PMW settings page.
+     *
+     * @return void This method does not return a value, as it outputs directly to the page.
+     *
+     * @since 1.45.1
+     */
+    public static function output_cody_availability() {
+        $cody_url = 'https://widget.getcody.ai/public/9ae2c51b-63c2-434b-91b3-33c756d46632';
+        // Only run on the PMW settings page
+        if ( !Environment::is_pmw_settings_page() ) {
+            return;
+        }
+        ?>
+		<script>
+			var pmw_cody = {
+				available: <?php 
+        esc_html_e( ( Helpers::is_url_accessible( $cody_url ) ? 'true' : 'false' ) );
+        ?>,
+				url: '<?php 
+        esc_html_e( $cody_url );
+        ?>'
+			};
+		</script>
+		<?php 
     }
 
     public static function wpm_data_layer() {
@@ -49,15 +80,6 @@ class Admin {
         ?>;
 		</script>
 		<?php 
-    }
-
-    private function if_is_wpm_admin_page() {
-        $_get = Helpers::get_input_vars( INPUT_GET );
-        if ( !empty( $_get['page'] ) && 'wpm' === $_get['page'] ) {
-            return true;
-        } else {
-            return false;
-        }
     }
 
     // This function is only called when our plugin's page loads!
@@ -249,7 +271,7 @@ JS;
     public function plugin_admin_init() {
         register_setting( 'wpm_plugin_options_group', 'wgact_plugin_options', ['\\SweetCode\\Pixel_Manager\\Admin\\Validations', 'options_validate'] );
         // don't load the UX if we are not on the plugin UX page
-        if ( !$this->if_is_wpm_admin_page() ) {
+        if ( !Environment::is_pmw_settings_page() ) {
             return;
         }
         $this->add_section_main();

@@ -1,3 +1,48 @@
+= 1.44.2 = 03.10.2024
+
+* Tweak: Reenabled the new variations selection logic, added some safeguards and only activate it in case the PMW is lazy loaded.
+* Tweak: Added support for GA4 add_payment_info and add_shipping_info events for WooCommerce Blocks.
+* Tweak: Updated vendor packages.
+* Tweak: Handle missing product IDs in data layer on view-item events more gracefully.
+* Tweak: Updated a documentation link.
+* Fix: Fixed a wrong status output in the advanced Google settings for the enhanced e-commmerce event output.
+
+= 1.44.1 = 11.09.2024
+
+* Fix: Temporary roll back to old variations selection logic to prevent issues with some themes.
+
+= 1.44.0 = 05.09.2024
+
+* New: Filters to add custom parameters for Google Analytics orders and order items.
+* Tweak: Bumped up WP version compatibility to 6.6
+* Tweak: Updated vendor packages.
+* Tweak: Update the translation file.
+* Tweak: Improved the logic to detect a preselected variation on the product page on page load, especially with Lazy Loading enabled.
+* Tweak: Added safeguards to prevent warnings when generating the payment gateway accuracy report for the UX.
+* Fix: Fixed a documentation link.
+
+= 1.43.5 = 16.07.2024
+
+* Tweak: Updated vendor packages.
+* Tweak: Improved logic to detect orders overview page and order edit pages.
+* Tweak: Renamed the pmw_custom_cogs_meta_key filter to pmw_custom_cogs_product_meta_key.
+
+= 1.43.4 = 26.06.2024
+
+* Tweak: Added filters to adjust the output of the order value for statistics.
+* Tweak: Few improvements in the admin scripts to avoid unnecessary console errors.
+* Tweak: Bumped up WC version compatibility to 9.0
+* Fix: Removed the experimental Polyfill.io feature as the service has been compromised. (This feature was not active by default and had to be enabled manually by enabling an experimental filter.)
+
+= 1.43.3 = 18.06.2024
+
+* Tweak: Ensured `get_transient_identifiers()` returns an array.
+* Tweak: Added a few semicolons into the JavaScript inline code output to bolster the code against subpar JavaScript "optimizers" that otherwise may break the code.
+* Tweak: Added filters for Google Site Kit. If Google Ads and/or GA4 are enabled in the Pixel Manager, it will prevent Google Site Kit from adding its own tracking code.
+* Fix: Moved some GA4 JavaScript library functions from the premium to the free version, as they are called in the free version as well.
+* Fix: Added a safeguard to prevent a fatal error in case a parent product can't be loaded.
+* Fix: Fixed a bug when consent was changed in a Termly CMP.
+
 = 1.43.2 = 05.06.2024
 
 * Tweak: Refactored directory structure.

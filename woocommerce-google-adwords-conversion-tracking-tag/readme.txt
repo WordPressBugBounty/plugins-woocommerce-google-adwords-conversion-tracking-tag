@@ -2,9 +2,9 @@
 Contributors: alekv, wolfbaer
 Tags: woocommerce, google analytics, google ads, facebook pixel, conversion tracking
 Requires at least: 3.7
-Tested up to: 6.6
+Tested up to: 6.7
 Requires PHP: 7.3
-Stable tag: 1.45.0
+Stable tag: 1.46.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -20,9 +20,9 @@ Boost your sales and cut advertising costs with the Pixel Manager, a plugin that
 
 [says @dpackert24](https://wordpress.org/support/topic/simple-easy-to-use-does-what-it-says-on-the-tin/)
 
-> Saved me thousands...and top-notch support and docs.
+> Pixel Manager for WooCommerce is the go-to plugin for both tech wizards and casual users.
 
-[says @caesarsandiego](https://wordpress.org/support/topic/world-class-quality-solution/)
+[says @chxz](https://wordpress.org/support/topic/the-go-to-plugin-tracking-everything/)
 
 This plugin tracks WooCommerce shop visitors and collects valuable data for conversion optimization of your shop and paid ads, dynamic remarketing, and reporting. It's designed to boost sales and cut advertising costs through precise e-commerce tracking.
 
@@ -296,62 +296,23 @@ We are committed to ensuring the security of our customers and their data. If yo
 
 == Changelog ==
 
+= 1.46.0  =
+*Release date - 09.01.2024*
+
+* New: Added support for the Cookiefirst CMP.
+* Tweak: Added safeguard to get_payment_gateways method to prevent a fatal error in some edge cases when a payment gateway is not following the WooCommerce standard.
+* Tweak: Added data collection placeholder for gateway analysis when the analysis is run when no orders have been processed through the Pixel Manager yet.
+* Tweak: Bumped up WC version compatibility to 9.5
+* Tweak: Bumped up WP version compatibility to 6.7
+* Tweak: Switched gtag.js ID priority from GA4 to Google Ads, as GA4 in rare cases is buggy and returns a 404.
+* Tweak: Prevent double logging of payment method change.
+* Tweak: Reactivated the AI support chat bot.
+
 = 1.45.0  =
 *Release date - 29.10.2024*
 
 * Tweak: Allow shop managers to access the settings page.
 * Tweak: Updated vendor packages.
-
-= 1.44.2  =
-*Release date - 03.10.2024*
-
-* Tweak: Reenabled the new variations selection logic, added some safeguards and only activate it in case the PMW is lazy loaded.
-* Tweak: Added support for GA4 add_payment_info and add_shipping_info events for WooCommerce Blocks.
-* Tweak: Updated vendor packages.
-* Tweak: Handle missing product IDs in data layer on view-item events more gracefully.
-* Tweak: Updated a documentation link.
-* Fix: Fixed a wrong status output in the advanced Google settings for the enhanced e-commmerce event output.
-
-= 1.44.1  =
-*Release date - 11.09.2024*
-
-* Fix: Temporary roll back to old variations selection logic to prevent issues with some themes.
-
-= 1.44.0  =
-*Release date - 05.09.2024*
-
-* New: Filters to add custom parameters for Google Analytics orders and order items.
-* Tweak: Bumped up WP version compatibility to 6.6
-* Tweak: Updated vendor packages.
-* Tweak: Update the translation file.
-* Tweak: Improved the logic to detect a preselected variation on the product page on page load, especially with Lazy Loading enabled.
-* Tweak: Added safeguards to prevent warnings when generating the payment gateway accuracy report for the UX.
-* Fix: Fixed a documentation link.
-
-= 1.43.5  =
-*Release date - 16.07.2024*
-
-* Tweak: Updated vendor packages.
-* Tweak: Improved logic to detect orders overview page and order edit pages.
-* Tweak: Renamed the pmw_custom_cogs_meta_key filter to pmw_custom_cogs_product_meta_key.
-
-= 1.43.4  =
-*Release date - 26.06.2024*
-
-* Tweak: Added filters to adjust the output of the order value for statistics.
-* Tweak: Few improvements in the admin scripts to avoid unnecessary console errors.
-* Tweak: Bumped up WC version compatibility to 9.0
-* Fix: Removed the experimental Polyfill.io feature as the service has been compromised. (This feature was not active by default and had to be enabled manually by enabling an experimental filter.)
-
-= 1.43.3  =
-*Release date - 18.06.2024*
-
-* Tweak: Ensured `get_transient_identifiers()` returns an array.
-* Tweak: Added a few semicolons into the JavaScript inline code output to bolster the code against subpar JavaScript "optimizers" that otherwise may break the code.
-* Tweak: Added filters for Google Site Kit. If Google Ads and/or GA4 are enabled in the Pixel Manager, it will prevent Google Site Kit from adding its own tracking code.
-* Fix: Moved some GA4 JavaScript library functions from the premium to the free version, as they are called in the free version as well.
-* Fix: Added a safeguard to prevent a fatal error in case a parent product can't be loaded.
-* Fix: Fixed a bug when consent was changed in a Termly CMP.
 
 = Earlier versions =
 For the changelog of earlier versions, please refer to the changelog in the /changelog-archive/ folder.

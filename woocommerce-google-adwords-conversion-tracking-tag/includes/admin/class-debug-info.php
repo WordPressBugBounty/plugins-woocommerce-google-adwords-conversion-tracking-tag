@@ -46,6 +46,10 @@ class Debug_Info {
             $html .= 'wp_remote_get to Facebook Graph API:   ' . self::pmw_remote_get_response( 'https://graph.facebook.com/facebook/picture?redirect=false' ) . PHP_EOL;
             //        $html           .= 'wp_remote_post to Facebook Graph API: ' . self::wp_remote_get_response('https://graph.facebook.com/') . PHP_EOL;
             $html .= PHP_EOL;
+            // is server behind Cloudflare
+            $is_server_behind_cloudflare = ( Environment::is_server_behind_cloudflare() ? 'yes' : 'no' );
+            $html .= 'Server is behind Cloudflare: ' . $is_server_behind_cloudflare . PHP_EOL;
+            $html .= PHP_EOL;
             $multisite_enabled = ( is_multisite() ? 'yes' : 'no' );
             $html .= 'Multisite enabled:            ' . $multisite_enabled . PHP_EOL;
             $wp_debug = 'no';
@@ -497,8 +501,20 @@ class Debug_Info {
         return $enabled_gateways;
     }
 
+    /**
+     * Get all payment gateways
+     *
+     * It contains a safeguard to check if WC()->payment_gateways is set.
+     * In rare cases, it might not be set if a payment gateway is not following the WooCommerce standards.
+     * Reference: https://secure.helpscout.net/conversation/2748380728/3697/
+     *
+     * @return array
+     */
     public static function get_payment_gateways() {
-        return WC()->payment_gateways->get_available_payment_gateways();
+        if ( function_exists( 'WC' ) && isset( WC()->payment_gateways ) ) {
+            return WC()->payment_gateways->get_available_payment_gateways();
+        }
+        return [];
     }
 
     private static function get_last_orders_by_gateway_id( $gateway_id, $limit ) {
