@@ -42,7 +42,8 @@ class Debug_Info {
             $html .= 'transients enabled:        ' . $transients_enabled . PHP_EOL;
             $html .= PHP_EOL;
             $html .= 'wp_remote_get to Cloudflare:           ' . self::pmw_remote_get_response( 'https://www.cloudflare.com/cdn-cgi/trace' ) . PHP_EOL;
-            $html .= 'wp_remote_get to Google Analytics API: ' . self::pmw_remote_get_response( 'https://www.google-analytics.com/debug/collect' ) . PHP_EOL;
+            //			$html .= 'wp_remote_get to Google Analytics API: ' . self::pmw_remote_get_response('https://www.google-analytics.com/debug/collect') . PHP_EOL;
+            $html .= 'wp_remote_post to GA4 Measurement Protocol API: ' . self::pmw_remote_post_response( 'https://www.google-analytics.com/mp/collect' ) . PHP_EOL;
             $html .= 'wp_remote_get to Facebook Graph API:   ' . self::pmw_remote_get_response( 'https://graph.facebook.com/facebook/picture?redirect=false' ) . PHP_EOL;
             //        $html           .= 'wp_remote_post to Facebook Graph API: ' . self::wp_remote_get_response('https://graph.facebook.com/') . PHP_EOL;
             $html .= PHP_EOL;
@@ -430,6 +431,30 @@ class Debug_Info {
                 return self::show_warning( true ) . $response_code;
             }
         }
+    }
+
+    /**
+     *  Test if a server is reachable, no matter what response code, using wp_remote_post
+     *
+     * @param $url
+     * @return int|string
+     */
+    private static function pmw_remote_post_response( $url ) {
+        $response = wp_remote_post( $url, [
+            'timeout'             => 4,
+            'sslverify'           => !Geolocation::is_localhost(),
+            'limit_response_size' => 5000,
+            'blocking'            => true,
+            'redirection'         => 0,
+        ] );
+        if ( is_wp_error( $response ) ) {
+            return self::show_warning( true ) . $response->get_error_message();
+        }
+        $response_code = wp_remote_retrieve_response_code( $response );
+        if ( $response_code >= 200 && $response_code < 300 ) {
+            return $response_code;
+        }
+        return self::show_warning( true ) . $response_code;
     }
 
     private static function pmw_get_final_url( $url ) {

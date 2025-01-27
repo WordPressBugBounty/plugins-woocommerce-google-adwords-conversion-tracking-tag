@@ -4,7 +4,7 @@ Tags: woocommerce, google analytics, google ads, facebook pixel, conversion trac
 Requires at least: 3.7
 Tested up to: 6.7
 Requires PHP: 7.3
-Stable tag: 1.46.0
+Stable tag: 1.46.1
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -295,6 +295,14 @@ We are committed to ensuring the security of our customers and their data. If yo
 1. Settings page
 
 == Changelog ==
+
+= 1.46.1  =
+*Release date - 27.01.2024*
+
+* Tweak: Cast permission_callback input variable into bool.
+* Tweak: Workaround for a rare Google tracking ID URL bug.
+* Tweak: Added a safeguard to prevent a fatal error in some edge cases when third-party code changes the data output from a string to an array in prepare_custom_rest_handlers.
+* Tweak: Bumped up WC version compatibility to 9.6
 
 = 1.46.0  =
 *Release date - 09.01.2024*

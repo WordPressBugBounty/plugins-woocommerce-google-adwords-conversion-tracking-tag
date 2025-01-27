@@ -1836,6 +1836,18 @@ class Environment {
 	}
 
 	/**
+	 * Check if the current user can edit options
+	 *
+	 * @return bool
+	 *
+	 * @since 1.46.1
+	 */
+	public static function can_current_user_edit_options() {
+		return current_user_can('manage_woocommerce') || current_user_can('manage_options');
+	}
+
+
+	/**
 	 * Check if the server is behind Cloudflare.
 	 *
 	 * @return bool True if the user can manage WooCommerce, false otherwise

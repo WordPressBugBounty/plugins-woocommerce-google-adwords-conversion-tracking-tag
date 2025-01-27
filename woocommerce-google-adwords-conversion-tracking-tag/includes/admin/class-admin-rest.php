@@ -59,7 +59,7 @@ class Admin_REST {
 				wp_send_json_error('Unknown notification action');
 			},
 			'permission_callback' => function () {
-				return Environment::get_user_edit_capability();
+				return Environment::can_current_user_edit_options();
 			},
 		]);
 
@@ -131,7 +131,7 @@ class Admin_REST {
 				Logger::debug('Unknown LTV recalculation action: ' . $data['action']);
 			},
 			'permission_callback' => function () {
-				return Environment::get_user_edit_capability();
+				return Environment::can_current_user_edit_options();
 			},
 		]);
 	}

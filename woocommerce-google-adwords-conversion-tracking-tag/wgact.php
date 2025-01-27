@@ -10,16 +10,16 @@
  * Developer URI:        https://sweetcode.com
  * Text Domain:          woocommerce-google-adwords-conversion-tracking-tag
  * Domain path:          /languages
- * * Version:              1.46.0
+ * Version:              1.46.1
  *
  * WC requires at least: 3.7
- * WC tested up to:      9.5
+ * WC tested up to:      9.6
  *
  * License:              GNU General Public License v3.0
  * License URI:          http://www.gnu.org/licenses/gpl-3.0.html
  *
  **/
-const PMW_CURRENT_VERSION = '1.46.0';
+const PMW_CURRENT_VERSION = '1.46.1';
 // TODO add option checkbox on uninstall and ask if user wants to delete options from db
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly

@@ -519,4 +519,48 @@ class Google_Helpers {
         return (bool) preg_match( $pattern, $gclid );
     }
 
+    /**
+     * Determine the Google Tracking ID
+     *
+     * @return string
+     *
+     * @since 1.46.1
+     */
+    public static function determine_google_tracking_id() {
+        $tracking_id = '';
+        $google_base_url = 'https://www.googletagmanager.com/gtag/js?id=';
+        // If Google Ads is active and the URL is reachable, return the Google Ads conversion ID
+        if ( Options::is_google_ads_active() && Helpers::is_url_accessible( $google_base_url . 'AW-' . Options::get_google_ads_conversion_id() ) ) {
+            return 'AW-' . Options::get_google_ads_conversion_id();
+        }
+        // If Google Analytics is active and the URL is reachable, return the Google Analytics ID
+        if ( Options::is_google_analytics_active() && Helpers::is_url_accessible( $google_base_url . Options::get_ga4_measurement_id() ) ) {
+            return (string) Options::get_ga4_measurement_id();
+        }
+        // Fallback to base Google Ads conversion ID if the URL is not reachable
+        if ( Options::is_google_ads_active() && Helpers::is_url_accessible( $google_base_url . Options::get_google_ads_conversion_id() ) ) {
+            return (string) Options::get_google_ads_conversion_id();
+        }
+        return $tracking_id;
+    }
+
+    /**
+     * Get the Google Tracking ID
+     *
+     * @return string
+     *
+     * @since 1.46.1
+     */
+    public static function get_google_tracking_id() {
+        $transient_name = 'pmw_google_tracking_id';
+        // If saved in transient get from transient
+        $google_tracking_id = get_transient( $transient_name );
+        if ( $google_tracking_id ) {
+            return $google_tracking_id;
+        }
+        $google_tracking_id = apply_filters( 'pmw_google_tracking_id', self::determine_google_tracking_id() );
+        set_transient( $transient_name, $google_tracking_id, HOUR_IN_SECONDS );
+        return $google_tracking_id;
+    }
+
 }

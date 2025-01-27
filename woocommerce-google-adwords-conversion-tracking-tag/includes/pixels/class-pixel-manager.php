@@ -214,34 +214,44 @@ class Pixel_Manager {
         return '/?rest_route=/' . $this->rest_namespace . $this->gads_conversion_adjustments_route;
     }
 
-    // https://wordpress.stackexchange.com/a/377954/68337
+    /**
+     * Prepares custom REST API handlers for specific routes.
+     *
+     * This function is used to short-circuit the default REST API behavior for specific routes.
+     * In this case, it is used to output a CSV file for the Google Ads conversion adjustments.
+     *
+     * Input: https://wordpress.stackexchange.com/a/377954/68337
+     *
+     * @param bool|array       $served  The served result, used to short-circuit the default REST API behavior.
+     * @param WP_REST_Response $result  The original result to be served by the REST endpoint.
+     * @param WP_REST_Request  $request The current request instance containing request data.
+     * @param WP_REST_Server   $server  The REST server instance for serving responses and managing headers.
+     * @return bool|array  Returns the original $served result if the route doesn't match. Otherwise, processes the request and exits.
+     */
     public function prepare_custom_rest_handlers(
         $served,
         $result,
         $request,
         $server
     ) {
-        //		error_log('prepare_custom_rest_responses');
-        // error log $request->get_route();
-        //		error_log($request->get_route());
         // If $request->get_route() is not /pmw/v1/google-ads/conversion-adjustments then return $served
         if ( strpos( $request->get_route(), $this->rest_namespace . $this->gads_conversion_adjustments_route ) === false ) {
             return $served;
         }
-        //		if (strpos($request->get_route(), '/google-ads/conversion-adjustments/') !== 0) {
-        //			return $served;
-        //		}
-        // Send headers
+        // If $result->get_data() is an array, return $served
+        // This is to prevent buggy behavior created by some third-party plugins
+        // https://secure.helpscout.net/conversation/2827410362/4097/
+        if ( is_array( $result->get_data() ) ) {
+            return $served;
+        }
         // For production
         $server->send_header( 'Content-Type', 'text/csv' );
         // For testing
         //		$server->send_header('Content-Type', 'text/html');
-        //		$server->send_header( 'Content-Type', 'text/xml' );
-        //		$server->send_header( 'Content-Type', 'application/xml' );
+        //		$server->send_header('Content-Type', 'text/xml');
+        //		$server->send_header('Content-Type', 'application/xml');
         // Echo the XML that's returned by smg_feed().
-        // Turn off phpcs because we're echoing the XML.
         esc_html_e( $result->get_data() );
-        // And then exit.
         exit;
     }
 
@@ -276,7 +286,7 @@ class Pixel_Manager {
             'methods'             => 'POST',
             'callback'            => [$this, 'pmw_save_imported_settings'],
             'permission_callback' => function () {
-                return Environment::get_user_edit_capability();
+                return Environment::can_current_user_edit_options();
             },
         ] );
         /**
@@ -809,6 +819,7 @@ class Pixel_Manager {
                 'id_type' => Google_Helpers::get_ga_id_type(),
             ];
         }
+        $data['tracking_id'] = Google_Helpers::get_google_tracking_id();
         $data['tcf_support'] = Options::is_google_tcf_support_active();
         $data['consent_mode'] = [
             'is_active'          => Options::is_google_consent_mode_active(),
