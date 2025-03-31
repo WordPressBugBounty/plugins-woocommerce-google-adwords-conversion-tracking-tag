@@ -995,4 +995,30 @@ class Helpers {
         return true;
     }
 
+    public static function get_pmw_distro() {
+        return PMW_DISTRO;
+    }
+
+    public static function is_pmw_wcm_distro() {
+        return 'wcm' === PMW_DISTRO;
+    }
+
+    public static function is_pmw_pro_version_active() {
+        if ( function_exists( 'wpm_fs' ) ) {
+            return wpm_fs()->can_use_premium_code__premium_only();
+        }
+        if ( 'woocommerce-pixel-manager/woocommerce-pixel-manager.php' === PMW_PLUGIN_BASENAME ) {
+            return true;
+        }
+        return false;
+    }
+
+    public static function is_pmw_pro_version_not_active() {
+        return !self::is_pmw_pro_version_active();
+    }
+
+    public static function is_wcm_distro_free_version() {
+        return self::is_pmw_wcm_distro() && self::is_pmw_pro_version_not_active();
+    }
+
 }

@@ -1343,8 +1343,6 @@ class Environment {
 
 	public static function enable_compatibility_mode() {
 
-		self::compatibility_mode_yoast_seo();
-
 		self::compatibility_mode_prevent_third_party_js_optimization();
 	}
 
@@ -1485,12 +1483,6 @@ class Environment {
 		add_filter('rocket_exclude_js', [ __CLASS__, 'add_wp_rocket_exclusions' ]);
 		add_filter('rocket_minify_excluded_external_js', [ __CLASS__, 'add_wp_rocket_exclusions' ]);
 		add_filter('rocket_excluded_inline_js_content', [ __CLASS__, 'add_wp_rocket_exclusions' ]);
-	}
-
-	public static function compatibility_mode_yoast_seo() {
-		if (self::is_yoast_seo_active() && Options::is_facebook_microdata_active()) {
-			add_filter('option_wpseo_social', [ __CLASS__, 'disable_yoast_seo_facebook_social' ]);
-		}
 	}
 
 	private static function get_pmw_script_identifiers() {

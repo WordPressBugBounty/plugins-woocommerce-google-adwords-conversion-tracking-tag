@@ -23,6 +23,7 @@ class Debug_Info {
             $tier = ( wpm_fs()->can_use_premium_code__premium_only() ? 'pro' : 'free' );
             $html .= 'Tier:    ' . $tier . PHP_EOL;
             $html .= 'Distro:  ' . PMW_DISTRO . PHP_EOL;
+            $html .= 'Plugin basename: ' . PMW_PLUGIN_BASENAME . PHP_EOL;
             // if Freemius is active, show the debug info
             $html = self::add_freemius_account_details( $html );
             $html .= PHP_EOL . '## System Environment ##' . PHP_EOL . PHP_EOL;
@@ -66,7 +67,7 @@ class Debug_Info {
             $html .= 'Hosting provider: ' . Environment::get_hosting_provider() . PHP_EOL;
             if ( Environment::is_woocommerce_active() ) {
                 $html .= PHP_EOL . '## WooCommerce ##' . PHP_EOL . PHP_EOL;
-                $html .= 'Default currency: ' . get_woocommerce_currency() . PHP_EOL;
+                $html .= 'Default currency: ' . get_woocommerce_currency() . PHP_EOL . PHP_EOL;
                 $html .= 'Shop URL:         ' . get_home_url() . PHP_EOL;
                 $html .= 'Cart URL:         ' . wc_get_cart_url() . PHP_EOL;
                 $html .= 'Checkout URL:     ' . wc_get_checkout_url() . PHP_EOL;

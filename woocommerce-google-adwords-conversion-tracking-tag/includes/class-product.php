@@ -198,16 +198,23 @@ class Product {
 		return (bool) apply_filters('pmw_output_product_prices_with_tax', true);
 	}
 
-	// https://stackoverflow.com/a/56278308/4688612
-	// https://stackoverflow.com/a/39034036/4688612
+	/**
+	 * Retrieve the brand name for a given product ID based on brand taxonomy settings.
+	 *
+	 * Source: https://stackoverflow.com/a/56278308/4688612
+	 * Source: https://stackoverflow.com/a/39034036/4688612
+	 *
+	 * @param int $product_id The ID of the product for which to get the brand name.
+	 * @return string The brand name associated with the product, or an empty string if no brand is found.
+	 */
 	public static function get_brand_name( $product_id ) {
 
-		$brand_taxonomy = 'pa_brand';
+		// Works for the WooCommere internal brand taxonomy since version 9.7
+		// and for the deprecated WooCommerce Brands plugin
+		$brand_taxonomy = 'product_brand';
 
 		if (Environment::is_yith_wc_brands_active()) {
 			$brand_taxonomy = 'yith_product_brand';
-		} elseif (Environment::is_woocommerce_brands_active()) {
-			$brand_taxonomy = 'product_brand';
 		}
 
 		$brand_taxonomy = apply_filters_deprecated('wooptpm_custom_brand_taxonomy', [ $brand_taxonomy ], '1.13.0', 'pmw_custom_brand_taxonomy');
@@ -216,13 +223,17 @@ class Product {
 		// Use custom brand_taxonomy
 		$brand_taxonomy = apply_filters('pmw_custom_brand_taxonomy', $brand_taxonomy);
 
-		if (self::get_brand_by_taxonomy($product_id, $brand_taxonomy)) {
-			return self::get_brand_by_taxonomy($product_id, $brand_taxonomy);
-		} elseif (self::get_brand_by_taxonomy($product_id, 'pa_' . $brand_taxonomy)) {
-			return self::get_brand_by_taxonomy($product_id, 'pa_' . $brand_taxonomy);
-		} else {
-			return '';
+		$brand = self::get_brand_by_taxonomy($product_id, $brand_taxonomy);
+		if ($brand) {
+			return $brand;
 		}
+
+		$brand = self::get_brand_by_taxonomy($product_id, 'pa_' . $brand_taxonomy);
+		if ($brand) {
+			return $brand;
+		}
+
+		return '';
 	}
 
 	public static function get_brand_by_taxonomy( $product_id, $taxonomy ) {
@@ -324,16 +335,26 @@ class Product {
 			}
 
 			$product_data = [
-				'id'           => $order_item_data['product_id'],
-				'variation_id' => $order_item_data['variation_id'],
-				'name'         => $order_item_data['name'],
-				'quantity'     => $order_item_data['quantity'],
-				'price'        => Google_Helpers::pmw_get_order_item_price($order_item),
-				'subtotal'     => (float) Helpers::format_decimal($order_item_data['subtotal'], 2),
-				'subtotal_tax' => (float) Helpers::format_decimal($order_item_data['subtotal_tax'], 2),
-				'total'        => (float) Helpers::format_decimal($order_item_data['total'], 2),
-				'total_tax'    => (float) Helpers::format_decimal($order_item_data['total_tax'], 2),
+				'id'                  => $order_item_data['product_id'],
+				'variation_id'        => $order_item_data['variation_id'],
+				'name'                => $order_item_data['name'],
+				'quantity'            => $order_item_data['quantity'],
+				'price'               => Google_Helpers::pmw_get_order_item_price($order_item),
+				'subtotal'            => (float) Helpers::format_decimal($order_item_data['subtotal'], 2),
+				'subtotal_tax'        => (float) Helpers::format_decimal($order_item_data['subtotal_tax'], 2),
+				'total'               => (float) Helpers::format_decimal($order_item_data['total'], 2),
+				'total_tax'           => (float) Helpers::format_decimal($order_item_data['total_tax'], 2),
+				'variant_description' => (string) ( $product->get_type() === 'variation' ) ? self::get_formatted_variant_text($product) : '',
 			];
+
+			// Add the name of the parent product if the product is a variation
+			if ($product->get_type() === 'variation') {
+				// get the parent product
+				$parent_product               = wc_get_product($product->get_parent_id());
+				$product_data['brand']        = self::get_brand_name($parent_product->get_id());
+				$product_data['name_variant'] = $product_data['name'];
+				$product_data['name']         = $parent_product->get_name();
+			}
 
 			// Filter to add custom item parameters
 			// that will be added to $product_data['custom_parameters']

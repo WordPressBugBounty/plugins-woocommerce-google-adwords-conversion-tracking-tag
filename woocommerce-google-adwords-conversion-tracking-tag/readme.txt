@@ -1,10 +1,10 @@
-=== Pixel Manager for WooCommerce - Track Google Analytics, Google Ads, TikTok and more ===
+=== Pixel Manager for WooCommerce – Track Conversions and Analytics, Google Ads, TikTok and more ===
 Contributors: alekv, wolfbaer
 Tags: woocommerce, google analytics, google ads, facebook pixel, conversion tracking
 Requires at least: 3.7
 Tested up to: 6.7
 Requires PHP: 7.3
-Stable tag: 1.46.1
+Stable tag: 1.47.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -296,8 +296,22 @@ We are committed to ensuring the security of our customers and their data. If yo
 
 == Changelog ==
 
+= 1.47.0  =
+*Release date - 31.03.2025*
+
+* Tweak: Cast permission callback return values to prevent semgrep warnings.
+* Tweak: Added a feature to show the PMW pro features demo in the wp.org playground.
+* Tweak: Removed some cruft.
+* Tweak: Added new pmw_options filter that allows to filter the options array before it is used.
+* Tweak: Added order extra details output that helps with debugging.
+* Tweak: Improved the loading logic to prevent fatal errors if several versions of the plugin are activated at the same time.
+* Tweak: Numerous code syntax improvements.
+* Tweak: Improved variation name output for GA4.
+* Tweak: Added support fo the new WooCommerce internal brand feature.
+* Tweak: Improved the update_cart event listener.
+
 = 1.46.1  =
-*Release date - 27.01.2024*
+*Release date - 27.01.2025*
 
 * Tweak: Cast permission_callback input variable into bool.
 * Tweak: Workaround for a rare Google tracking ID URL bug.
@@ -305,7 +319,7 @@ We are committed to ensuring the security of our customers and their data. If yo
 * Tweak: Bumped up WC version compatibility to 9.6
 
 = 1.46.0  =
-*Release date - 09.01.2024*
+*Release date - 09.01.2025*
 
 * New: Added support for the Cookiefirst CMP.
 * Tweak: Added safeguard to get_payment_gateways method to prevent a fatal error in some edge cases when a payment gateway is not following the WooCommerce standard.

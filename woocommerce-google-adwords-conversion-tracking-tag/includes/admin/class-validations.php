@@ -136,7 +136,7 @@ class Validations {
 			// Trim space, newlines and quotes
 			$input['google']['analytics']['ga4']['data_api']['property_id'] = Helpers::trim_string($input['google']['analytics']['ga4']['data_api']['property_id']);
 
-			if (!self::is_google_analytics_4_property_id($input['google']['analytics']['ga4']['data_api']['property_id'])) {
+			if (!self::is_ga4_property_id($input['google']['analytics']['ga4']['data_api']['property_id'])) {
 				$input['google']['analytics']['ga4']['data_api']['property_id']
 					= Options::get_ga4_data_api_property_id()
 					? Options::get_ga4_data_api_property_id()
@@ -990,7 +990,7 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
-	public static function is_google_analytics_4_property_id( $string ) {
+	public static function is_ga4_property_id( $string ) {
 
 		$re = '/^\d{6,12}$/m';
 

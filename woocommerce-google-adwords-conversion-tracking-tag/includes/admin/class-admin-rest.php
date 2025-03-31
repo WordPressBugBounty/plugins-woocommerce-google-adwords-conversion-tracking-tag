@@ -26,6 +26,11 @@ class Admin_REST {
 		add_action('rest_api_init', [ $this, 'register_routes' ]);
 	}
 
+	// Extracted the code because the QIT semgrep rule was triggered
+	public function can_current_user_edit_options() {
+		return Environment::can_current_user_edit_options();
+	}
+
 	public function register_routes() {
 
 		register_rest_route($this->rest_namespace, '/notifications/', [
@@ -58,9 +63,7 @@ class Admin_REST {
 
 				wp_send_json_error('Unknown notification action');
 			},
-			'permission_callback' => function () {
-				return Environment::can_current_user_edit_options();
-			},
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
 
 		// A route for the ltv recalculation
@@ -130,9 +133,7 @@ class Admin_REST {
 
 				Logger::debug('Unknown LTV recalculation action: ' . $data['action']);
 			},
-			'permission_callback' => function () {
-				return Environment::can_current_user_edit_options();
-			},
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
 	}
 }

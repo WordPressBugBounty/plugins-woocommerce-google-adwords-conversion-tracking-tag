@@ -44,6 +44,9 @@ class Options {
 			update_option(PMW_DB_OPTIONS_NAME, self::$options);
 		}
 
+		// Allow other plugins to modify the options before they are used
+		self::$options = apply_filters('pmw_options', self::$options);
+
 		self::$options_obj = self::encode_options_object(self::$options);
 	}
 
@@ -88,11 +91,14 @@ class Options {
 			'bing'       => [
 				'uet_tag_id'           => '',
 				'enhanced_conversions' => false,
+				'consent_mode'         => [
+					'is_active' => true,
+				],
 			],
 			'facebook'   => [
-				'pixel_id'  => '',
-				'microdata' => false,
-				'capi'      => [
+				'pixel_id'               => '',
+				'microdata'              => false,
+				'capi'                   => [
 					'token'             => '',
 					'test_event_code'   => '',
 					'user_transparency' => [
@@ -238,6 +244,9 @@ class Options {
 					'automatic_recalculation' => [
 						'is_active' => false,
 					],
+				],
+				'order_extra_details'           => [
+					'is_active' => false,
 				],
 			],
 			'general'    => [
@@ -409,6 +418,10 @@ class Options {
 
 	public static function is_bing_enhanced_conversions_enabled() {
 		return (bool) self::get_options_obj()->bing->enhanced_conversions;
+	}
+
+	public static function is_bing_consent_mode_active() {
+		return (bool) self::get_options_obj()->bing->consent_mode->is_active;
 	}
 
 	/**
@@ -812,9 +825,19 @@ class Options {
 		return (array) self::get_options_obj()->general->scroll_tracker_thresholds;
 	}
 
-	public static function pro_version_demo_active() {
+	public static function is_pro_version_demo_active() {
 
-		if (self::get_options_obj()->general->pro_version_demo) {
+		if (!Helpers::is_pmw_wcm_distro() && self::get_options_obj()->general->pro_version_demo) {
+			return true;
+		}
+
+		if (Helpers::is_wcm_distro_free_version()) {
+			return true;
+		}
+
+		// If transient _pmw_pro_version_demo_active is set to true, return true
+		// This is used for the wordpress.org demo site
+		if (get_transient('_pmw_pro_version_demo_active')) {
 			return true;
 		}
 
@@ -941,5 +964,9 @@ class Options {
 
 	public static function get_subscription_multiplier() {
 		return self::get_options_obj()->shop->subscription_value_multiplier;
+	}
+
+	public static function is_order_extra_details_active() {
+		return (bool) self::get_options_obj()->shop->order_extra_details->is_active;
 	}
 }

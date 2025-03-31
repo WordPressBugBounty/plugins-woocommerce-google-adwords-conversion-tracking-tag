@@ -255,6 +255,11 @@ class Pixel_Manager {
         exit;
     }
 
+    // Extracted the code because the QIT semgrep rule was triggered
+    public function can_current_user_edit_options() {
+        return Environment::can_current_user_edit_options();
+    }
+
     public function register_rest_routes() {
         /**
          * Testing endpoint which helps to verify if the REST API is working
@@ -285,9 +290,7 @@ class Pixel_Manager {
         register_rest_route( $this->rest_namespace, '/settings/', [
             'methods'             => 'POST',
             'callback'            => [$this, 'pmw_save_imported_settings'],
-            'permission_callback' => function () {
-                return Environment::can_current_user_edit_options();
-            },
+            'permission_callback' => [$this, 'can_current_user_edit_options'],
         ] );
         /**
          * No nonce verification required as we only request public data
@@ -876,6 +879,9 @@ class Pixel_Manager {
             'dynamic_remarketing'  => [
                 'id_type' => Product::get_dyn_r_id_type( 'bing' ),
             ],
+            'consent_mode'         => [
+                'is_active' => Options::is_bing_consent_mode_active(),
+            ],
         ];
     }
 
@@ -1139,17 +1145,19 @@ class Pixel_Manager {
             return [];
         }
         $data = [
-            'product_id'   => $product->get_id(),
-            'name'         => $product->get_name(),
-            'type'         => $product->get_type(),
-            'dyn_r_ids'    => Product::get_dyn_r_ids( $product ),
-            'brand'        => (string) Product::get_brand_name( $product_id ),
-            'category'     => (array) Product::get_product_category( $product_id ),
-            'variant_name' => ( (string) ($product->get_type() === 'variation') ? Product::get_formatted_variant_text( $product ) : '' ),
+            'product_id'          => $product->get_id(),
+            'name'                => $product->get_name(),
+            'type'                => $product->get_type(),
+            'dyn_r_ids'           => Product::get_dyn_r_ids( $product ),
+            'brand'               => (string) Product::get_brand_name( $product_id ),
+            'category'            => (array) Product::get_product_category( $product_id ),
+            'variant_description' => ( (string) ($product->get_type() === 'variation') ? Product::get_formatted_variant_text( $product ) : '' ),
         ];
         if ( $product->get_type() === 'variation' ) {
             $parent_product = wc_get_product( $product->get_parent_id() );
             $data['brand'] = Product::get_brand_name( $parent_product->get_id() );
+            $data['name_variant'] = $data['name'];
+            $data['name'] = $parent_product->get_name();
         }
         return $data;
     }

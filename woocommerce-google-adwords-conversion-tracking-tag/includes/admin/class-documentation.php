@@ -9,7 +9,7 @@ class Documentation {
 	public static function get_link( $key = 'default', $sweetcode_override = false ) {
 
 		// Change to wcm through gulp for the wcm distribution
-		$doc_host_url = 'default';
+		$doc_host_url = PMW_DISTRO === 'wcm' ? 'wcm' : 'default';
 
 		$url = self::get_documentation_host($sweetcode_override) . self::get_documentation_path($key, $doc_host_url);
 
@@ -384,6 +384,14 @@ class Documentation {
 			'facebook_microdata_deprecation'                         => [
 				'default' => '/blog/facebook-microdata-for-catalog-deprecation-notice',
 				'wcm'     => '/blog/facebook-microdata-for-catalog-deprecation-notice',
+			],
+			'order_extra_details'                         => [
+				'default' => '/docs/wpm/plugin-configuration/shop-settings#extra-order-data-output',
+				'wcm'     => '',
+			],
+			'microsoft_ads_consent_mode'                         => [
+				'default' => '/docs/wpm/consent-management/microsoft#microsoft-ads-consent-mode',
+				'wcm'     => '',
 			],
 		];
 
