@@ -8,6 +8,7 @@ use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunities;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use WP_Post;
 defined( 'ABSPATH' ) || exit;
@@ -65,10 +66,10 @@ class Admin {
 		<script>
 			var pmw_cody = {
 				available: <?php 
-        esc_html_e( ( Helpers::is_url_accessible( $cody_url ) ? 'true' : 'false' ) );
+        echo esc_html( ( Helpers::is_url_accessible( $cody_url ) ? 'true' : 'false' ) );
         ?>,
 				url      : '<?php 
-        esc_html_e( $cody_url );
+        echo esc_html( $cody_url );
         ?>',
 			};
 		</script>
@@ -108,55 +109,7 @@ class Admin {
      * @return string
      */
     public static function fs_after_purchase_js( $js_function ) {
-        return <<<JS
-     (response) => {
-
-\t\tlet product_name = "Pixel Manager for WooCommerce";
-\t
-\t\tlet trial_conversion_percentage = 0.52;
-\t
-\t\tlet is_trial = (null != response.purchase.trial_ends),
-\t\t\tis_subscription = (null != response.purchase.initial_amount),
-\t\t\tpre_total = Number(is_subscription ? response.purchase.initial_amount : response.purchase.gross).toFixed(2),
-\t\t\ttrial_total = is_trial ? (pre_total * trial_conversion_percentage).toFixed(2) : pre_total,
-\t\t\ttotal = is_trial ? trial_total : pre_total,
-\t\t\tcurrency = response.purchase.currency.toUpperCase(),
-\t\t\ttransaction_id = response.purchase.id.toString(),
-\t\t\tstore_name = window.location.hostname;
-\t
-\t\twindow.dataLayer = window.dataLayer || [];
-\t
-\t\tdataLayer.push({
-\t\t\tevent: "purchase",
-\t\t\ttransaction_id: transaction_id,
-\t\t\ttransaction_value: total,
-\t\t\ttransaction_currency: currency,
-\t\t\ttransaction_coupon: response.purchase.coupon_id,
-\t\t\ttransaction_affiliation: store_name,
-\t\t\titems: [
-\t\t\t\t{
-\t\t\t\t\titem_name: product_name,
-\t\t\t\t\titem_id: response.purchase.plan_id.toString(),
-\t\t\t\t\titem_category: "Plugin",
-\t\t\t\t\tprice: response.purchase.initial_amount.toString(),
-\t\t\t\t\tquantity: 1,
-\t\t\t\t\tcurrency: currency,
-\t\t\t\t\taffiliation: store_name,
-\t\t\t\t},
-\t\t\t],
-\t\t\tfreemius_data: response,
-\t\t});
-\t
-\t\t(function (w, d, s, l, i) {
-\t\t\tw[l] = w[l] || []; w[l].push({
-\t\t\t\t'gtm.start':
-\t\t\t\t\tnew Date().getTime(), event: 'gtm.js'
-\t\t\t}); var f = d.getElementsByTagName(s)[0],
-\t\t\t\tj = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src =
-\t\t\t\t\t'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);
-\t\t})(window, document, 'script', 'dataLayer', 'GTM-NZ8WQ6QS');
-\t}
-JS;
+        return "function (response) => {\n\n\t\tlet product_name = 'Pixel Manager for WooCommerce';\n\t\n\t\tlet trial_conversion_percentage = 0.52;\n\t\n\t\tlet is_trial = (null != response.purchase.trial_ends),\n\t\t\tis_subscription = (null != response.purchase.initial_amount),\n\t\t\tpre_total = Number(is_subscription ? response.purchase.initial_amount : response.purchase.gross).toFixed(2),\n\t\t\ttrial_total = is_trial ? (pre_total * trial_conversion_percentage).toFixed(2) : pre_total,\n\t\t\ttotal = is_trial ? trial_total : pre_total,\n\t\t\tcurrency = response.purchase.currency.toUpperCase(),\n\t\t\ttransaction_id = response.purchase.id.toString(),\n\t\t\tstore_name = window.location.hostname;\n\t\n\t\twindow.dataLayer = window.dataLayer || [];\n\t\n\t\tdataLayer.push({\n\t\t\tevent: 'purchase',\n\t\t\ttransaction_id: transaction_id,\n\t\t\ttransaction_value: total,\n\t\t\ttransaction_currency: currency,\n\t\t\ttransaction_coupon: response.purchase.coupon_id,\n\t\t\ttransaction_affiliation: store_name,\n\t\t\titems: [\n\t\t\t\t{\n\t\t\t\t\titem_name: product_name,\n\t\t\t\t\titem_id: response.purchase.plan_id.toString(),\n\t\t\t\t\titem_category: 'Plugin',\n\t\t\t\t\tprice: response.purchase.initial_amount.toString(),\n\t\t\t\t\tquantity: 1,\n\t\t\t\t\tcurrency: currency,\n\t\t\t\t\taffiliation: store_name,\n\t\t\t\t},\n\t\t\t],\n\t\t\tfreemius_data: response,\n\t\t});\n\t\n\t\t(function (w, d, s, l, i) {\n\t\t\tw[l] = w[l] || []; w[l].push({\n\t\t\t\t'gtm.start':\n\t\t\t\t\tnew Date().getTime(), event: 'gtm.js'\n\t\t\t}); var f = d.getElementsByTagName(s)[0],\n\t\t\t\tj = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src =\n\t\t\t\t\t'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);\n\t\t})(window, document, 'script', 'dataLayer', 'GTM-NZ8WQ6QS');\n\t}";
     }
 
     // DeleteIf(wcMarketFree)
@@ -327,7 +280,7 @@ JS;
         self::output_section_data_field( $section_ids );
         add_settings_section(
             $section_ids['settings_name'],
-            esc_html__( $section_ids['title'], 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            esc_html( $section_ids['title'] ),
             [__CLASS__, 'plugin_section_main_description'],
             'wpm_plugin_options_page'
         );
@@ -342,7 +295,7 @@ JS;
     public static function add_subsection_div( $section_ids, $sub_section_ids ) {
         add_settings_field(
             'wpm_plugin_subsection_' . $sub_section_ids['slug'] . '_opening_div',
-            esc_html__( $sub_section_ids['title'], 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            esc_html( $sub_section_ids['title'] ),
             function () use($section_ids, $sub_section_ids) {
                 self::subsection_generic_opening_div_html( $section_ids, $sub_section_ids );
             },
@@ -568,7 +521,7 @@ JS;
         ];
         add_settings_section(
             $section_ids['settings_name'],
-            esc_html__( $section_ids['title'], 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            esc_html( $section_ids['title'] ),
             [__CLASS__, 'plugin_section_advanced_description'],
             'wpm_plugin_options_page'
         );
@@ -766,6 +719,22 @@ JS;
         ];
         self::add_subsection_div( $section_ids, $sub_section_ids );
         if ( Environment::is_woocommerce_active() ) {
+            // Add the field for the Google tag ID
+            add_settings_field(
+                'pmw_plugin_google_tag_id',
+                esc_html__( 'Google Tag ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+                [__CLASS__, 'plugin_setting_google_tag_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+            // add the field for the aw_merchant_id
+            add_settings_field(
+                'pmw_google_tag_gateway_measurement_path',
+                esc_html__( 'Google Tag Gateway Measurement Path', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'plugin_setting_google_gateway_measurement_path'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             // add the field for the aw_merchant_id
             add_settings_field(
                 'wpm_plugin_aw_merchant_id',
@@ -1728,13 +1697,13 @@ JS;
             ?>
 							<tr>
 								<td><?php 
-            esc_html_e( $gateway->id );
+            echo esc_html( $gateway->id );
             ?></td>
 								<td><?php 
-            esc_html_e( $gateway->method_title );
+            echo esc_html( $gateway->method_title );
             ?></td>
 								<td><?php 
-            esc_html_e( get_class( $gateway ) );
+            echo esc_html( get_class( $gateway ) );
             ?></td>
 							</tr>
 						<?php 
@@ -1757,7 +1726,7 @@ JS;
             ?>
 					<br>
 					<?php 
-            esc_html_e( Debug_Info::tracking_accuracy_loading_message() );
+            echo esc_html( Debug_Info::tracking_accuracy_loading_message() );
             $per_gateway_analysis = [];
         } else {
             $per_gateway_analysis = Debug_Info::get_gateway_analysis_array();
@@ -1782,18 +1751,18 @@ JS;
             ?>
 							<tr>
 								<td><?php 
-            esc_html_e( $gateway_analysis['gateway_id'] );
+            echo esc_html( $gateway_analysis['gateway_id'] );
             ?></td>
 								<td><?php 
-            esc_html_e( $gateway_analysis['order_count_measured'] );
+            echo esc_html( $gateway_analysis['order_count_measured'] );
             ?></td>
 								<td>of</td>
 								<td><?php 
-            esc_html_e( $gateway_analysis['order_count_total'] );
+            echo esc_html( $gateway_analysis['order_count_total'] );
             ?></td>
 								<td>=</td>
 								<td><?php 
-            esc_html_e( $gateway_analysis['percentage'] );
+            echo esc_html( $gateway_analysis['percentage'] );
             ?>%</td>
 								<td><?php 
             self::get_gateway_accuracy_warning_status( $gateway_analysis['percentage'] );
@@ -1821,7 +1790,7 @@ JS;
             ?>
 					<br>
 					<?php 
-            esc_html_e( Debug_Info::tracking_accuracy_loading_message() );
+            echo esc_html( Debug_Info::tracking_accuracy_loading_message() );
             $per_gateway_analysis = [];
         } else {
             $per_gateway_analysis = Debug_Info::get_gateway_analysis_weighted_array();
@@ -1845,18 +1814,18 @@ JS;
             ?>
 							<tr>
 								<td><?php 
-            esc_html_e( $gateway_analysis['gateway_id'] );
+            echo esc_html( $gateway_analysis['gateway_id'] );
             ?></td>
 								<td><?php 
-            esc_html_e( $gateway_analysis['order_count_measured'] );
+            echo esc_html( $gateway_analysis['order_count_measured'] );
             ?></td>
 								<td>of</td>
 								<td><?php 
-            esc_html_e( $gateway_analysis['order_count_total'] );
+            echo esc_html( $gateway_analysis['order_count_total'] );
             ?></td>
 								<td>=</td>
 								<td><?php 
-            esc_html_e( $gateway_analysis['percentage'] );
+            echo esc_html( $gateway_analysis['percentage'] );
             ?>%</td>
 								<td><?php 
             self::get_gateway_accuracy_warning_status( $gateway_analysis['percentage'] );
@@ -1868,18 +1837,18 @@ JS;
 						<tr>
 							<td>Total</td>
 							<td><?php 
-        esc_html_e( $order_count_measured );
+        echo esc_html( $order_count_measured );
         ?></td>
 							<td>of</td>
 							<td><?php 
-        esc_html_e( $order_count_total );
+        echo esc_html( $order_count_total );
         ?></td>
 							<td>=</td>
 							<td>
 								<?php 
         $percent = Helpers::get_percentage( $order_count_measured, $order_count_total );
         if ( $order_count_total > 0 ) {
-            esc_html_e( $percent . '%' );
+            echo esc_html( $percent . '%' );
         } else {
             echo '0%';
         }
@@ -1988,7 +1957,7 @@ JS;
 				<textarea id="debug-info-textarea" class=""
 						  style="display:block; margin-bottom: 10px; width: 100%;resize: none;color:dimgrey;font-family: Courier"
 						  cols="100%" rows="30" readonly><?php 
-        esc_html_e( Debug_Info::get_debug_info() );
+        echo esc_html( Debug_Info::get_debug_info() );
         ?>
 				</textarea>
 				<button id="debug-info-button"
@@ -2018,7 +1987,7 @@ JS;
 				<button id="debug-info-button"
 						type="button"
 						onclick="wpm.saveSettingsToDisk('<?php 
-        esc_html_e( PMW_CURRENT_VERSION );
+        echo esc_html( PMW_CURRENT_VERSION );
         ?>')">
 					<?php 
         esc_html_e( 'Export to disk', 'woocommerce-google-adwords-conversion-tracking-tag' );
@@ -2166,7 +2135,7 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_ga4_measurement_id() );
+        echo esc_html( Options::get_ga4_measurement_id() );
         ?>"
 		/>
 		<?php 
@@ -2187,7 +2156,7 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_google_ads_conversion_id() );
+        echo esc_html( Options::get_google_ads_conversion_id() );
         ?>"
 		/>
 		<?php 
@@ -2209,7 +2178,7 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_google_ads_conversion_label() );
+        echo esc_html( Options::get_google_ads_conversion_label() );
         ?>"
 		/>
 		<?php 
@@ -2236,10 +2205,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_vwo_account_id() );
+        echo esc_html( Options::get_vwo_account_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2259,10 +2228,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_optimizely_project_id() );
+        echo esc_html( Options::get_optimizely_project_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2281,10 +2250,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_ab_tasty_account_id() );
+        echo esc_html( Options::get_ab_tasty_account_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2303,7 +2272,7 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_facebook_pixel_id() );
+        echo esc_html( Options::get_facebook_pixel_id() );
         ?>"
 		/>
 		<?php 
@@ -2323,10 +2292,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_adroll_advertiser_id() );
+        echo esc_html( Options::get_adroll_advertiser_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2357,10 +2326,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_adroll_pixel_id() );
+        echo esc_html( Options::get_adroll_pixel_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2398,7 +2367,7 @@ JS;
         checked( Options::is_bing_enhanced_conversions_enabled() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -2419,10 +2388,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_partner_id() );
+        echo esc_html( Options::get_linkedin_partner_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2444,17 +2413,17 @@ JS;
 			   id="pmw_setting_linkedin_search"
 			   name="wgact_plugin_options[pixels][linkedin][conversion_ids][search]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_conversion_id( 'search' ) );
+        echo esc_html( Options::get_linkedin_conversion_id( 'search' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2471,17 +2440,17 @@ JS;
 			   id="pmw_setting_linkedin_view_content"
 			   name="wgact_plugin_options[pixels][linkedin][conversion_ids][view_content]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_conversion_id( 'view_content' ) );
+        echo esc_html( Options::get_linkedin_conversion_id( 'view_content' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2498,17 +2467,17 @@ JS;
 			   id="pmw_setting_linkedin_add_to_list"
 			   name="wgact_plugin_options[pixels][linkedin][conversion_ids][add_to_list]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_conversion_id( 'add_to_list' ) );
+        echo esc_html( Options::get_linkedin_conversion_id( 'add_to_list' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2525,17 +2494,17 @@ JS;
 			   id="pmw_setting_linkedin_add_to_cart"
 			   name="wgact_plugin_options[pixels][linkedin][conversion_ids][add_to_cart]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_conversion_id( 'add_to_cart' ) );
+        echo esc_html( Options::get_linkedin_conversion_id( 'add_to_cart' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2552,17 +2521,17 @@ JS;
 			   id="pmw_setting_linkedin_start_checkout"
 			   name="wgact_plugin_options[pixels][linkedin][conversion_ids][start_checkout]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_conversion_id( 'start_checkout' ) );
+        echo esc_html( Options::get_linkedin_conversion_id( 'start_checkout' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2579,17 +2548,17 @@ JS;
 			   id="pmw_setting_linkedin_purchase"
 			   name="wgact_plugin_options[pixels][linkedin][conversion_ids][purchase]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_linkedin_conversion_id( 'purchase' ) );
+        echo esc_html( Options::get_linkedin_conversion_id( 'purchase' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2607,10 +2576,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_bing_uet_tag_id() );
+        echo esc_html( Options::get_bing_uet_tag_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2630,10 +2599,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_pixel_id() );
+        echo esc_html( Options::get_twitter_pixel_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2653,17 +2622,17 @@ JS;
 			   id="pmw_setting_twitter_add_to_cart"
 			   name="wgact_plugin_options[twitter][event_ids][add_to_cart]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'add_to_cart' ) );
+        echo esc_html( Options::get_twitter_event_id( 'add_to_cart' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2679,17 +2648,17 @@ JS;
 			   id="pmw_setting_twitter_add_to_wishlist"
 			   name="wgact_plugin_options[twitter][event_ids][add_to_wishlist]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'add_to_wishlist' ) );
+        echo esc_html( Options::get_twitter_event_id( 'add_to_wishlist' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2705,17 +2674,17 @@ JS;
 			   id="pmw_setting_twitter_view_content"
 			   name="wgact_plugin_options[twitter][event_ids][view_content]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'view_content' ) );
+        echo esc_html( Options::get_twitter_event_id( 'view_content' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2731,17 +2700,17 @@ JS;
 			   id="pmw_setting_twitter_search"
 			   name="wgact_plugin_options[twitter][event_ids][search]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'search' ) );
+        echo esc_html( Options::get_twitter_event_id( 'search' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2757,17 +2726,17 @@ JS;
 			   id="pmw_setting_twitter_initiate_checkout"
 			   name="wgact_plugin_options[twitter][event_ids][initiate_checkout]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'initiate_checkout' ) );
+        echo esc_html( Options::get_twitter_event_id( 'initiate_checkout' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2783,17 +2752,17 @@ JS;
 			   id="pmw_setting_twitter_add_payment_info"
 			   name="wgact_plugin_options[twitter][event_ids][add_payment_info]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'add_payment_info' ) );
+        echo esc_html( Options::get_twitter_event_id( 'add_payment_info' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2809,17 +2778,17 @@ JS;
 			   id="pmw_setting_twitter_purchase"
 			   name="wgact_plugin_options[twitter][event_ids][purchase]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_twitter_event_id( 'purchase' ) );
+        echo esc_html( Options::get_twitter_event_id( 'purchase' ) );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2836,10 +2805,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_outbrain_advertiser_id() );
+        echo esc_html( Options::get_outbrain_advertiser_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2861,10 +2830,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_pinterest_pixel_id() );
+        echo esc_html( Options::get_pinterest_pixel_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2892,7 +2861,7 @@ JS;
         checked( Options::is_pinterest_enhanced_match_enabled() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 
@@ -2917,10 +2886,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_snapchat_pixel_id() );
+        echo esc_html( Options::get_snapchat_pixel_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2940,10 +2909,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_taboola_account_id() );
+        echo esc_html( Options::get_taboola_account_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2965,10 +2934,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_tiktok_pixel_id() );
+        echo esc_html( Options::get_tiktok_pixel_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -2989,7 +2958,7 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_hotjar_site_id() );
+        echo esc_html( Options::get_hotjar_site_id() );
         ?>"
 		/>
 		<?php 
@@ -3013,10 +2982,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_reddit_advertiser_id() );
+        echo esc_html( Options::get_reddit_advertiser_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -3053,9 +3022,9 @@ JS;
 				  cols="60"
 				  rows="6"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>><?php 
-        esc_html_e( Options::get_snapchat_capi_token() );
+        echo esc_html( Options::get_snapchat_capi_token() );
         ?></textarea>
 		<?php 
         self::display_status_icon( Options::get_snapchat_capi_token(), Options::is_snapchat_active() );
@@ -3096,7 +3065,7 @@ JS;
         checked( Options::is_snapchat_advanced_matching_enabled() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -3124,7 +3093,7 @@ JS;
         checked( Options::is_reddit_advanced_matching_enabled() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -3143,7 +3112,7 @@ JS;
 			<input type="radio"
 				   id="pmw_plugin_marketing_value_logic_0"
 				   name="<?php 
-        esc_html_e( Options::get_marketing_value_logic_input_field_name() );
+        echo esc_html( Options::get_marketing_value_logic_input_field_name() );
         ?>"
 				   value="0"
 				<?php 
@@ -3162,7 +3131,7 @@ JS;
 			<input type="radio"
 				   id="pmw_plugin_marketing_value_logic_1"
 				   name="<?php 
-        esc_html_e( Options::get_marketing_value_logic_input_field_name() );
+        echo esc_html( Options::get_marketing_value_logic_input_field_name() );
         ?>"
 				   value="1"
 				<?php 
@@ -3185,7 +3154,7 @@ JS;
 				<input type="radio"
 					   id="pmw_plugin_marketing_value_logic_2"
 					   name="<?php 
-            esc_html_e( Options::get_marketing_value_logic_input_field_name() );
+            echo esc_html( Options::get_marketing_value_logic_input_field_name() );
             ?>"
 					   value="2"
 					<?php 
@@ -3273,7 +3242,7 @@ JS;
         ?>
 		<a href="#" class="advanced-section-link pmw-tooltip" data-as-section="advanced"
 		   data-as-subsection="<?php 
-        esc_html_e( $subsection );
+        echo esc_html( $subsection );
         ?>">
 			<svg class="advanced-settings-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
 				<path d="M14 21h-4l-.551-2.48a6.991 6.991 0 0 1-1.819-1.05l-2.424.763-2-3.464 1.872-1.718a7.055 7.055 0 0 1 0-2.1L3.206 9.232l2-3.464 2.424.763A6.992 6.992 0 0 1 9.45 5.48L10 3h4l.551 2.48a6.992 6.992 0 0 1 1.819 1.05l2.424-.763 2 3.464-1.872 1.718a7.05 7.05 0 0 1 0 2.1l1.872 1.718-2 3.464-2.424-.763a6.99 6.99 0 0 1-1.819 1.052L14 21z"/>
@@ -3359,13 +3328,13 @@ JS;
 			<input type="hidden"
 				   value="0"
 				   name="<?php 
-        esc_html_e( Options::get_cookie_consent_explicit_consent_input_field_name() );
+        echo esc_html( Options::get_cookie_consent_explicit_consent_input_field_name() );
         ?>"
 			>
 			<input type="checkbox"
 				   id="setting_explicit_consent_mode"
 				   name="<?php 
-        esc_html_e( Options::get_cookie_consent_explicit_consent_input_field_name() );
+        echo esc_html( Options::get_cookie_consent_explicit_consent_input_field_name() );
         ?>"
 				   value="1"
 				<?php 
@@ -3445,19 +3414,19 @@ JS;
         foreach ( Consent_Mode_Regions::get_consent_mode_regions() as $region_code => $region_name ) {
             ?>
 				<option value="<?php 
-            esc_html_e( $region_code );
+            echo esc_html( $region_code );
             ?>"
 					<?php 
             // Rarely Options::get_options_obj()->google->consent_mode->regions is null
             // The reason is a mystery. It happens in very rare cases and can't be reproduced.
             // So we have to check if it is an array before using in_array()
             if ( is_array( Options::get_restricted_consent_regions_raw() ) ) {
-                esc_html_e( ( in_array( $region_code, Options::get_restricted_consent_regions_raw() ) ? 'selected' : '' ) );
+                echo esc_html( ( in_array( $region_code, Options::get_restricted_consent_regions_raw() ) ? 'selected' : '' ) );
             }
             ?>
 				>
 					<?php 
-            esc_html_e( $region_name );
+            echo esc_html( $region_name );
             ?>
 				</option>
 			<?php 
@@ -3517,7 +3486,7 @@ JS;
         checked( Options::is_google_tcf_support_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -3546,10 +3515,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_ga4_mp_api_secret() );
+        echo esc_html( Options::get_ga4_mp_api_secret() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -3573,10 +3542,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_ga4_data_api_property_id() );
+        echo esc_html( Options::get_ga4_data_api_property_id() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -3600,14 +3569,14 @@ JS;
 				   id="pmw_setting_ga4_data_api_client_email"
 				   name="pmw_setting_ga4_data_api_client_email"
 				   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 				   type="text"
 				   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 				   value="<?php 
-        esc_html_e( $client_email );
+        echo esc_html( $client_email );
         ?>"
 				   disabled
 			/>
@@ -3617,7 +3586,7 @@ JS;
 					navigator.clipboard.writeText(document.getElementById("pmw_setting_ga4_data_api_client_email").value);
 					const pmwCaFeedTooltip     = document.getElementById("myPmwGa4ClientEmailTooltip");
 					pmwCaFeedTooltip.innerHTML = "<?php 
-        esc_html_e( 'Copied the account email to the clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( 'Copied', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>";
 				};
 
@@ -3728,7 +3697,7 @@ JS;
         checked( Options::is_ga4_page_load_time_tracking_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -3756,7 +3725,7 @@ JS;
         checked( Options::is_google_user_id_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -3791,7 +3760,7 @@ JS;
         checked( Options::is_google_enhanced_conversions_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -3818,10 +3787,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_google_ads_phone_conversion_number() );
+        echo esc_html( Options::get_google_ads_phone_conversion_number() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -3840,10 +3809,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_google_ads_phone_conversion_label() );
+        echo esc_html( Options::get_google_ads_phone_conversion_label() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -3862,10 +3831,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_google_ads_conversion_adjustments_conversion_name() );
+        echo esc_html( Options::get_google_ads_conversion_adjustments_conversion_name() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -3903,11 +3872,11 @@ JS;
 				   id="pmw_plugin_google_ads_conversion_adjustments_feed"
 				   name="pmw_plugin_google_ads_conversion_adjustments_feed"
 				   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 				   type="text"
 				   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 				   value="<?php 
         echo esc_url( $feed_url );
@@ -4030,9 +3999,9 @@ JS;
 				  cols="60"
 				  rows="5"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>><?php 
-        esc_html_e( Options::get_facebook_capi_token() );
+        echo esc_html( Options::get_facebook_capi_token() );
         ?></textarea>
 		<?php 
         self::display_status_icon( Options::get_facebook_capi_token(), Options::is_facebook_active() );
@@ -4056,17 +4025,17 @@ JS;
 			   id="pmw_setting_facebook_capi_test_event_code"
 			   name="wgact_plugin_options[facebook][capi][test_event_code]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			   value="<?php 
-        esc_html_e( Options::get_facebook_capi_test_event_code() );
+        echo esc_html( Options::get_facebook_capi_test_event_code() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -4103,7 +4072,7 @@ JS;
         checked( Options::is_facebook_capi_user_transparency_process_anonymous_hits_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4137,7 +4106,7 @@ JS;
         checked( Options::is_facebook_capi_advanced_matching_enabled() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4163,7 +4132,7 @@ JS;
 			   name="wgact_plugin_options[facebook][domain_verification_id]"
 			   size="40"
 			   value="<?php 
-        esc_html_e( Options::get_facebook_domain_verification_id() );
+        echo esc_html( Options::get_facebook_domain_verification_id() );
         ?>"
 		/>
 		<?php 
@@ -4196,7 +4165,7 @@ JS;
         checked( Options::is_facebook_microdata_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4220,17 +4189,17 @@ JS;
 			   id="pmw_setting_pinterest_ad_account_id"
 			   name="wgact_plugin_options[pinterest][ad_account_id]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_pinterest_ad_account_id() );
+        echo esc_html( Options::get_pinterest_ad_account_id() );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -4247,9 +4216,9 @@ JS;
 				  cols="50"
 				  rows="2"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>><?php 
-        esc_html_e( Options::get_pinterest_apic_token() );
+        echo esc_html( Options::get_pinterest_apic_token() );
         ?></textarea>
 
 		<?php 
@@ -4281,7 +4250,7 @@ JS;
         checked( Options::is_pinterest_apic_process_anonymous_hits_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4314,7 +4283,7 @@ JS;
         checked( Options::is_pinterest_advanced_matching_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4339,17 +4308,17 @@ JS;
 			   id="pmw_setting_tiktok_eapi_token"
 			   name="wgact_plugin_options[tiktok][eapi][token]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   value="<?php 
-        esc_html_e( Options::get_tiktok_eapi_token() );
+        echo esc_html( Options::get_tiktok_eapi_token() );
         ?>"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -4376,17 +4345,17 @@ JS;
 			   id="pmw_setting_tiktok_eapi_test_event_code"
 			   name="wgact_plugin_options[tiktok][eapi][test_event_code]"
 			   size="<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>"
 			   type="text"
 			   style="width:<?php 
-        esc_html_e( $text_length );
+        echo esc_html( $text_length );
         ?>ch"
 			   value="<?php 
-        esc_html_e( Options::get_tiktok_eapi_test_event_code() );
+        echo esc_html( Options::get_tiktok_eapi_test_event_code() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -4423,7 +4392,7 @@ JS;
         checked( Options::is_tiktok_eapi_process_anonymous_hits_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4456,7 +4425,7 @@ JS;
         checked( Options::is_tiktok_advanced_matching_enabled() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 			<?php 
@@ -4552,18 +4521,18 @@ JS;
 				data-placeholder="Choose roles&hellip;" aria-label="Roles"
 				class="wc-enhanced-select"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		>
 			<?php 
         foreach ( get_editable_roles() as $role => $details ) {
             ?>
 				<option value="<?php 
-            esc_html_e( $role );
+            echo esc_html( $role );
             ?>" <?php 
-            esc_html_e( ( in_array( $role, Options::get_excluded_roles(), true ) ? 'selected' : '' ) );
+            echo esc_html( ( in_array( $role, Options::get_excluded_roles(), true ) ? 'selected' : '' ) );
             ?>><?php 
-            esc_html_e( $details['name'] );
+            echo esc_html( $details['name'] );
             ?></option>
 			<?php 
         }
@@ -4622,10 +4591,10 @@ JS;
 			   size="40"
 			   type="text"
 			   value="<?php 
-        esc_html_e( implode( ',', Options::get_scroll_tracking_thresholds() ) );
+        echo esc_html( implode( ',', Options::get_scroll_tracking_thresholds() ) );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -4652,17 +4621,17 @@ JS;
 			   id="pmw_setting_subscription_value_multiplier"
 			   name="wgact_plugin_options[shop][subscription_value_multiplier]"
 			   size="<?php 
-        esc_html_e( $field_width );
+        echo esc_html( $field_width );
         ?>"
 			   type="text"
 			   style="width:<?php 
-        esc_html_e( $field_width );
+        echo esc_html( $field_width );
         ?>ch"
 			   value="<?php 
-        esc_html_e( Options::get_subscription_multiplier() );
+        echo esc_html( Options::get_subscription_multiplier() );
         ?>"
 			<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 		/>
 		<?php 
@@ -4838,7 +4807,7 @@ JS;
         checked( Options::is_lazy_load_pmw_active() );
         ?>
 				<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 			/>
 
@@ -4934,14 +4903,14 @@ JS;
         foreach ( Logger::get_log_levels() as $log_level_number => $log_level_name ) {
             ?>
 				<option value="<?php 
-            esc_html_e( $log_level_name );
+            echo esc_html( $log_level_name );
             ?>"
 					<?php 
             selected( $log_level_name, Options::get_log_level() );
             ?>
 				>
 					<?php 
-            esc_html_e( $log_level_number . ' - ' . $log_level_name );
+            echo esc_html( $log_level_number . ' - ' . $log_level_name );
             ?>
 				</option>
 			<?php 
@@ -5069,7 +5038,7 @@ JS;
 				class="button button-primary"
 				style="margin-top: 0"
 				data-links="<?php 
-        echo wc_esc_json( $all_external_log_file_urls );
+        echo esc_js( $all_external_log_file_urls );
         ?>"
 				data-text-copied="<?php 
         esc_html_e( 'Copied!', 'woocommerce-google-adwords-conversion-tracking-tag' );
@@ -5147,7 +5116,7 @@ JS;
         echo checked( 0, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5164,7 +5133,7 @@ JS;
         echo checked( 1, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5181,7 +5150,7 @@ JS;
         echo checked( 3, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5198,7 +5167,7 @@ JS;
         echo checked( 4, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5215,7 +5184,7 @@ JS;
         echo checked( 5, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5232,7 +5201,7 @@ JS;
         echo checked( 6, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5249,7 +5218,7 @@ JS;
         echo checked( 8, Options::get_google_ads_business_vertical_id(), false );
         ?>
 					<?php 
-        esc_html_e( self::disable_if_demo() );
+        echo esc_html( self::disable_if_demo() );
         ?>
 				/>
 				<?php 
@@ -5267,6 +5236,90 @@ JS;
 		<?php 
     }
 
+    public static function plugin_setting_google_tag_id() {
+        $tag_id = Google_Helpers::get_google_tag_id();
+        ?>
+		<input class="pmw mono"
+			   type="text"
+			   id="pmw_plugin_google_tag_id"
+			   size="40"
+			   value="<?php 
+        echo esc_html( $tag_id );
+        ?>"
+			   readonly
+			   onclick="this.select();"
+		/>
+
+		<script>
+			const pmwCopyToClipboard = (inputId, tooltipId) => {
+				navigator.clipboard.writeText(document.getElementById(inputId).value);
+				const pmwCaFeedTooltip     = document.getElementById(tooltipId);
+				pmwCaFeedTooltip.innerHTML = "<?php 
+        esc_html_e( 'Copied', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>";
+			};
+
+			const pmwResetCopyButton = (tooltipId) => {
+				const pmwCaFeedTooltip     = document.getElementById(tooltipId);
+				pmwCaFeedTooltip.innerHTML = "<?php 
+        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>";
+			};
+		</script>
+
+		<div class="pmwCaTooltip">
+			<a href="javascript:void(0)" class="pmw-copy-icon pmwCaTooltip"
+			   onclick="pmwCopyToClipboard('pmw_plugin_google_tag_id', 'pmwGoogleTagIdTooltip')"
+			   onmouseout="pmwResetCopyButton('pmwGoogleTagIdTooltip')"></a>
+			<span class="pmwCaTooltiptext"
+				  id="pmwGoogleTagIdTooltip"><?php 
+        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></span>
+		</div>
+
+
+		<?php 
+        self::get_documentation_html_by_key( 'google_tag_id' );
+        ?>
+		<br><br>
+		<?php 
+        esc_html_e( 'Your Google tag ID. This field is read-only but you can click to select and copy the text.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    public static function plugin_setting_google_gateway_measurement_path() {
+        //		$health_check        = Google_Helpers::gtag_gateway_health_check()['status'];
+        //		$health_check_status = $health_check['status'] ? $health_check['status'] : false;
+        ?>
+		<input class="pmw mono"
+			   type="text"
+			   id="pmw_google_tag_gateway_measurement_path"
+			   name="wgact_plugin_options[google][tag_gateway][measurement_path]"
+			   size="40"
+			   value="<?php 
+        echo esc_html( Options::get_google_tag_gateway_measurement_path() );
+        ?>"
+		/>
+		<?php 
+        self::display_status_icon( Options::get_google_tag_gateway_measurement_path() );
+        ?>
+		<?php 
+        // Options::get_google_tag_gateway_measurement_path() && self::display_health_status($health_check_status);
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'google_tag_gateway_measurement_path' );
+        ?>
+		<?php 
+        self::wistia_video_icon( 'd3ehc3lurt' );
+        ?>
+		<p style="margin-top:10px">
+		<?php 
+        esc_html_e( 'Your Google Gateway Measurement Path. It should look like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		<code>/metrics</code>
+		</p>
+		<?php 
+    }
+
     public static function plugin_setting_aw_merchant_id() {
         ?>
 		<input class="pmw mono"
@@ -5275,7 +5328,7 @@ JS;
 			   name="wgact_plugin_options[google][ads][aw_merchant_id]"
 			   size="40"
 			   value="<?php 
-        esc_html_e( Options::get_google_ads_merchant_id() );
+        echo esc_html( Options::get_google_ads_merchant_id() );
         ?>"
 		/>
 		<?php 
@@ -5379,7 +5432,7 @@ JS;
     private static function html_beta_e( $margin_top = '1px' ) {
         ?>
 		<div class="pmw-status-icon beta" style="margin-top: <?php 
-        esc_html_e( $margin_top );
+        echo esc_html( $margin_top );
         ?>">
 			<?php 
         esc_html_e( 'beta', 'woocommerce-google-adwords-conversion-tracking-tag' );
@@ -5428,6 +5481,22 @@ JS;
 		<?php 
     }
 
+    private static function html_status_health_check_passed() {
+        ?>
+		<div class="pmw-status-icon active"><?php 
+        esc_html_e( 'health check passed', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></div>
+		<?php 
+    }
+
+    private static function html_status_health_check_failed() {
+        ?>
+		<div class="pmw-status-icon inactive"><?php 
+        esc_html_e( 'health check failed', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></div>
+		<?php 
+    }
+
     private static function html_deprecated() {
         return '<div class="pmw-status-icon inactive">' . esc_html__( 'deprecated', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</div>';
     }
@@ -5452,12 +5521,12 @@ JS;
 			</span>
 
 		<a href="<?php 
-        esc_html_e( $link );
+        echo esc_html( $link );
         ?>"
 		   target="_blank" style="box-shadow: none;">
 			<div id="proVersionButton" class="button">
 				<?php 
-        esc_html_e( $button_text );
+        echo esc_html( $button_text );
         ?>
 			</div>
 		</a>
@@ -5472,6 +5541,14 @@ JS;
             self::html_status_icon_partially_active();
         } elseif ( !$inactive_silent ) {
             self::html_status_icon_inactive();
+        }
+    }
+
+    private static function display_health_status( $status ) {
+        if ( $status ) {
+            self::html_status_health_check_passed();
+        } else {
+            self::html_status_health_check_failed();
         }
     }
 
@@ -5490,13 +5567,13 @@ JS;
 			var script   = document.createElement("script");
 			script.async = true;
 			script.src   = 'https://fast.wistia.com/embed/medias/<?php 
-        esc_html_e( $wistia_id );
+        echo esc_html( $wistia_id );
         ?>.jsonp';
 			document.getElementsByTagName("head")[0].appendChild(script);
 		</script>
 
 		<div class="pmw wistia_embed wistia_async_<?php 
-        esc_html_e( $wistia_id );
+        echo esc_html( $wistia_id );
         ?> popover=true popoverContent=link videoFoam=false"
 			 style="display:inline-block;position:relative;text-decoration: none; vertical-align: top;">
 			<span class="dashicons dashicons-video-alt3"></span>

@@ -173,7 +173,7 @@ class Ask_For_Rating {
 						printf(
 						/* translators: %d: the amount of purchase conversions that have been measured */
 							esc_html__('Hey, I noticed that you tracked more than %d purchase conversions with the Pixel Manager for WooCommerce plugin - that\'s awesome! Could you please do me a BIG favour and give it a 5-star rating on WordPress? It will help to spread the word and boost our motivation.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-							esc_html__($conversions_count)
+							esc_html($conversions_count)
 						);
 						?>
 

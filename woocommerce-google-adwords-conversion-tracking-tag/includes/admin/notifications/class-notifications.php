@@ -176,7 +176,7 @@ class Notifications {
 		<div class="notice notice-info pmw notification">
 
 			<div id="pmw-notification-<?php 
-        esc_html_e( $notification_data['id'] );
+        echo esc_html( $notification_data['id'] );
         ?>">
 
 				<!-- Pixel Manager title -->
@@ -192,7 +192,7 @@ class Notifications {
 						<a class="notification-card-button-link" href="#">
 							<div class="notification-dismiss"
 								 data-notification-id="<?php 
-            esc_html_e( $notification_data['id'] );
+            echo esc_html( $notification_data['id'] );
             ?>">
 								<!-- Replace 'Dismiss' text with 'X' -->
 								<span class="notification-dismiss-cross">&times;</span>
@@ -210,7 +210,7 @@ class Notifications {
 				<div class="notification-top">
 					<div>
 						<?php 
-        esc_html_e( $notification_data['title'] );
+        echo esc_html( $notification_data['title'] );
         ?>
 					</div>
 					<div class="importance-info">
@@ -219,7 +219,7 @@ class Notifications {
         ?>:</span>
 						<span class="notification-card-top-impact-level">
 							<?php 
-        esc_html_e( $notification_data['importance'] );
+        echo esc_html( $notification_data['importance'] );
         ?>
 						</span>
 					</div>
@@ -234,7 +234,7 @@ class Notifications {
         if ( !empty( $custom_middle_html ) ) {
             ?>
 						<?php 
-            esc_html_e( $custom_middle_html );
+            echo esc_html( $custom_middle_html );
             ?>
 					<?php 
         } else {
@@ -244,7 +244,7 @@ class Notifications {
                 ?>
 							<p class="notification-card-description">
 								<?php 
-                esc_html_e( $description );
+                echo esc_html( $description );
                 ?>
 							</p>
 						<?php 
@@ -270,13 +270,13 @@ class Notifications {
 								var script   = document.createElement("script")
 								script.async = true
 								script.src   = 'https://fast.wistia.com/embed/medias/<?php 
-            esc_html_e( $notification_data['video_id'] );
+            echo esc_html( $notification_data['video_id'] );
             ?>.jsonp'
 								document.getElementsByTagName("head")[0].appendChild(script)
 							</script>
 
 							<div class="wistia_embed wistia_async_<?php 
-            esc_html_e( $notification_data['video_id'] );
+            echo esc_html( $notification_data['video_id'] );
             ?> popover=true popoverContent=link videoFoam=false"
 								 >
 								<span class="dashicons dashicons-video-alt3"></span>
@@ -293,7 +293,7 @@ class Notifications {
             ?>
 						<a class="notification-card-button-link"
 						   href="<?php 
-            esc_html_e( $notification_data['learn_more_link'] );
+            echo esc_html( $notification_data['learn_more_link'] );
             ?>"
 						   target="_blank"
 						>
@@ -314,7 +314,7 @@ class Notifications {
             ?>
 						<a class="notification-card-button-link"
 						   href="<?php 
-            esc_html_e( $notification_data['settings_link'] );
+            echo esc_html( $notification_data['settings_link'] );
             ?>"
 						   target="_blank"
 						>

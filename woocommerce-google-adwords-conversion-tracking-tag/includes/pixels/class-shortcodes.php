@@ -60,7 +60,7 @@ class Shortcodes {
 
 			<script>
 				jQuery(document).on("pmw:ready", function () {
-					jQuery(document).trigger("pmw:view-item", wpm.getProductDetailsFormattedForEvent(<?php esc_html_e($shortcode_attributes['product-id']); ?>))
+					jQuery(document).trigger("pmw:view-item", wpm.getProductDetailsFormattedForEvent(<?php echo esc_html($shortcode_attributes['product-id']); ?>))
 				})
 			</script>
 			<?php
@@ -239,7 +239,7 @@ class Shortcodes {
 		<script>
 			wpmFunctionExists("_tfa").then(function () {
 					_tfa.push({
-						id    : <?php esc_html_e(Options::get_taboola_account_id()); ?>,
+						id    : <?php echo esc_html(Options::get_taboola_account_id()); ?>,
 						notify: "event",
 						name  : "<?php echo esc_js($shortcode_attributes['taboola-event']); ?>",
 					})
@@ -268,7 +268,7 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("gtag").then(function () {
-					if (wpm.googleConfigConditionsMet({type: "marketing"})) gtag("event", "conversion", {"send_to": 'AW-<?php echo esc_js($shortcode_attributes['gads-conversion-id']); ?>/<?php echo esc_js($shortcode_attributes['gads-conversion-label']); ?>'})
+					gtag("event", "conversion", {"send_to": 'AW-<?php echo esc_js($shortcode_attributes['gads-conversion-id']); ?>/<?php echo esc_js($shortcode_attributes['gads-conversion-label']); ?>'})
 				},
 			)
 		</script>
@@ -313,7 +313,7 @@ class Shortcodes {
 					let eventId = wpm.getRandomEventId()
 
 					wpmFunctionExists("fbq").then(function () {
-							fbq("<?php esc_html_e($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>", {}, {
+							fbq("<?php echo esc_html($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>", {}, {
 								eventID: eventId,
 							})
 						},
@@ -336,7 +336,7 @@ class Shortcodes {
 
 			<script>
 				wpmFunctionExists("fbq").then(function () {
-						fbq("<?php esc_html_e($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>")
+						fbq("<?php echo esc_html($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>")
 					},
 				)
 			</script>

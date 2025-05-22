@@ -62,6 +62,7 @@ class WCPM {
             wp_unschedule_event( $timestamp, 'pmw_tracking_accuracy_analysis' );
         } );
         Deprecated_Filters::load_deprecated_filters();
+        Environment::third_party_plugin_tweaks_on_plugins_loaded();
         if ( Environment::is_woocommerce_active() ) {
             add_action( 'before_woocommerce_init', [__CLASS__, 'declare_woocommerce_compatibilities'] );
             add_action(
@@ -268,7 +269,7 @@ class WCPM {
         self::setup_freemius_environment();
         // endDeleteIf(wcMarketFree)
         // Needs to be under init to avoid issues with filters called in the Options class
-        Environment::third_party_plugin_tweaks();
+        Environment::third_party_plugin_tweaks_on_init();
         // Needs to be under init to avoid issues with filters called in the Options class
         if ( Options::is_maximum_compatiblity_mode_active() ) {
             Environment::enable_compatibility_mode();

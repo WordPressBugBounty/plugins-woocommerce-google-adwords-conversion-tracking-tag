@@ -4,6 +4,7 @@ namespace SweetCode\Pixel_Manager\Pixels\Google;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Helpers;
+use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\Shop;
@@ -520,14 +521,14 @@ class Google_Helpers {
     }
 
     /**
-     * Determine the Google Tracking ID
+     * Determine the Google tag ID
      *
      * @return string
      *
      * @since 1.46.1
      */
-    public static function determine_google_tracking_id() {
-        $tracking_id = '';
+    public static function determine_google_tag_id() {
+        $tag_id = '';
         $google_base_url = 'https://www.googletagmanager.com/gtag/js?id=';
         // If Google Ads is active and the URL is reachable, return the Google Ads conversion ID
         if ( Options::is_google_ads_active() && Helpers::is_url_accessible( $google_base_url . 'AW-' . Options::get_google_ads_conversion_id() ) ) {
@@ -541,26 +542,87 @@ class Google_Helpers {
         if ( Options::is_google_ads_active() && Helpers::is_url_accessible( $google_base_url . Options::get_google_ads_conversion_id() ) ) {
             return (string) Options::get_google_ads_conversion_id();
         }
-        return $tracking_id;
+        return $tag_id;
     }
 
     /**
-     * Get the Google Tracking ID
+     * Get the Google tag ID
      *
      * @return string
      *
      * @since 1.46.1
      */
-    public static function get_google_tracking_id() {
-        $transient_name = 'pmw_google_tracking_id';
+    public static function get_google_tag_id() {
+        $transient_name = 'pmw_google_tag_id';
         // If saved in transient get from transient
-        $google_tracking_id = get_transient( $transient_name );
-        if ( $google_tracking_id ) {
-            return $google_tracking_id;
+        $google_tag_id = get_transient( $transient_name );
+        if ( $google_tag_id ) {
+            return $google_tag_id;
         }
-        $google_tracking_id = apply_filters( 'pmw_google_tracking_id', self::determine_google_tracking_id() );
-        set_transient( $transient_name, $google_tracking_id, HOUR_IN_SECONDS );
-        return $google_tracking_id;
+        $google_tag_id = apply_filters_deprecated(
+            'pmw_google_tracking_id',
+            [self::determine_google_tag_id()],
+            '1.48.0',
+            'google_tag_id'
+        );
+        $google_tag_id = apply_filters( 'google_tag_id', $google_tag_id );
+        set_transient( $transient_name, $google_tag_id, HOUR_IN_SECONDS );
+        return $google_tag_id;
+    }
+
+    /**
+     * Performs a health check for the Google Tag Gateway by sending a request to the gateway's health check endpoint.
+     *
+     * @return array An array containing the status of the health check and any error messages.
+     *
+     * @since 1.48.0
+     */
+    public static function gtag_gateway_health_check() {
+        $gateway_url = get_site_url() . Options::get_google_tag_gateway_measurement_path() . '/healthy';
+        $response = wp_remote_get( $gateway_url, [
+            'timeout'   => 3,
+            'headers'   => [
+                'Accept' => 'application/json',
+            ],
+            'sslverify' => false,
+        ] );
+        if ( is_wp_error( $response ) ) {
+            Logger::error( 'Google Tag Gateway Health Check: ' . $gateway_url . ' - ' . $response->get_error_message() );
+            return [
+                'status' => false,
+                'error'  => 'Request error: ' . $response->get_error_message(),
+            ];
+        }
+        $body = wp_remote_retrieve_body( $response );
+        $code = wp_remote_retrieve_response_code( $response );
+        if ( 200 !== $code ) {
+            if ( strpos( $body, 'challenge' ) !== false ) {
+                Logger::error( 'Google Tag Gateway Health Check: ' . $gateway_url . ' - Blocked by Cloudflare' );
+                return [
+                    'status' => false,
+                    'error'  => 'Blocked by Cloudflare.',
+                    'body'   => $body,
+                ];
+            }
+            Logger::error( 'Google Tag Gateway Health Check: ' . $gateway_url . ' - Unexpected response code: ' . $code );
+            return [
+                'status' => false,
+                'error'  => 'Unexpected response code: ' . $code,
+                'body'   => $body,
+            ];
+        }
+        if ( strpos( $body, 'ok' ) !== false ) {
+            return [
+                'status'  => true,
+                'message' => 'Gateway is healthy.',
+            ];
+        }
+        Logger::error( 'Google Tag Gateway Health Check: ' . $gateway_url . ' - Unexpected response body: ' . $body );
+        return [
+            'status' => false,
+            'error'  => 'Unexpected response body.',
+            'body'   => $body,
+        ];
     }
 
 }

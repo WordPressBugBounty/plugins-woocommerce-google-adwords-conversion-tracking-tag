@@ -149,6 +149,9 @@ class Options {
 				],
 				'tcf_support'  => false,
 				'user_id'      => false,
+				'tag_gateway' => [
+					'measurement_path' => '',
+				],
 			],
 			'hotjar'     => [
 				'site_id' => '',
@@ -577,6 +580,14 @@ class Options {
 		return (array) self::get_options_obj()->google->analytics->ga4->data_api->credentials;
 	}
 
+	public static function get_ga4_data_api_credentials_client_email() {
+		return self::get_options_obj()->google->analytics->ga4->data_api->credentials->client_email;
+	}
+
+	public static function get_ga4_data_api_credentials_private_key() {
+		return self::get_options_obj()->google->analytics->ga4->data_api->credentials->private_key;
+	}
+
 	public static function is_ga4_data_api_active() {
 		return
 			self::get_ga4_data_api_property_id()
@@ -605,6 +616,10 @@ class Options {
 
 	public static function is_google_user_id_active() {
 		return (bool) self::get_options_obj()->google->user_id;
+	}
+
+	public static function get_google_tag_gateway_measurement_path() {
+		return self::get_options_obj()->google->tag_gateway->measurement_path;
 	}
 
 	public static function is_google_link_attribution_active() {
@@ -826,6 +841,10 @@ class Options {
 	}
 
 	public static function is_pro_version_demo_active() {
+
+		if (!Helpers::is_pmw_wcm_distro() && wpm_fs()->is__premium_only()) {
+			return false;
+		}
 
 		if (!Helpers::is_pmw_wcm_distro() && self::get_options_obj()->general->pro_version_demo) {
 			return true;

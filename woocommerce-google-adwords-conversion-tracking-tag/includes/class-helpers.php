@@ -316,7 +316,8 @@ class Helpers {
         }
         // Check if the current page is an admin page and if it is one of the given page IDs
         //		return is_admin() && in_array(get_current_screen()->id, $page_ids);
-        if ( !isset( $_GET['page'] ) || !in_array( $_GET['page'], $page_ids ) ) {
+        $_get = self::get_input_vars( INPUT_GET );
+        if ( !isset( $_get['page'] ) || !in_array( $_get['page'], $page_ids ) ) {
             return false;
         }
         return true;
@@ -334,7 +335,7 @@ class Helpers {
         $ip = '';
         // Generate a random IP address
         for ($i = 0; $i < 4; $i++) {
-            $ip .= rand( 0, 255 );
+            $ip .= wp_rand( 0, 255 );
             if ( $i < 3 ) {
                 $ip .= '.';
             }

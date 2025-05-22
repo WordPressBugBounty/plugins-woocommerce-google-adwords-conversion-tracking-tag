@@ -110,18 +110,18 @@ class Opportunities {
 
 		?>
 		<div class="pmw">
-			<div id="pmw-opportunity-<?php esc_html_e($card_data['id']); ?>"
-				 class="<?php esc_html_e(implode(' ', $main_card_classes)); ?>"
+			<div id="pmw-opportunity-<?php echo esc_html($card_data['id']); ?>"
+				 class="<?php echo esc_html(implode(' ', $main_card_classes)); ?>"
 			>
 				<!-- top -->
 				<div class="opportunity-card-top">
-					<div><b><?php esc_html_e($card_data['title']); ?></b></div>
+					<div><b><?php echo esc_html($card_data['title']); ?></b></div>
 					<div class="opportunity-card-top-right">
 						<div class="opportunity-card-top-impact">
 							<?php esc_html_e('Impact', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>:
 						</div>
 						<div class="opportunity-card-top-impact-level">
-							<?php esc_html_e($card_data['impact']); ?>
+							<?php echo esc_html($card_data['impact']); ?>
 						</div>
 					</div>
 				</div>
@@ -132,11 +132,11 @@ class Opportunities {
 				<div class="opportunity-card-middle">
 
 					<?php if (!empty($custom_middle_html)) : ?>
-						<?php esc_html_e($custom_middle_html); ?>
+						<?php echo esc_html($custom_middle_html); ?>
 					<?php else : ?>
 						<?php foreach ($card_data['description'] as $description) : ?>
 							<p class="opportunity-card-description">
-								<?php esc_html_e($description); ?>
+								<?php echo esc_html($description); ?>
 							</p>
 						<?php endforeach; ?>
 					<?php endif; ?>
@@ -152,13 +152,13 @@ class Opportunities {
 						<!-- Video Link-->
 						<div>
 							<script>
-								var script   = document.createElement("script")
-								script.async = true
-								script.src   = 'https://fast.wistia.com/embed/medias/<?php esc_html_e($card_data['setup_video']); ?>.jsonp'
-								document.getElementsByTagName("head")[0].appendChild(script)
+								var script   = document.createElement("script");
+								script.async = true;
+								script.src   = 'https://fast.wistia.com/embed/medias/<?php echo esc_html($card_data['setup_video']); ?>.jsonp';
+								document.getElementsByTagName("head")[0].appendChild(script);
 							</script>
 
-							<div class="opportunities wistia_embed wistia_async_<?php esc_html_e($card_data['setup_video']); ?> popover=true popoverContent=link videoFoam=false"
+							<div class="opportunities wistia_embed wistia_async_<?php echo esc_html($card_data['setup_video']); ?> popover=true popoverContent=link videoFoam=false"
 								 style="display:inline-block;height:123;position:relative;width:150;text-decoration: none; vertical-align: top;">
 								<span class="dashicons dashicons-video-alt3" style="font-size: 36px"></span>
 							</div>
@@ -168,7 +168,7 @@ class Opportunities {
 					<?php if (isset($card_data['setup_link'])) : ?>
 						<!-- Setup Link-->
 						<a class="opportunity-card-button-link"
-						   href="<?php esc_html_e($card_data['setup_link']); ?>"
+						   href="<?php echo esc_html($card_data['setup_link']); ?>"
 						   target="_blank"
 						>
 							<div class="opportunity-card-bottom-button">
@@ -181,7 +181,7 @@ class Opportunities {
 					<?php if (isset($card_data['learn_more_link'])) : ?>
 						<!-- Learn More Link-->
 						<a class="opportunity-card-button-link"
-						   href="<?php esc_html_e($card_data['learn_more_link']); ?>"
+						   href="<?php echo esc_html($card_data['learn_more_link']); ?>"
 						   target="_blank"
 						>
 							<div class="opportunity-card-bottom-button">
@@ -196,7 +196,7 @@ class Opportunities {
 						   href="#"
 						>
 							<div class="opportunity-dismiss opportunity-card-bottom-button"
-								 data-opportunity-id="<?php esc_html_e($card_data['id']); ?>">
+								 data-opportunity-id="<?php echo esc_html($card_data['id']); ?>">
 								<?php esc_html_e('Dismiss', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 							</div>
 						</a>
@@ -208,9 +208,15 @@ class Opportunities {
 		<?php
 	}
 
-	// Don't make public, as this could be used for file inclusion attacks.
+	/**
+	 * Load all opportunity classes.
+	 *
+	 * =================== IMPORTANT ===================
+	 * Don't make it public, as this could be used for file inclusion attacks.
+	 * ================================================
+	 */
 	private static function load_all_opportunity_classes() {
-
+		// Base directories to scan
 		$dirs = [
 			__DIR__ . '/free',
 			__DIR__ . '/pro',
@@ -221,12 +227,12 @@ class Opportunities {
 			foreach ($scan as $path) {
 				if (preg_match('/\.php$/', $path)) {
 					require_once $path;
-				} elseif (is_dir($path)) {
-					self::load_all_opportunity_classes($path);
 				}
+				// No recursive calls to subdirectories
 			}
 		}
 	}
+
 
 	private static function get_opportunities() {
 

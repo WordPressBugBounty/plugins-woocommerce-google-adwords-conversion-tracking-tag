@@ -341,9 +341,9 @@ class Order_Columns {
 
 		?>
 
-		<div aria-hidden="true" title="<?php esc_html_e($status_text); ?>"
-			 class="pmw-monitored-icon <?php esc_html_e($status_class); ?>">
-			<span class="screen-reader-text"><?php esc_html_e($status_text); ?></span>
+		<div aria-hidden="true" title="<?php echo esc_html($status_text); ?>"
+			 class="pmw-monitored-icon <?php echo esc_html($status_class); ?>">
+			<span class="screen-reader-text"><?php echo esc_html($status_text); ?></span>
 		</div>
 
 		<?php

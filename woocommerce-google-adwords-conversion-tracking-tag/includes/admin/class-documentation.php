@@ -107,11 +107,11 @@ class Documentation {
 			],
 			'snapchat_capi_token'                                      => [
 				'default' => '/docs/wpm/plugin-configuration/snapchat#conversions-api',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/snapchat/#section-2',
 			],
 			'snapchat_advanced_matching'                             => [
 				'default' => '/docs/wpm/plugin-configuration/snapchat#advanced-matching',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/snapchat/#section-3',
 			],
 			'tiktok_pixel_id'                                        => [
 				'default' => '/docs/wpm/plugin-configuration/tiktok',
@@ -131,7 +131,7 @@ class Documentation {
 			],
 			'vwo_account_id'                                         => [
 				'default' => '/docs/wpm/plugin-configuration/vwo',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/vwo/',
 			],
 			'hotjar_site_id'                                         => [
 				'default' => '/docs/wpm/plugin-configuration/hotjar#hotjar-site-id',
@@ -265,6 +265,10 @@ class Documentation {
 				'default' => '/docs/wpm/plugin-configuration/google-ads#conversion-adjustments',
 				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/google-ads/#section-6',
 			],
+			'ga4_data_api'                               => [
+				'default' => '/docs/wpm/plugin-configuration/google-analytics#ga4-data-api',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/google-analytics/#section-3',
+			],
 			'ga4_data_api_property_id'                               => [
 				'default' => '/docs/wpm/plugin-configuration/google-analytics#ga4-property-id',
 				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/google-analytics/#ga4-property-id',
@@ -291,11 +295,11 @@ class Documentation {
 			],
 			'opportunity_google_enhanced_conversions'                => [
 				'default' => '/docs/wpm/opportunities#google-ads-enhanced-conversions',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/opportunities/#section-1',
 			],
 			'opportunity_google_ads_conversion_adjustments'          => [
 				'default' => '/docs/wpm/opportunities#google-ads-conversion-adjustments',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/opportunities/#section-2',
 			],
 			'ga4_page_load_time_tracking'                            => [
 				'default' => '/docs/wpm/plugin-configuration/google-analytics#page-load-time-tracking',
@@ -355,31 +359,31 @@ class Documentation {
 			],
 			'logger_activation'                                      => [
 				'default' => '/docs/wpm/developers/logs#logger-activation',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/developers-documentation/logs-3/#section-1',
 			],
 			'log_level'                                              => [
 				'default' => '/docs/wpm/developers/logs#log-levels',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/developers-documentation/logs-3/#section-2',
 			],
 			'log_http_requests'                                      => [
 				'default' => '/docs/wpm/developers/logs#log-http-requests',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/developers-documentation/logs-3/#section-3',
 			],
 			'log_files'                                              => [
 				'default' => '/docs/wpm/developers/logs#accessing-log-files',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/developers-documentation/logs-3/',
 			],
 			'ltv_order_calculation'                                  => [
 				'default' => '/docs/wpm/plugin-configuration/shop-settings#active-lifetime-value-calculation',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/shop-settings-2/#section-9',
 			],
 			'ltv_recalculation'                                      => [
 				'default' => '/docs/wpm/plugin-configuration/shop-settings#lifetime-value-recalculation',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/shop-settings-2/#section-11',
 			],
 			'order_modal_ltv'                                        => [
 				'default' => '/docs/wpm/shop#lifetime-value',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/shop/#section-6',
 			],
 			'facebook_microdata_deprecation'                         => [
 				'default' => '/blog/facebook-microdata-for-catalog-deprecation-notice',
@@ -387,10 +391,22 @@ class Documentation {
 			],
 			'order_extra_details'                         => [
 				'default' => '/docs/wpm/plugin-configuration/shop-settings#extra-order-data-output',
-				'wcm'     => '',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/pmw-plugin-configuration/shop-settings-2/#section-12',
 			],
 			'microsoft_ads_consent_mode'                         => [
 				'default' => '/docs/wpm/consent-management/microsoft#microsoft-ads-consent-mode',
+				'wcm'     => '/document/pixel-manager-pro-for-woocommerce/consent-management/microsoft-ads-consent-settings/',
+			],
+			'facebook_domain_verification_id' 						=> [
+				'default' => '/docs/wpm/plugin-configuration/meta#domain-verification',
+				'wcm'     => '',
+			],
+			'google_tag_gateway_measurement_path' 				=> [
+				'default' => '/docs/wpm/plugin-configuration/google#google-gtag-gateway-for-advertisers',
+				'wcm'     => '',
+			],
+			'google_tag_id' 									   => [
+				'default' => '/docs/wpm/plugin-configuration/google#google-gtag-gateway-for-advertisers',
 				'wcm'     => '',
 			],
 		];

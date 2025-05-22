@@ -3,9 +3,9 @@
 namespace SweetCode\Pixel_Manager\Admin;
 
 use ActionScheduler_Versions;
-use SweetCode\Pixel_Manager\Admin\Notifications\Notifications;
 use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Helpers;
+use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\Profit_Margin;
@@ -158,6 +158,11 @@ class Environment {
 		 * External cache like Cloudflare.
 		 */
 		self::purge_third_layer_cache();
+
+		/**
+		 * Delete specific transients.
+		 */
+		delete_transient('pmw_google_tag_id');
 	}
 
 	private static function purge_first_layer_cache() {
@@ -244,15 +249,22 @@ class Environment {
 		}                                                                              // works
 	}
 
+	// This is a helper to work around the
+	private static function localhost_domain() {
+		return 'localhost';
+	}
+
 	private static function purge_kinsta_cache() {
+
+
 		try {
-			wp_remote_get('https://localhost/kinsta-clear-cache-all', [
+			wp_remote_get('https://' . self::localhost_domain() . '/kinsta-clear-cache-all', [
 				'sslverify' => !Geolocation::is_localhost(),
 				'timeout'   => 5,
 			]);
 
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 	}
 
@@ -296,7 +308,7 @@ class Environment {
 				}
 			}
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 	}
 
@@ -306,7 +318,7 @@ class Environment {
 				( new \CF\WordPress\Hooks() )->purgeCacheEverything();
 			}
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 	}
 
@@ -316,7 +328,7 @@ class Environment {
 				\FlyingPress\Purge::purge_cached_pages();
 			}
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 	}
 
@@ -326,7 +338,7 @@ class Environment {
 				\WpeCommon::purge_varnish_cache_all();
 			}
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 	}
 
@@ -337,7 +349,7 @@ class Environment {
 				$pagely->purgeAll();
 			}
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 	}
 
@@ -381,7 +393,7 @@ class Environment {
 			}
 
 		} catch (\Exception $e) {
-			error_log($e);
+			Logger::error($e->getMessage());
 		}
 
 //        do_action('nitropack_integration_purge_all');
@@ -924,40 +936,12 @@ class Environment {
 
 		foreach ($js_to_exclude as $string) {
 
-			// add exclusions for inline js
-//            if (array_key_exists('exclude_inline_js', $options) && is_array($options['exclude_inline_js']) && !in_array($string, $options['exclude_inline_js'])) {
-//
-//                array_push($options['exclude_inline_js'], $string);
-//                $update_options = true;
-//            }
-
-			// add exclusions for js
-//            if (array_key_exists('exclude_js', $options) && is_array($options['exclude_js']) && !in_array($string, $options['exclude_js'])) {
-//
-//                array_push($options['exclude_js'], $string);
-//                $update_options = true;
-//            }
-
 			// remove scripts from delay_js_scripts
 			if (array_key_exists('delay_js_scripts', $options) && is_array($options['delay_js_scripts']) && in_array($string, $options['delay_js_scripts'])) {
 
 				unset($options['delay_js_scripts'][array_search($string, $options['delay_js_scripts'])]);
 				$update_options = true;
 			}
-
-			// exclude_defer_js
-//            if (array_key_exists('exclude_defer_js', $options) && is_array($options['exclude_defer_js']) && !in_array($string, $options['exclude_defer_js'])) {
-//
-//                array_push($options['exclude_defer_js'], $string);
-//                $update_options = true;
-//            }
-
-			// exclude_delay_js
-//            if (array_key_exists('delay_js_exclusions', $options) && is_array($options['delay_js_exclusions']) && !in_array($string, $options['delay_js_exclusions'])) {
-//
-//                array_push($options['delay_js_exclusions'], $string);
-//                $update_options = true;
-//            }
 		}
 
 		if (true === $update_options) {
@@ -966,14 +950,44 @@ class Environment {
 	}
 
 	/**
+	 * Load the third party plugin tweaks during the plugins_loaded action
+	 *
+	 * @return void
+	 *
+	 * @since 1.48.0
+	 */
+	public static function third_party_plugin_tweaks_on_plugins_loaded() {
+
+		/**
+		 * Google Listing and Ads
+		 *
+		 * Disable gtag if Google Ads is active in PMW
+		 *
+		 * Must be hooked into plugins_loaded
+		 */
+		if (Options::is_google_ads_active()) {
+			add_filter('woocommerce_gla_disable_gtag_tracking', '__return_true');
+		}
+	}
+
+	/**
 	 * Third party plugin tweaks
 	 *
 	 * @return void
 	 */
-	public static function third_party_plugin_tweaks() {
+	public static function third_party_plugin_tweaks_on_init() {
+
+		/**
+		 * WP Consent API compatibility declaration
+		 *
+		 * Must be hooked into init
+		 */
+		add_filter('wp_consent_api_registered_' . PMW_PLUGIN_BASENAME, '__return_true');
 
 		/**
 		 * Complianz
+		 *
+		 * Must be hooked into init
 		 */
 		if (self::is_complianz_active()) {
 
@@ -1094,16 +1108,6 @@ class Environment {
 			) {
 				self::disable_woo_product_feed_features();
 			}
-		}
-
-		/**
-		 * Google Listing and Ads
-		 *
-		 * Disable gtag if Google Ads is active in PMW
-		 */
-
-		if (Options::is_google_ads_active()) {
-			add_filter('woocommerce_gla_disable_gtag_tracking', '__return_true');
 		}
 
 		/**
@@ -1569,39 +1573,6 @@ class Environment {
 
 		// If $response_code is a redirect code (3xx), then it's a redirect and return true, otherwise return false
 		return ( $response_code >= 300 && $response_code < 400 );
-	}
-
-// https://stackoverflow.com/questions/8429342/php-get-headers-set-temporary-stream-context
-	protected static function get_headers_with_stream_context( $url, $context, $assoc = 0 ) {
-
-		$fp = @fopen($url, 'r', null, $context);
-
-		if (!is_bool($fp)) {
-
-			$metaData = stream_get_meta_data($fp);
-			fclose($fp);
-
-			$headerLines = $metaData['wrapper_data'];
-
-			if (!$assoc) {
-				return $headerLines;
-			}
-
-			$headers = [];
-			foreach ($headerLines as $line) {
-				if (strpos($line, 'HTTP') === 0) {
-					$headers[0] = $line;
-					continue;
-				}
-
-				list($key, $value) = explode(': ', $line);
-				$headers[$key] = $value;
-			}
-
-			return $headers;
-		} else {
-			return [];
-		}
 	}
 
 // https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#usage

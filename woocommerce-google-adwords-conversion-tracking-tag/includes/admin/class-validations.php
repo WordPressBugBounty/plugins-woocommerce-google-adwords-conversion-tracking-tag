@@ -52,7 +52,7 @@ class Validations {
 
 		foreach ($partial_array as $key => $value) {
 			if (!array_key_exists($key, $full_array)) {
-				error_log('key not found: ' . $key);
+				Logger::error('key not found: ' . $key);
 				return false;
 			}
 			if (is_array($value)) {
@@ -200,6 +200,34 @@ class Validations {
 					? Options::get_google_ads_phone_conversion_label()
 					: '';
 				add_settings_error('wgact_plugin_options', 'invalid-conversion-label', esc_html__('You have entered an invalid Google Ads conversion label.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// validate ['google]['tag_gateway']['measurement_path']
+		if (isset($input['google']['tag_gateway']['measurement_path'])) {
+
+			// Trim space, newlines and quotes
+			$input['google']['tag_gateway']['measurement_path'] = Helpers::trim_string($input['google']['tag_gateway']['measurement_path']);
+
+			// Prefix a slash if it doesn't exist
+			if ('' !== $input['google']['tag_gateway']['measurement_path'] && '/' !== substr($input['google']['tag_gateway']['measurement_path'], 0, 1)) {
+				$input['google']['tag_gateway']['measurement_path'] = '/' . $input['google']['tag_gateway']['measurement_path'];
+			}
+
+			if (!self::is_google_tag_gateway_measurement_path($input['google']['tag_gateway']['measurement_path'])) {
+				$input['google']['tag_gateway']['measurement_path']
+					= Options::get_google_tag_gateway_measurement_path()
+					? Options::get_google_tag_gateway_measurement_path()
+					: '';
+				add_settings_error(
+					'wgact_plugin_options',
+					'invalid-google-tag-gateway-measurement-path',
+					sprintf(
+					// Translators: %s is the placeholder for the Google tag gateway measurement path.
+						esc_html__('You have entered an invalid Google tag gateway measurement path. It should look like %s', 'woocommerce-google-adwords-conversion-tracking-tag'),
+						'<code>/metrics</code>'
+					)
+				);
 			}
 		}
 
@@ -899,7 +927,7 @@ class Validations {
 
 	public static function is_reddit_advertiser_id( $string ) {
 
-		$re = '/^(a2_|t2_)[a-z0-9]{6,12}$/m';
+		$re = '/^(a2_|t2_)[a-z0-9]{4,12}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -957,6 +985,20 @@ class Validations {
 	public static function is_gads_conversion_label( $string ) {
 
 		$re = '/^[-a-zA-Z_0-9]{17,20}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	//is_google_tag_gateway_measurement_path
+	public static function is_google_tag_gateway_measurement_path( $string ) {
+
+		// Create a regex that matches any type of URL path and starts with a slash
+		// It may not exceed 100 characters
+		// It may not be the root path /
+		// It may not contain dashes
+		// It may only contain letters, numbers
+		// example: /metrics
+		$re = '/^\/[a-zA-Z0-9]{1,100}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}

@@ -400,19 +400,19 @@ class Product {
 
 		if ($meta_tag) {
 			?>
-			<meta name="pm-dataLayer-meta" content="<?php esc_html_e($product->get_id()); ?>" class="wpmProductId"
-				  data-id="<?php esc_html_e($product->get_id()); ?>">
+			<meta name="pm-dataLayer-meta" content="<?php echo esc_html($product->get_id()); ?>" class="wpmProductId"
+				  data-id="<?php echo esc_html($product->get_id()); ?>">
 			<?php
 		} else {
 			?>
-			<input type="hidden" class="wpmProductId" data-id="<?php esc_html_e($product->get_id()); ?>">
+			<input type="hidden" class="wpmProductId" data-id="<?php echo esc_html($product->get_id()); ?>">
 			<?php
 		}
 
 		?>
 		<script<?php echo wp_kses(Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html()); ?>>
 			(window.wpmDataLayer = window.wpmDataLayer || {}).products             = window.wpmDataLayer.products || {};
-			window.wpmDataLayer.products[<?php esc_html_e($product->get_id()); ?>] = <?php echo wp_json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+			window.wpmDataLayer.products[<?php echo esc_html($product->get_id()); ?>] = <?php echo wp_json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 			<?php $set_position ? self::get_product_data_layer_script_html_part_2($product) : ''; ?>
 		</script>
 		<?php
@@ -421,7 +421,7 @@ class Product {
 	public static function get_product_data_layer_script_html_part_2( $product ) {
 		?>
 		window.pmw_product_position = window.pmw_product_position || 1;
-		window.wpmDataLayer.products[<?php esc_html_e($product->get_id()); ?>]['position'] = window.pmw_product_position++;
+		window.wpmDataLayer.products[<?php echo esc_html($product->get_id()); ?>]['position'] = window.pmw_product_position++;
 		<?php
 	}
 

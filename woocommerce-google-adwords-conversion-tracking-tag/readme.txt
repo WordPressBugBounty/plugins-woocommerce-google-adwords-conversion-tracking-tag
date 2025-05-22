@@ -2,9 +2,9 @@
 Contributors: alekv, wolfbaer
 Tags: woocommerce, google analytics, google ads, facebook pixel, conversion tracking
 Requires at least: 3.7
-Tested up to: 6.7
+Tested up to: 6.8
 Requires PHP: 7.3
-Stable tag: 1.47.0
+Stable tag: 1.48.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -295,6 +295,30 @@ We are committed to ensuring the security of our customers and their data. If yo
 1. Settings page
 
 == Changelog ==
+
+= 1.48.0  =
+*Release date - 22.05.2025*
+
+* New: Support for Google tag gateway for advertisers.
+* Tweak: Many code improvements to reduce Plugin Check warnings and errors.
+* Tweak: Bumped up WP version compatibility to 6.8
+* Tweak: Bumped up WC version compatibility to 9.8
+* Tweak: Added filter to declare WP Consent API compatibility.
+* Tweak: Removed some cruft.
+* Tweak: Added console log for Meta (Facebook) custom event tracking.
+* Tweak: Updated vendor packages.
+* Tweak: Optimized the show_variation event listener to prevent issues on small subset of themes.
+* Tweak: Added optional fallback URL for the script loader.
+* Tweak: Optimized filter loading.
+* Tweak: Optimized the event script for Google shortcodes.
+* Tweak: Improved the cache purge logic to also purge transients that cache certain options.
+* Fix: Removed a possible recursion to prevent a memory overallocation error in some edge cases in class-opportunties.php.
+* Fix: Fixed the facebook_for_woocommerce_integration_pixel_enabled filter.
+
+= 1.47.1  =
+*Release date - 17.04.2025*
+
+* New: Released the free version of the plugin on the woocommerce.org marketplace.
 
 = 1.47.0  =
 *Release date - 31.03.2025*

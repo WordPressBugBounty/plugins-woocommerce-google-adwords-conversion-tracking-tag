@@ -251,7 +251,7 @@ class Pixel_Manager {
         //		$server->send_header('Content-Type', 'text/xml');
         //		$server->send_header('Content-Type', 'application/xml');
         // Echo the XML that's returned by smg_feed().
-        esc_html_e( $result->get_data() );
+        echo esc_html( $result->get_data() );
         exit;
     }
 
@@ -822,7 +822,8 @@ class Pixel_Manager {
                 'id_type' => Google_Helpers::get_ga_id_type(),
             ];
         }
-        $data['tracking_id'] = Google_Helpers::get_google_tracking_id();
+        $data['tag_id'] = Google_Helpers::get_google_tag_id();
+        $data['tag_gateway']['measurement_path'] = Options::get_google_tag_gateway_measurement_path();
         $data['tcf_support'] = Options::is_google_tcf_support_active();
         $data['consent_mode'] = [
             'is_active'          => Options::is_google_consent_mode_active(),

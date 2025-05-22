@@ -3,7 +3,7 @@
         'name' => 'sweetcode/pixel-manager-for-woocommerce',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => 'd273a4d71bb3aefcf27c42042d52fb8ff8334fa0',
+        'reference' => '18cd774b33ecf13b303d0a8f95d5c7ef3ee7af45',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,18 +11,18 @@
     ),
     'versions' => array(
         'freemius/wordpress-sdk' => array(
-            'pretty_version' => '2.10.1',
-            'version' => '2.10.1.0',
-            'reference' => '5f57de9d7504b37b0ee9f5da44b6699c99854dd2',
+            'pretty_version' => '2.12.0',
+            'version' => '2.12.0.0',
+            'reference' => 'db6f35a2b3d318a53330409dbeab49156ee76dd8',
             'type' => 'library',
             'install_path' => __DIR__ . '/../freemius/wordpress-sdk',
             'aliases' => array(),
             'dev_requirement' => false,
         ),
         'giggsey/libphonenumber-for-php' => array(
-            'pretty_version' => '8.13.52',
-            'version' => '8.13.52.0',
-            'reference' => 'cc9a82b237d79a85be47c0b06e3943f75ab35c32',
+            'pretty_version' => '8.13.55',
+            'version' => '8.13.55.0',
+            'reference' => '6e28b3d53cf96d7f41c83d9b80b6021ecbd00537',
             'type' => 'library',
             'install_path' => __DIR__ . '/../giggsey/libphonenumber-for-php',
             'aliases' => array(),
@@ -31,7 +31,7 @@
         'giggsey/libphonenumber-for-php-lite' => array(
             'dev_requirement' => false,
             'replaced' => array(
-                0 => '8.13.52',
+                0 => '8.13.55',
             ),
         ),
         'giggsey/locale' => array(
@@ -55,16 +55,16 @@
         'sweetcode/pixel-manager-for-woocommerce' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => 'd273a4d71bb3aefcf27c42042d52fb8ff8334fa0',
+            'reference' => '18cd774b33ecf13b303d0a8f95d5c7ef3ee7af45',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
             'dev_requirement' => false,
         ),
         'symfony/polyfill-iconv' => array(
-            'pretty_version' => 'v1.31.0',
-            'version' => '1.31.0.0',
-            'reference' => '48becf00c920479ca2e910c22a5a39e5d47ca956',
+            'pretty_version' => 'v1.32.0',
+            'version' => '1.32.0.0',
+            'reference' => '5f3b930437ae03ae5dff61269024d8ea1b3774aa',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/polyfill-iconv',
             'aliases' => array(),

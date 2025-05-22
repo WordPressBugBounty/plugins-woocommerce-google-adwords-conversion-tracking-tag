@@ -156,7 +156,7 @@ class Shop {
 					  https://example.test/checkout/order-received/123/?key=wc_order_123abc&nodedupe
 
 				More info on testing: <?php 
-        esc_html_e( Documentation::get_link( 'test_order' ) );
+        echo esc_html( Documentation::get_link( 'test_order' ) );
         ?>
 				----------------------------------------------------------------------------------------------------
 		-->
@@ -450,8 +450,9 @@ class Shop {
             return null;
         } else {
             // get current page, including query string
-            if ( isset( $_SERVER['REQUEST_URI'] ) ) {
-                $page = esc_url_raw( $_SERVER['REQUEST_URI'] );
+            $_server = Helpers::get_input_vars( INPUT_SERVER );
+            if ( isset( $_server['REQUEST_URI'] ) ) {
+                $page = esc_url_raw( $_server['REQUEST_URI'] );
             } else {
                 $page = '';
             }
