@@ -2,6 +2,7 @@
 
 namespace SweetCode\Pixel_Manager\Admin;
 
+use SweetCode\Pixel_Manager\Database;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
@@ -12,6 +13,9 @@ class Validations {
 
 	public static function validate_imported_options( $options ) {
 
+//		error_log('Validating imported options...');
+//		error_log(print_r($options, true));
+
 		$options_to_check = [
 			'google'     => [
 				'ads'          => [
@@ -19,13 +23,9 @@ class Validations {
 					'conversion_label' => '',
 				],
 				'analytics'    => [
-					'ga4'              => [
+					'ga4' => [
 						'measurement_id' => '',
 					],
-					'link_attribution' => false,
-				],
-				'optimize'     => [
-					'container_id' => '',
 				],
 				'consent_mode' => [
 					'active'  => false,
@@ -682,8 +682,20 @@ class Validations {
 		 * since disabling a checkbox doesn't send a value,
 		 * we need to set one to overwrite the old value
 		 */
+		$input = array_replace_recursive(self::non_form_keys($input), $input);
 
-		return array_replace_recursive(self::non_form_keys($input), $input);
+		// Set the timestamp for the options update
+		$input['timestamp'] = time();
+
+		// Add default values to missing options
+		// Because when saving the options, the form fields that are not set
+		// will not set in the $input array
+		$input = Options::update_with_defaults($input, Options::get_default_options());
+
+		// Create automatic backup before processing options
+		Options::save_automatic_options_backup_with_timestamp($input['timestamp'], $input);
+
+		return $input;
 	}
 
 	private static function validate_twitter_event( $input, $event ) {

@@ -26,21 +26,22 @@ if ( function_exists( 'wpm_fs' ) ) {
 
                 }
                 $wpm_fs = fs_dynamic_init( [
-                    'navigation'     => 'tabs',
-                    'id'             => '7498',
-                    'slug'           => 'woocommerce-google-adwords-conversion-tracking-tag',
-                    'premium_slug'   => 'pixel-manager-pro-for-woocommerce',
-                    'type'           => 'plugin',
-                    'public_key'     => 'pk_d4182c5e1dc92c6032e59abbfdb91',
-                    'is_premium'     => false,
-                    'premium_suffix' => 'Pro',
-                    'has_addons'     => false,
-                    'has_paid_plans' => true,
-                    'trial'          => [
+                    'navigation'       => 'tabs',
+                    'id'               => '7498',
+                    'slug'             => 'woocommerce-google-adwords-conversion-tracking-tag',
+                    'premium_slug'     => 'pixel-manager-pro-for-woocommerce',
+                    'type'             => 'plugin',
+                    'public_key'       => 'pk_d4182c5e1dc92c6032e59abbfdb91',
+                    'is_premium'       => false,
+                    'premium_suffix'   => 'Pro',
+                    'has_addons'       => false,
+                    'has_paid_plans'   => true,
+                    'is_org_compliant' => true,
+                    'trial'            => [
                         'days'               => 14,
                         'is_require_payment' => true,
                     ],
-                    'menu'           => [
+                    'menu'             => [
                         'slug'           => 'wpm',
                         'override_exact' => true,
                         'contact'        => false,
@@ -49,7 +50,7 @@ if ( function_exists( 'wpm_fs' ) ) {
                             'slug' => ( pmw_is_woocommerce_active() ? 'woocommerce' : 'options-general.php' ),
                         ],
                     ],
-                    'is_live'        => true,
+                    'is_live'          => true,
                 ] );
             }
             return $wpm_fs;

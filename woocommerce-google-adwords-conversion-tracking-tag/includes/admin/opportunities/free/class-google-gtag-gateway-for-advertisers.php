@@ -10,7 +10,7 @@ use SweetCode\Pixel_Manager\Options;
 defined('ABSPATH') || exit; // Exit if accessed directly
 
 /**
- * Opportunity: Google gtag gateway for advertisers
+ * Opportunity: Google tag gateway for advertisers
  *
  * @since 1.48.0
  */
@@ -18,7 +18,7 @@ class Google_Gtag_Gateway_For_Advertisers extends Opportunity {
 
 	public static function available() {
 
-		// Google gtag gateway for advertisers must be disabled
+		// Google tag gateway for advertisers must be disabled
 		if (Options::get_google_tag_gateway_measurement_path()) {
 			return false;
 		}
@@ -36,18 +36,18 @@ class Google_Gtag_Gateway_For_Advertisers extends Opportunity {
 	public static function card_data() {
 
 		return [
-			'id'              => 'google-gtag-gateway-for-advertisers',
+			'id'              => 'google-tag-gateway-for-advertisers',
 			'title'           => esc_html__(
-				'Google gtag gateway for advertisers',
+				'Google tag gateway for advertisers',
 				'woocommerce-google-adwords-conversion-tracking-tag'
 			),
 			'description'     => [
 				esc_html__(
-					'The Pixel Manager detected that you are not using the Google gtag gateway for advertisers.',
+					'The Pixel Manager detected that you are not using the Google tag gateway for advertisers.',
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 				esc_html__(
-					'Enabling the Google gtag gateway for advertisers will allow you to track conversions and events more accurately.',
+					'Enabling the Google tag gateway for advertisers will allow you to track conversions and events more accurately.',
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],

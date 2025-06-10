@@ -10,6 +10,7 @@ use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
+use SweetCode\Pixel_Manager\Shop;
 use WP_Post;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
@@ -109,7 +110,7 @@ class Admin {
      * @return string
      */
     public static function fs_after_purchase_js( $js_function ) {
-        return "function (response) => {\n\n\t\tlet product_name = 'Pixel Manager for WooCommerce';\n\t\n\t\tlet trial_conversion_percentage = 0.52;\n\t\n\t\tlet is_trial = (null != response.purchase.trial_ends),\n\t\t\tis_subscription = (null != response.purchase.initial_amount),\n\t\t\tpre_total = Number(is_subscription ? response.purchase.initial_amount : response.purchase.gross).toFixed(2),\n\t\t\ttrial_total = is_trial ? (pre_total * trial_conversion_percentage).toFixed(2) : pre_total,\n\t\t\ttotal = is_trial ? trial_total : pre_total,\n\t\t\tcurrency = response.purchase.currency.toUpperCase(),\n\t\t\ttransaction_id = response.purchase.id.toString(),\n\t\t\tstore_name = window.location.hostname;\n\t\n\t\twindow.dataLayer = window.dataLayer || [];\n\t\n\t\tdataLayer.push({\n\t\t\tevent: 'purchase',\n\t\t\ttransaction_id: transaction_id,\n\t\t\ttransaction_value: total,\n\t\t\ttransaction_currency: currency,\n\t\t\ttransaction_coupon: response.purchase.coupon_id,\n\t\t\ttransaction_affiliation: store_name,\n\t\t\titems: [\n\t\t\t\t{\n\t\t\t\t\titem_name: product_name,\n\t\t\t\t\titem_id: response.purchase.plan_id.toString(),\n\t\t\t\t\titem_category: 'Plugin',\n\t\t\t\t\tprice: response.purchase.initial_amount.toString(),\n\t\t\t\t\tquantity: 1,\n\t\t\t\t\tcurrency: currency,\n\t\t\t\t\taffiliation: store_name,\n\t\t\t\t},\n\t\t\t],\n\t\t\tfreemius_data: response,\n\t\t});\n\t\n\t\t(function (w, d, s, l, i) {\n\t\t\tw[l] = w[l] || []; w[l].push({\n\t\t\t\t'gtm.start':\n\t\t\t\t\tnew Date().getTime(), event: 'gtm.js'\n\t\t\t}); var f = d.getElementsByTagName(s)[0],\n\t\t\t\tj = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src =\n\t\t\t\t\t'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);\n\t\t})(window, document, 'script', 'dataLayer', 'GTM-NZ8WQ6QS');\n\t}";
+        return "function (response) => {\n\n\t\tlet product_name = 'Pixel Manager for WooCommerce';\n\n\t\tlet trial_conversion_percentage = 0.52;\n\n\t\tlet is_trial = (null != response.purchase.trial_ends),\n\t\t\tis_subscription = (null != response.purchase.initial_amount),\n\t\t\tpre_total = Number(is_subscription ? response.purchase.initial_amount : response.purchase.gross).toFixed(2),\n\t\t\ttrial_total = is_trial ? (pre_total * trial_conversion_percentage).toFixed(2) : pre_total,\n\t\t\ttotal = is_trial ? trial_total : pre_total,\n\t\t\tcurrency = response.purchase.currency.toUpperCase(),\n\t\t\ttransaction_id = response.purchase.id.toString(),\n\t\t\tstore_name = window.location.hostname;\n\n\t\twindow.dataLayer = window.dataLayer || [];\n\n\t\tdataLayer.push({\n\t\t\tevent: 'purchase',\n\t\t\ttransaction_id: transaction_id,\n\t\t\ttransaction_value: total,\n\t\t\ttransaction_currency: currency,\n\t\t\ttransaction_coupon: response.purchase.coupon_id,\n\t\t\ttransaction_affiliation: store_name,\n\t\t\titems: [\n\t\t\t\t{\n\t\t\t\t\titem_name: product_name,\n\t\t\t\t\titem_id: response.purchase.plan_id.toString(),\n\t\t\t\t\titem_category: 'Plugin',\n\t\t\t\t\tprice: response.purchase.initial_amount.toString(),\n\t\t\t\t\tquantity: 1,\n\t\t\t\t\tcurrency: currency,\n\t\t\t\t\taffiliation: store_name,\n\t\t\t\t},\n\t\t\t],\n\t\t\tfreemius_data: response,\n\t\t});\n\n\t\t(function (w, d, s, l, i) {\n\t\t\tw[l] = w[l] || []; w[l].push({\n\t\t\t\t'gtm.start':\n\t\t\t\t\tnew Date().getTime(), event: 'gtm.js'\n\t\t\t}); var f = d.getElementsByTagName(s)[0],\n\t\t\t\tj = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : ''; j.async = true; j.src =\n\t\t\t\t\t'https://www.googletagmanager.com/gtm.js?id=' + i + dl; f.parentNode.insertBefore(j, f);\n\t\t})(window, document, 'script', 'dataLayer', 'GTM-NZ8WQ6QS');\n\t}";
     }
 
     // DeleteIf(wcMarketFree)
@@ -146,8 +147,12 @@ class Admin {
             false
         );
         wp_localize_script( 'wpm-admin', 'pmwAdminApi', [
-            'root'  => esc_url_raw( rest_url() ),
-            'nonce' => wp_create_nonce( 'wp_rest' ),
+            'root'     => esc_url_raw( rest_url() ),
+            'nonce'    => wp_create_nonce( 'wp_rest' ),
+            'timezone' => [
+                'string' => wp_timezone_string(),
+                'offset' => wp_timezone()->getOffset( new \DateTime() ) / 3600,
+            ],
         ] );
         //        wp_enqueue_script('wpm-script-blocker-warning', WPM_PLUGIN_DIR_PATH . 'js/admin/script-blocker-warning.js', ['jquery'], WPM_CURRENT_VERSION, false);
         //        wp_enqueue_script('wpm-admin-helpers', WPM_PLUGIN_DIR_PATH . 'js/admin/helpers.js', ['jquery'], WPM_CURRENT_VERSION, false);
@@ -400,7 +405,7 @@ class Admin {
             // Add the field for the LinkedIn partner ID
             add_settings_field(
                 'pmw_linkedin_partner_id',
-                esc_html__( 'LinkedIn partner ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                esc_html__( 'LinkedIn partner ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
                 [__CLASS__, 'option_html_linkedin_partner_id'],
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
@@ -434,7 +439,7 @@ class Admin {
             // Add the field for the Reddit Ads pixel
             add_settings_field(
                 'plugin_reddit_pixel_id',
-                esc_html__( 'Reddit pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                esc_html__( 'Reddit pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
                 [__CLASS__, 'option_html_reddit_pixel_id'],
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
@@ -572,6 +577,14 @@ class Admin {
                 'pmw_setting_lazy_load_pmw',
                 esc_html__( 'Lazy Load PMW', 'woocommerce-google-adwords-conversion-tracking-tag' ),
                 [__CLASS__, 'html_lazy_load_pmw'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+            // Add option for tracking PageView events through s2s
+            add_settings_field(
+                'pmw_setting_track_pageview_events_s2s',
+                esc_html__( 'Track PageView Events Server-to-Server', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'html_track_pageview_events_s2s'],
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
@@ -1086,7 +1099,7 @@ class Admin {
         // Add field for the LinkedIn search event
         add_settings_field(
             'pmw_setting_linkedin_search',
-            esc_html__( 'Search event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            esc_html__( 'Search event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_linkedin_search'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
@@ -1094,7 +1107,7 @@ class Admin {
         // Add field for the LinkedIn view_content event
         add_settings_field(
             'pmw_setting_linkedin_view_content',
-            esc_html__( 'View Content event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            esc_html__( 'View Content event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_linkedin_view_content'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
@@ -1102,7 +1115,7 @@ class Admin {
         // Add field for the LinkedIn add_to_list event
         add_settings_field(
             'pmw_setting_linkedin_add_to_list',
-            esc_html__( 'Add To List event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            esc_html__( 'Add To List event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_linkedin_add_to_list'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
@@ -1110,7 +1123,7 @@ class Admin {
         // Add field for the LinkedIn add_to_cart event
         add_settings_field(
             'pmw_setting_linkedin_add_to_cart',
-            esc_html__( 'Add-to-cart event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            esc_html__( 'Add-to-cart event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_linkedin_add_to_cart'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
@@ -1118,7 +1131,7 @@ class Admin {
         // Add field for the LinkedIn start_checkout event
         add_settings_field(
             'pmw_setting_linkedin_start_checkout',
-            esc_html__( 'Start-checkout event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            esc_html__( 'Start-checkout event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_linkedin_start_checkout'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
@@ -1126,7 +1139,7 @@ class Admin {
         // Add field for the LinkedIn purchase event
         add_settings_field(
             'pmw_setting_linkedin_purchase',
-            esc_html__( 'Purchase event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            esc_html__( 'Purchase event ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_linkedin_purchase'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
@@ -1514,7 +1527,6 @@ class Admin {
         submit_button();
         self::inject_developer_banner();
         ?>
-
 			</form>
 		</div>
 		<?php 
@@ -1923,6 +1935,9 @@ class Admin {
     }
 
     public static function plugin_section_support_description() {
+        $options_backup_array = Options::get_automatic_options_backup();
+        $current_options = Options::get_options();
+        $current_timestamp = ( isset( $current_options['timestamp'] ) ? $current_options['timestamp'] : null );
         ?>
 		<!-- Contacting Support -->
 		<div style="margin-top:20px">
@@ -1941,29 +1956,61 @@ class Admin {
 
 		<hr style="border: none;height: 1px; color: #333; background-color: #333;">
 
-		<!-- Info for translators -->
-		<?php 
-        self::info_for_translators();
-        ?>
-		<!-- Info for translators -->
-
 		<!-- Debug Info -->
-		<div>
+		<div class="pmw-debug-info-section">
 			<h2><?php 
         esc_html_e( 'Debug Information', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?></h2>
 
+			<style>
+                .pmw-debug-info-section button#debug-info-button {
+                    min-width: 150px;
+                    text-align: center;
+                    padding: 5px 14px;
+                    height: auto;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                }
+
+                .pmw-debug-info-section button#debug-info-button:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+                    background-color: #135e96;
+                    border-color: #135e96;
+                }
+
+                .pmw-debug-info-section .success-message {
+                    display: inline-flex;
+                    align-items: center;
+                    font-weight: 600;
+                    color: #2e7d32;
+                    background-color: #f0fff4;
+                    border: 1px solid #c6e6c9;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    letter-spacing: 0.2px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                }
+			</style>
+
 			<div>
 				<textarea id="debug-info-textarea" class=""
-						  style="display:block; margin-bottom: 10px; width: 100%;resize: none;color:dimgrey;font-family: Courier"
+						  style="display:block; margin-bottom: 10px; width: 100%;resize: none;color:dimgrey;font-family: Courier;border-radius: 4px;"
 						  cols="100%" rows="30" readonly><?php 
         echo esc_html( Debug_Info::get_debug_info() );
         ?>
 				</textarea>
-				<button id="debug-info-button"
+				<button id="debug-info-button" class="button button-primary"
 						type="button"><?php 
-        esc_html_e( 'copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( 'Copy to Clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?></button>
+				<span id="debug-info-success" class="success-message"
+					  style="display:none;margin-left: 10px;color: #2e7d32;font-weight: 500;"><?php 
+        esc_html_e( 'Copied!', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></span>
 			</div>
 
 		</div>
@@ -1972,40 +2019,125 @@ class Admin {
 		<hr class="pmw-hr">
 
 		<!-- Export Settings -->
-		<div>
+		<div class="pmw-export-section">
 			<h2><?php 
         esc_html_e( 'Export settings', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?></h2>
 
 			<div>
 				<textarea id="export-settings-json" class=""
-						  style="display:block; margin-bottom: 10px; width: 100%;resize: none;color:dimgrey;"
+						  style="display:block; margin-bottom: 10px; width: 100%;resize: none;color:dimgrey;font-family: monospace;border-radius: 4px;"
 						  cols="100%" rows="10" readonly><?php 
         echo wp_json_encode( Options::get_options() );
         ?>
 				</textarea>
-				<button id="debug-info-button"
-						type="button"
-						onclick="wpm.saveSettingsToDisk('<?php 
-        echo esc_html( PMW_CURRENT_VERSION );
-        ?>')">
-					<?php 
+				<div class="pmw-export-buttons">
+					<button id="export-to-disk-button" class="button button-primary"
+							type="button"
+							onclick="wpm.saveSettingsToDisk()">
+						<?php 
         esc_html_e( 'Export to disk', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
-				</button>
+					</button>
+					<button id="export-copy-clipboard-button" class="button button-primary"
+							type="button">
+						<?php 
+        esc_html_e( 'Copy to Clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+					</button>
+					<span id="export-copy-success" class="success-message"
+						  style="display:none;margin-left: 10px;color: #2e7d32;font-weight: 500;"><?php 
+        esc_html_e( 'Copied!', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></span>
+				</div>
 			</div>
+
+			<style>
+                .pmw-export-section textarea {
+                    font-size: 13px;
+                }
+
+                .pmw-export-buttons {
+                    display: flex;
+                    align-items: center;
+                }
+
+                .pmw-export-section .button {
+                    min-width: 150px;
+                    text-align: center;
+                    padding: 5px 14px;
+                    height: auto;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                    margin-right: 10px;
+                }
+
+                .pmw-export-section .button:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+                    background-color: #135e96;
+                    border-color: #135e96;
+                }
+
+                .pmw-export-section .success-message {
+                    display: inline-flex;
+                    align-items: center;
+                    font-weight: 600;
+                    color: #2e7d32;
+                    background-color: #f0fff4;
+                    border: 1px solid #c6e6c9;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    letter-spacing: 0.2px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                }
+			</style>
+
+			<script>
+				document.addEventListener("DOMContentLoaded", function () {
+					const exportCopyBtn     = document.getElementById("export-copy-clipboard-button");
+					const exportTextarea    = document.getElementById("export-settings-json");
+					const exportCopySuccess = document.getElementById("export-copy-success");
+
+					if (exportCopyBtn && exportTextarea) {
+						exportCopyBtn.addEventListener("click", function () {
+							exportTextarea.select();
+							document.execCommand("copy");
+
+							if (exportCopySuccess) {
+								exportCopySuccess.style.display = "inline-flex";
+								setTimeout(function () {
+									exportCopySuccess.style.display = "none";
+								}, 2000);
+							}
+						});
+					}
+				});
+			</script>
 		</div>
 		<!-- Export Settings -->
 
 		<hr class="pmw-hr">
 
 		<!-- Import Settings -->
-		<div>
-			<h2><?php 
+		<div class="pmw-import-section">
+			<h2 class="pmw-import-heading"><?php 
         esc_html_e( 'Import settings', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?></h2>
-			<div>
-				<input type="file" id="json-settings-file-input"/>
+			<div class="pmw-import-content">
+				<div class="pmw-file-upload-container">
+					<a href="#" class="pmw-file-upload-button button button-primary">
+						<?php 
+        esc_html_e( 'Choose File', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+					</a>
+					<span class="pmw-selected-file-name"></span>
+					<input type="file" id="json-settings-file-input" style="display: none;"/>
+				</div>
+
 				<pre id="settings-upload-status-success" style="display: none; white-space: pre-line;">
 					<span style="color: green; font-weight: bold">
 						<?php 
@@ -2028,30 +2160,388 @@ class Admin {
 					<span id="settings-upload-status-error-message" style="color: red; font-weight: bold"></span>
 				</pre>
 			</div>
+
+			<style>
+                .pmw-import-section {
+                    margin: 20px 0;
+                    padding: 0;
+                }
+
+                .pmw-import-heading {
+                    margin-bottom: 10px;
+                    font-size: 1.5em;
+                    color: #23282d;
+                }
+
+                .pmw-import-content {
+                    margin-bottom: 20px;
+                }
+
+                .pmw-file-upload-container {
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 15px;
+                    padding-top: 2px;
+                    padding-bottom: 2px;
+                }
+
+                .pmw-file-upload-button {
+                    min-width: 150px;
+                    text-align: center;
+                    padding: 4px 12px;
+                    height: 30px; /* Explicitly set height */
+                    line-height: 22px; /* Increase line height for better vertical centering */
+                    font-size: 13px; /* Standard WordPress button font size */
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                    background-color: #2271b1;
+                    border-color: #2271b1;
+                    color: #fff;
+                    cursor: pointer;
+                    display: inline-block; /* Use standard button display */
+                    box-sizing: border-box; /* Include padding in height calculation */
+                }
+
+                .pmw-file-upload-button:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+                    background-color: #135e96;
+                    border-color: #135e96;
+                }
+
+                .pmw-selected-file-name {
+                    margin-left: 10px;
+                    font-style: italic;
+                    color: #646970;
+                }
+			</style>
+
+			<script>
+				document.addEventListener("DOMContentLoaded", function () {
+					const fileInput       = document.getElementById("json-settings-file-input");
+					const fileNameDisplay = document.querySelector(".pmw-selected-file-name");
+					const fileButton      = document.querySelector(".pmw-file-upload-button");
+
+					if (fileInput && fileNameDisplay && fileButton) {
+						// Handle file selection
+						fileInput.addEventListener("change", function () {
+							if (this.files && this.files.length > 0) {
+								fileNameDisplay.textContent = this.files[0].name;
+							} else {
+								fileNameDisplay.textContent = "";
+							}
+						});
+
+						// Trigger file dialog when the button is clicked
+						fileButton.addEventListener("click", function (e) {
+							e.preventDefault();
+							fileInput.click();
+						});
+					}
+				});
+			</script>
 		</div>
 		<!-- Import Settings -->
 
 		<hr class="pmw-hr">
 
+		<!-- Automatic Settings Backup -->
+		<div class="pmw-backup-section">
+			<h2 class="pmw-backup-heading"><?php 
+        esc_html_e( 'Automatic Settings Backup', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></h2>
+			<p class="pmw-backup-description"><?php 
+        esc_html_e( 'Manage your settings backups. You can restore previous configurations or download backup files.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></p>
+
+			<div class="pmw-backup-content">
+				<?php 
+        if ( empty( $options_backup_array ) ) {
+            echo '<div class="pmw-no-backups-message">';
+            echo esc_html__( 'No automatic settings backups available.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            echo '</div>';
+        } else {
+            echo '<div class="pmw-table-container">';
+            echo '<table class="pmw-backup-table widefat">';
+            echo '<thead><tr>';
+            echo '<th>' . esc_html__( 'ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</th>';
+            echo '<th>' . esc_html__( 'Date', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</th>';
+            echo '<th>' . esc_html__( 'DB Version', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</th>';
+            echo '<th>' . esc_html__( 'Status', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</th>';
+            echo '<th>' . esc_html__( 'Restore', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</th>';
+            echo '<th>' . esc_html__( 'Download', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</th>';
+            echo '</tr></thead>';
+            echo '<tbody>';
+            foreach ( $options_backup_array as $timestamp => $settings ) {
+                $date_part = wp_date( get_option( 'date_format' ), $timestamp );
+                $time_part = wp_date( 'H:i:s', $timestamp );
+                $readable_date = sprintf( '%s %s (h:m:s)', $date_part, $time_part );
+                $db_version = ( isset( $settings['db_version'] ) ? esc_html( $settings['db_version'] ) : esc_html__( 'Unknown', 'woocommerce-google-adwords-conversion-tracking-tag' ) );
+                // Check if this backup is currently active
+                $is_active = null !== $current_timestamp && $timestamp == $current_timestamp;
+                $row_class = ( $is_active ? ' style="background-color: #e8f5e8; font-weight: bold;"' : '' );
+                echo '<tr' . esc_html( $row_class ) . '>';
+                echo '<td><code class="pmw-timestamp-id">' . esc_html( $timestamp ) . '</code></td>';
+                echo '<td>' . esc_html( $readable_date ) . '</td>';
+                echo '<td><span class="pmw-db-version">' . esc_html( $db_version ) . '</span></td>';
+                // Status column
+                if ( $is_active ) {
+                    echo '<td><span class="pmw-active-status">● ' . esc_html__( 'Active', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</span></td>';
+                } else {
+                    echo '<td><span class="pmw-backup-status">○ ' . esc_html__( 'Backup', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</span></td>';
+                }
+                // Restore button - disabled for active backup
+                if ( $is_active ) {
+                    echo '<td><button class="button" disabled title="' . esc_attr__( 'Cannot restore the currently active backup', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '">' . esc_html__( 'Active', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</button></td>';
+                } else {
+                    echo '<td><button class="button pmw-restore-backup-button" data-timestamp="' . esc_attr( $timestamp ) . '">' . esc_html__( 'Restore', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</button></td>';
+                }
+                echo '<td><a href="' . esc_url( self::get_automatic_options_backup_download_link( $timestamp ) ) . '" class="button button-primary">' . esc_html__( 'Download', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</a></td>';
+                echo '</tr>';
+            }
+            echo '</tbody>';
+            echo '</table>';
+            echo '</div>';
+            // Close .pmw-table-container
+        }
+        ?>
+			</div> <!-- Close .pmw-backup-content -->
+			<style>
+                /* Backup section styling */
+                .pmw-backup-section {
+                    margin: 20px 0;
+                    padding: 0;
+                }
+
+                .pmw-backup-heading {
+                    margin-bottom: 10px;
+                    font-size: 1.5em;
+                    color: #23282d;
+                }
+
+                .pmw-backup-description {
+                    margin-bottom: 20px;
+                    color: #646970;
+                    font-size: 14px;
+                    max-width: 800px;
+                }
+
+                .pmw-no-backups-message {
+                    padding: 20px;
+                    background-color: #f8f9fa;
+                    border: 1px solid #e2e4e7;
+                    border-radius: 4px;
+                    text-align: center;
+                    color: #646970;
+                }
+
+                /* Table styling */
+                .pmw-table-container {
+                    margin-top: 20px;
+                    max-width: 100%;
+                    overflow-x: auto;
+                    background: #fff;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                    padding: 2px;
+                }
+
+                .pmw-backup-table {
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    width: 100%;
+                    border: 1px solid #e2e4e7;
+                    background-color: #fff;
+                    font-size: 14px;
+                    border-radius: 6px;
+                }
+
+                .pmw-backup-table th {
+                    background: linear-gradient(to bottom, #f9f9f9, #f0f0f0);
+                    border-bottom: 1px solid #ddd;
+                    padding: 12px 15px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #23282d;
+                    white-space: nowrap;
+                }
+
+                .pmw-backup-table th:first-child {
+                    border-top-left-radius: 6px;
+                }
+
+                .pmw-backup-table th:last-child {
+                    border-top-right-radius: 6px;
+                }
+
+                .pmw-timestamp-id {
+                    background: #f1f1f1;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 0.9em;
+                    color: #555;
+                    display: inline-block;
+                    font-family: monospace;
+                    border: 1px solid #e0e0e0;
+                }
+
+                .pmw-backup-table td {
+                    padding: 14px 15px;
+                    border-bottom: 1px solid #f0f0f0;
+                    vertical-align: middle;
+                    transition: background-color 0.15s ease;
+                }
+
+                .pmw-backup-table tr:last-child td {
+                    border-bottom: none;
+                }
+
+                .pmw-backup-table tr:last-child td:first-child {
+                    border-bottom-left-radius: 6px;
+                }
+
+                .pmw-backup-table tr:last-child td:last-child {
+                    border-bottom-right-radius: 6px;
+                }
+
+                .pmw-backup-table tr:hover {
+                    background-color: #f7fafd;
+                }
+
+                /* Active row styling */
+                .pmw-backup-table tr[style*="background-color: #e8f5e8"] {
+                    background: linear-gradient(to right, #f0fff3, #f9fcfa) !important;
+                    position: relative;
+                }
+
+                .pmw-backup-table tr[style*="background-color: #e8f5e8"] td:first-child {
+                    position: relative;
+                }
+
+                .pmw-backup-table tr[style*="background-color: #e8f5e8"] td:first-child:before {
+                    content: "";
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    height: 100%;
+                    width: 4px;
+                    background-color: #46b450;
+                    border-top-left-radius: 4px;
+                    border-bottom-left-radius: 4px;
+                }
+
+                .pmw-backup-table tr[style*="background-color: #e8f5e8"]:hover {
+                    background: linear-gradient(to right, #e8f5e8, #f0fff3) !important;
+                }
+
+                /* DB Version styling */
+                .pmw-db-version {
+                    display: inline-block;
+                    padding: 3px 8px;
+                    background-color: #f0f0f0;
+                    border-radius: 12px;
+                    font-size: 0.9em;
+                    border: 1px solid #e5e5e5;
+                }
+
+                /* Button styling */
+                .pmw-backup-table .button {
+                    min-width: 90px;
+                    text-align: center;
+                    padding: 5px 14px;
+                    height: auto;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                }
+
+                .pmw-backup-table .button:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+                }
+
+                .pmw-backup-table .button-primary {
+                    background-color: #2271b1;
+                    border-color: #2271b1;
+                }
+
+                .pmw-backup-table .button-primary:hover {
+                    background-color: #135e96;
+                    border-color: #135e96;
+                }
+
+                .pmw-backup-table .pmw-restore-backup-button {
+                    background-color: #f8f8f8;
+                    border-color: #c3c4c7;
+                    color: #2c3338;
+                }
+
+                .pmw-backup-table .pmw-restore-backup-button:hover {
+                    background-color: #f0f0f0;
+                    border-color: #8c8f94;
+                    color: #000;
+                }
+
+                .pmw-backup-table .button:disabled {
+                    cursor: not-allowed;
+                    opacity: 0.65;
+                    transform: none !important;
+                    box-shadow: none !important;
+                }
+
+                /* Status indicators */
+                .pmw-backup-table .pmw-active-status {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 5px;
+                    font-weight: 600;
+                    color: #2e7d32;
+                    background-color: #f0fff4;
+                    border: 1px solid #c6e6c9;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    letter-spacing: 0.2px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                }
+
+                .pmw-backup-table .pmw-backup-status {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 5px;
+                    color: #626262;
+                    background-color: #f8f8f8;
+                    border: 1px solid #e0e0e0;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    letter-spacing: 0.2px;
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                }
+			</style>
+		</div>
+
+		<!-- Automatic Settings Backup -->
+
 		<?php 
     }
 
-    private static function info_for_translators() {
-        ?>
-
-		<div style="margin-bottom: 20px">
-			<h2><?php 
-        esc_html_e( 'Translations', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?></h2>
-			<?php 
-        esc_html_e( 'If you want to participate improving the translations of this plugin into your language, please follow this link:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>
-			<a href="https://translate.wordpress.org/projects/wp-plugins/woocommerce-google-adwords-conversion-tracking-tag/"
-			   target="_blank">translate.wordpress.org</a>
-
-		</div>
-		<hr style="border: none;height: 1px; color: #333; background-color: #333;">
-		<?php 
+    /**
+     * Generates a download link for the automatic options backup.
+     *
+     * @param int $timestamp The timestamp of the backup.
+     * @return string The URL to download the backup.
+     *
+     * @since 1.49.0
+     */
+    private static function get_automatic_options_backup_download_link( $timestamp ) {
+        // Use the REST API endpoint to download the backup and add the nonce for authentication
+        $url = get_rest_url( null, 'pmw/v1/options-backup/' . $timestamp );
+        // Add the WordPress REST API nonce to the URL
+        return add_query_arg( '_wpnonce', wp_create_nonce( 'wp_rest' ), $url );
     }
 
     private static function support_info_for_freemius() {
@@ -2137,6 +2627,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_ga4_measurement_id() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_ga4_enabled() );
@@ -2145,7 +2636,7 @@ class Admin {
         self::wistia_video_icon( 'rcc3qzb25l' );
         echo '<br><br>';
         esc_html_e( 'The Google Analytics 4 measurement ID looks like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>G-R912ZZ1MHH0</i>';
+        echo '&nbsp;<code>G-R912ZZ1MHH0</code>';
     }
 
     public static function option_html_google_ads_conversion_id() {
@@ -2158,6 +2649,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_google_ads_conversion_id() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_google_ads_active() );
@@ -2167,7 +2659,7 @@ class Admin {
         self::wistia_video_icon( 'and34arrgg' );
         echo '<br><br>';
         esc_html_e( 'The conversion ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>123456789</i>';
+        echo '&nbsp;<code>123456789</code>';
     }
 
     public static function option_html_google_ads_conversion_label() {
@@ -2180,6 +2672,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_google_ads_conversion_label() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_google_ads_conversion_label(), Options::get_google_ads_conversion_id() );
@@ -2189,7 +2682,7 @@ class Admin {
         self::wistia_video_icon( 'and34arrgg' );
         echo '<br><br>';
         esc_html_e( 'The purchase conversion label looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>Xt19CO3axGAX0vg6X3gM</i>';
+        echo '&nbsp;<code>Xt19CO3axGAX0vg6X3gM</code>';
         if ( Options::get_google_ads_conversion_label() && !Options::get_google_ads_conversion_id() ) {
             echo '<p><span class="dashicons dashicons-info"></span>';
             esc_html_e( 'Requires an active Google Ads Conversion ID', 'woocommerce-google-adwords-conversion-tracking-tag' );
@@ -2210,6 +2703,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_vwo_active(), true, true );
@@ -2217,7 +2711,7 @@ class Admin {
         self::wistia_video_icon( '9besn6q7h0' );
         echo '<br><br>';
         esc_html_e( 'The VWO account ID looks like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>737312</i>&nbsp;';
+        echo '&nbsp;<code>737312</code>&nbsp;';
     }
 
     public static function option_html_optimizely_project_id() {
@@ -2233,13 +2727,14 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_optimizely_active(), true, true );
         self::get_documentation_html_by_key( 'optimizely_project_id' );
         echo '<br><br>';
         esc_html_e( 'The Optimizely project ID looks like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>20297535627</i>&nbsp;';
+        echo '&nbsp;<code>20297535627</code>&nbsp;';
     }
 
     public static function option_html_ab_tasty_account_id() {
@@ -2255,13 +2750,14 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_ab_tasty_active(), true, true );
         self::get_documentation_html_by_key( 'ab_tasty_account_id' );
         echo '<br><br>';
         esc_html_e( 'The AB Tasty account ID looks like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>3d09baddc21a365b7da5ae4d0aa5cb95</i>&nbsp;';
+        echo '&nbsp;<code>3d09baddc21a365b7da5ae4d0aa5cb95</code>&nbsp;';
     }
 
     public static function option_html_facebook_pixel_id() {
@@ -2274,6 +2770,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_facebook_pixel_id() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_facebook_active() );
@@ -2281,7 +2778,7 @@ class Admin {
         self::output_advanced_section_cog_html( 'facebook' );
         echo '<br><br>';
         esc_html_e( 'The Meta (Facebook) pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>765432112345678</i>';
+        echo '&nbsp;<code>765432112345678</code>';
     }
 
     public static function option_html_adroll_advertiser_id() {
@@ -2297,6 +2794,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_adroll_advertiser_id_set(), Options::is_adroll_pixel_id_set() );
@@ -2315,7 +2813,7 @@ class Admin {
 			<?php 
         }
         esc_html_e( 'The Adroll advertiser ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>ABCD1EF2GHIJKLMNOPQRS3</i>';
+        echo '&nbsp;<code>ABCD1EF2GHIJKLMNOPQRS3</code>';
     }
 
     public static function option_html_adroll_pixel_id() {
@@ -2331,6 +2829,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_adroll_pixel_id_set(), Options::is_adroll_advertiser_id_set() );
@@ -2349,7 +2848,7 @@ class Admin {
 			<?php 
         }
         esc_html_e( 'The Adroll pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>ABCD1EFGHIJKLMN2O3PQR</i>';
+        echo '&nbsp;<code>ABCD1EFGHIJKLMN2O3PQR</code>';
     }
 
     public static function option_html_bing_enhanced_conversions() {
@@ -2393,6 +2892,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_linkedin_active() );
@@ -2403,7 +2903,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The LinkedIn partner ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>1234567</i>';
+        echo '&nbsp;<code>1234567</code>';
     }
 
     public static function setting_linkedin_search() {
@@ -2425,6 +2925,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_linkedin_conversion_id( 'search' ), Options::is_linkedin_active() );
@@ -2452,6 +2953,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_linkedin_conversion_id( 'view_content' ), Options::is_linkedin_active() );
@@ -2479,6 +2981,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_linkedin_conversion_id( 'add_to_list' ), Options::is_linkedin_active() );
@@ -2506,6 +3009,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_linkedin_conversion_id( 'add_to_cart' ), Options::is_linkedin_active() );
@@ -2533,6 +3037,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_linkedin_conversion_id( 'start_checkout' ), Options::is_linkedin_active() );
@@ -2560,6 +3065,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_linkedin_conversion_id( 'purchase' ), Options::is_linkedin_active() );
@@ -2578,6 +3084,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_bing_uet_tag_id() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2585,10 +3092,11 @@ class Admin {
 		<?php 
         self::display_status_icon( Options::is_bing_active() );
         self::get_documentation_html_by_key( 'bing_uet_tag_id' );
+        self::output_advanced_section_cog_html( 'microsoft' );
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Microsoft Advertising UET tag ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>12345678</i>';
+        echo '&nbsp;<code>12345678</code>';
     }
 
     public static function option_html_twitter_pixel_id() {
@@ -2601,6 +3109,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_twitter_pixel_id() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2612,7 +3121,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Twitter pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>a1cde</i>';
+        echo '&nbsp;<code>a1cde</code>';
     }
 
     public static function setting_twitter_add_to_cart() {
@@ -2631,6 +3140,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2657,6 +3167,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2683,6 +3194,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2709,6 +3221,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2735,6 +3248,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2761,6 +3275,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2787,6 +3302,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2807,6 +3323,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_outbrain_advertiser_id() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -2819,7 +3336,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Outbrain advertiser ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>001a2b3cd4e5fgh6i789j01234k567890l</i>';
+        echo '&nbsp;<code>001a2b3cd4e5fgh6i789j01234k567890l</code>';
     }
 
     public static function option_html_pinterest_pixel_id() {
@@ -2835,6 +3352,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_pinterest_active() );
@@ -2843,7 +3361,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Pinterest pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>1234567890123</i>';
+        echo '&nbsp;<code>1234567890123</code>';
     }
 
     public static function option_html_pinterest_enhanced_match() {
@@ -2891,14 +3409,16 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_snapchat_active() );
         self::get_documentation_html_by_key( 'snapchat_pixel_id' );
+        self::output_advanced_section_cog_html( 'snapchat' );
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Snapchat pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>1a2345b6-cd78-9012-e345-fg6h7890ij12</i>';
+        echo '&nbsp;<code>1a2345b6-cd78-9012-e345-fg6h7890ij12</code>';
     }
 
     public static function option_html_taboola_account_id() {
@@ -2914,6 +3434,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_taboola_active() );
@@ -2923,7 +3444,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Taboola account ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>1234567</i>';
+        echo '&nbsp;<code>1234567</code>';
     }
 
     public static function option_html_tiktok_pixel_id() {
@@ -2939,6 +3460,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_tiktok_active() );
@@ -2947,7 +3469,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The TikTok pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>ABCD1E2FGH3IJK45LMN6</i>';
+        echo '&nbsp;<code>ABCD1E2FGH3IJK45LMN6</code>';
     }
 
     public static function option_html_hotjar_site_id() {
@@ -2960,6 +3482,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_hotjar_site_id() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_hotjar_enabled() );
@@ -2967,7 +3490,7 @@ class Admin {
         self::wistia_video_icon( 'z9tjk5eia7' );
         echo '<br><br>';
         esc_html_e( 'The Hotjar site ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<i>1234567</i>';
+        echo '&nbsp;<code>1234567</code>';
     }
 
     /**
@@ -2987,6 +3510,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_reddit_advertiser_id(), true, true );
@@ -3008,7 +3532,7 @@ class Admin {
         esc_html_e( 'The Reddit pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
 			<?php 
-        echo '&nbsp;<i>t2_gvnawxpb</i>';
+        echo '&nbsp;<code>t2_gvnawxpb</code>';
         ?>
 		</p>
 		<?php 
@@ -3021,6 +3545,7 @@ class Admin {
 				  name="wgact_plugin_options[snapchat][capi][token]"
 				  cols="60"
 				  rows="6"
+				  onfocus="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>><?php 
@@ -3517,6 +4042,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_ga4_mp_api_secret() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -3544,6 +4070,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_ga4_data_api_property_id() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -3565,7 +4092,7 @@ class Admin {
         ?>
 		<div style="margin-top: 5px">
 
-			<input class="pmw mono"
+			<input class="pmw mono readonly"
 				   id="pmw_setting_ga4_data_api_client_email"
 				   name="pmw_setting_ga4_data_api_client_email"
 				   size="<?php 
@@ -3578,34 +4105,13 @@ class Admin {
 				   value="<?php 
         echo esc_html( $client_email );
         ?>"
-				   disabled
+				   readonly
+				   onclick="this.select();"
 			/>
 
-			<script>
-				const pmwCopyGa4ClientEmailToClipboardCA = () => {
-					navigator.clipboard.writeText(document.getElementById("pmw_setting_ga4_data_api_client_email").value);
-					const pmwCaFeedTooltip     = document.getElementById("myPmwGa4ClientEmailTooltip");
-					pmwCaFeedTooltip.innerHTML = "<?php 
-        esc_html_e( 'Copied', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>";
-				};
-
-				const resetGa4ClientEmailCopyButton = () => {
-					const pmwCaFeedTooltip     = document.getElementById("myPmwGa4ClientEmailTooltip");
-					pmwCaFeedTooltip.innerHTML = "<?php 
-        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>";
-				};
-			</script>
-
-			<div class="pmwCaTooltip">
-				<a href="javascript:void(0)" class="pmw-copy-icon pmwCaTooltip"
-				   onclick="pmwCopyGa4ClientEmailToClipboardCA()" onmouseout="resetGa4ClientEmailCopyButton()"></a>
-				<span class="pmwCaTooltiptext"
-					  id="myPmwGa4ClientEmailTooltip"><?php 
-        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?></span>
-			</div>
+			<?php 
+        self::render_copy_button( 'pmw_setting_ga4_data_api_client_email' );
+        ?>
 
 
 			<?php 
@@ -3792,6 +4298,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_google_ads_phone_conversion_number(), Options::get_google_ads_phone_conversion_label() && Options::get_google_ads_phone_conversion_number() );
@@ -3814,6 +4321,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_google_ads_phone_conversion_label(), Options::get_google_ads_phone_conversion_label() && Options::get_google_ads_phone_conversion_number() );
@@ -3836,6 +4344,7 @@ class Admin {
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::is_google_ads_conversion_adjustments_active(), Options::is_google_ads_active() );
@@ -3868,7 +4377,7 @@ class Admin {
         ?>
 		<div style="margin-top: 5px">
 
-			<input class="pmw mono"
+			<input class="pmw mono readonly"
 				   id="pmw_plugin_google_ads_conversion_adjustments_feed"
 				   name="pmw_plugin_google_ads_conversion_adjustments_feed"
 				   size="<?php 
@@ -3881,7 +4390,8 @@ class Admin {
 				   value="<?php 
         echo esc_url( $feed_url );
         ?>"
-				   disabled
+				   readonly
+				   onclick="this.select();"
 			/>
 			<script>
 				const pmwCopyToClipboardCA = () => {
@@ -3998,6 +4508,7 @@ class Admin {
 				  name="wgact_plugin_options[facebook][capi][token]"
 				  cols="60"
 				  rows="5"
+				  onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>><?php 
@@ -4015,7 +4526,7 @@ class Admin {
         //        echo self::get_documentation_html('/wgact/?utm_source=woocommerce-plugin&utm_medium=documentation-link&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=google-ads-conversion-id#/pixels/google-ads?id=configure-the-plugin');
         echo '<br><br>';
         //        esc_html_e('The conversion ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag');
-        //        echo '&nbsp;<i>123456789</i>';
+        //        echo '&nbsp;<code>123456789</code>';
     }
 
     public static function setting_html_facebook_capi_test_event_code() {
@@ -4034,6 +4545,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_facebook_capi_test_event_code() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -4134,6 +4646,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_facebook_domain_verification_id() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_facebook_domain_verification_id() );
@@ -4146,7 +4659,8 @@ class Admin {
         ?>
 		<br><br>
 		<?php 
-        esc_html_e( 'The Meta domain verification ID. It looks like this: uk6zwiftxsaywayn14x0aouhz4fhd', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( 'The Meta domain verification ID. It looks like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>uk6zwiftxsaywayn14x0aouhz4fhd</code>';
     }
 
     // TODO: Added deprecated message on 26.04.2024
@@ -4198,6 +4712,7 @@ class Admin {
 			   style="width:<?php 
         echo esc_html( $text_length );
         ?>ch"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -4215,6 +4730,7 @@ class Admin {
 				  name="wgact_plugin_options[pinterest][apic][token]"
 				  cols="50"
 				  rows="2"
+				  onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>><?php 
@@ -4335,7 +4851,7 @@ class Admin {
         }
         //        echo self::get_documentation_html('/wgact/?utm_source=woocommerce-plugin&utm_medium=documentation-link&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=google-ads-conversion-id#/pixels/google-ads?id=configure-the-plugin');
         //        esc_html_e('The conversion ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag');
-        //        echo '&nbsp;<i>123456789</i>';
+        //        echo '&nbsp;<code>123456789</code>';
     }
 
     public static function setting_html_tiktok_eapi_test_event_code() {
@@ -4593,6 +5109,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( implode( ',', Options::get_scroll_tracking_thresholds() ) );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -4630,6 +5147,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_subscription_multiplier() );
         ?>"
+			   onclick="this.select();"
 			<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
@@ -4844,6 +5362,60 @@ class Admin {
         ?>
 		</p>
 
+		<?php 
+    }
+
+    public static function html_track_pageview_events_s2s() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[general][pageview_events_s2s]">
+			<input type="checkbox"
+				   id="pmw_setting_track_pageview_events_s2s"
+				   name="wgact_plugin_options[general][pageview_events_s2s]"
+				   value="1"
+				<?php 
+        checked( Options::is_pageview_events_s2s_active() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+
+			<?php 
+        esc_html_e( 'Send PageView events through the server-2-server protocol', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_pageview_events_s2s_active(), Options::server_2_server_enabled(), true );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'pageview_events_s2s' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+
+		<?php 
+        if ( Options::is_pageview_events_s2s_active() && !Options::server_2_server_enabled() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'For this feature to be used, at least one server-to-server feature, like Facebook CAPI must be enabled.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<p style="margin-top: 10px">
+			<span class="dashicons dashicons-info"></span>
+			<?php 
+        esc_html_e( 'Enabling this feature is encouraged by some platforms like Meta (Facebook). But, it will add a lot of stress to your server, because it will have to run on every PageView.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</p>
 		<?php 
     }
 
@@ -5239,7 +5811,7 @@ class Admin {
     public static function plugin_setting_google_tag_id() {
         $tag_id = Google_Helpers::get_google_tag_id();
         ?>
-		<input class="pmw mono"
+		<input class="pmw mono readonly"
 			   type="text"
 			   id="pmw_plugin_google_tag_id"
 			   size="40"
@@ -5250,34 +5822,9 @@ class Admin {
 			   onclick="this.select();"
 		/>
 
-		<script>
-			const pmwCopyToClipboard = (inputId, tooltipId) => {
-				navigator.clipboard.writeText(document.getElementById(inputId).value);
-				const pmwCaFeedTooltip     = document.getElementById(tooltipId);
-				pmwCaFeedTooltip.innerHTML = "<?php 
-        esc_html_e( 'Copied', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>";
-			};
-
-			const pmwResetCopyButton = (tooltipId) => {
-				const pmwCaFeedTooltip     = document.getElementById(tooltipId);
-				pmwCaFeedTooltip.innerHTML = "<?php 
-        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>";
-			};
-		</script>
-
-		<div class="pmwCaTooltip">
-			<a href="javascript:void(0)" class="pmw-copy-icon pmwCaTooltip"
-			   onclick="pmwCopyToClipboard('pmw_plugin_google_tag_id', 'pmwGoogleTagIdTooltip')"
-			   onmouseout="pmwResetCopyButton('pmwGoogleTagIdTooltip')"></a>
-			<span class="pmwCaTooltiptext"
-				  id="pmwGoogleTagIdTooltip"><?php 
-        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?></span>
-		</div>
-
-
+		<?php 
+        self::render_copy_button( 'pmw_plugin_google_tag_id', 'pmwGoogleTagIdTooltip' );
+        ?>
 		<?php 
         self::get_documentation_html_by_key( 'google_tag_id' );
         ?>
@@ -5287,8 +5834,8 @@ class Admin {
     }
 
     public static function plugin_setting_google_gateway_measurement_path() {
-        //		$health_check        = Google_Helpers::gtag_gateway_health_check()['status'];
-        //		$health_check_status = $health_check['status'] ? $health_check['status'] : false;
+        $gateway_url_healthy = get_site_url() . Options::get_google_tag_gateway_measurement_path() . '/healthy';
+        $has_measurement_path = !empty( Options::get_google_tag_gateway_measurement_path() );
         ?>
 		<input class="pmw mono"
 			   type="text"
@@ -5298,13 +5845,44 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_google_tag_gateway_measurement_path() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
-        self::display_status_icon( Options::get_google_tag_gateway_measurement_path() );
+        self::render_copy_button( 'pmw_google_tag_gateway_measurement_path', 'pmwGoogleTagIdTooltip' );
         ?>
-		<?php 
-        // Options::get_google_tag_gateway_measurement_path() && self::display_health_status($health_check_status);
+
+		<!-- Pre-rendered status icons (initially invisible) -->
+		<span id="pmw-status-icon-inactive"
+			  class="pmw-status-icon inactive <?php 
+        echo ( $has_measurement_path ? 'invisible' : '' );
+        ?>">
+			<?php 
+        esc_html_e( 'inactive', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
+		</span>
+		<span id="pmw-status-icon-active" class="pmw-status-icon active invisible">
+			<?php 
+        esc_html_e( 'active', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</span>
+		<span id="pmw-status-icon-partially-active" class="pmw-status-icon partially-active invisible">
+			<?php 
+        esc_html_e( 'partially active', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</span>
+
+		<!-- Pre-rendered health check icons (initially invisible) -->
+		<span id="pmw-health-check-passed" class="pmw-status-icon active invisible">
+			<?php 
+        esc_html_e( 'health check passed', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</span>
+		<span id="pmw-health-check-failed" class="pmw-status-icon inactive invisible">
+			<?php 
+        esc_html_e( 'health check failed', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</span>
+
 		<?php 
         self::get_documentation_html_by_key( 'google_tag_gateway_measurement_path' );
         ?>
@@ -5312,11 +5890,81 @@ class Admin {
         self::wistia_video_icon( 'd3ehc3lurt' );
         ?>
 		<p style="margin-top:10px">
-		<?php 
+			<?php 
         esc_html_e( 'Your Google Gateway Measurement Path. It should look like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
-		<code>/metrics</code>
+			<code>/metrics</code>
 		</p>
+
+		<?php 
+        if ( $has_measurement_path ) {
+            ?>
+			<script>
+				document.addEventListener("DOMContentLoaded", function () {
+					// Get the gateway URL from PHP
+					const gatewayUrlHealthy = '<?php 
+            echo esc_js( $gateway_url_healthy );
+            ?>';
+
+					// Get the status icon elements
+					const inactiveIcon        = document.getElementById("pmw-status-icon-inactive");
+					const activeIcon          = document.getElementById("pmw-status-icon-active");
+					const partiallyActiveIcon = document.getElementById("pmw-status-icon-partially-active");
+					const healthCheckPassed   = document.getElementById("pmw-health-check-passed");
+					const healthCheckFailed   = document.getElementById("pmw-health-check-failed");
+
+					// Function to show the appropriate icons based on health check result
+					function updateStatusIcons(isHealthy) {
+						// Hide all icons first
+						inactiveIcon.classList.add("invisible");
+						activeIcon.classList.add("invisible");
+						partiallyActiveIcon.classList.add("invisible");
+						healthCheckPassed.classList.add("invisible");
+						healthCheckFailed.classList.add("invisible");
+
+						if (isHealthy) {
+							// If health check passes, show active icon and health check passed
+							activeIcon.classList.remove("invisible");
+							healthCheckPassed.classList.remove("invisible");
+						} else {
+							// If health check fails, show partially active icon and health check failed
+							partiallyActiveIcon.classList.remove("invisible");
+							healthCheckFailed.classList.remove("invisible");
+						}
+					}
+
+					// Fetch the health status from the gateway URL
+					fetch(gatewayUrlHealthy, {
+						method : "GET",
+						headers: {
+							"Accept": "application/json",
+						},
+						cache  : "no-store",
+					})
+						.then(response => {
+							if (response.ok) {
+								return response.text().then(text => {
+									// Check if the response contains "ok"
+									const isHealthy = text.includes("ok");
+									updateStatusIcons(isHealthy);
+								});
+							} else {
+								// If response is not OK, health check failed
+								updateStatusIcons(false);
+								return Promise.reject("Health check failed with status: " + response.status);
+							}
+						})
+						.catch(error => {
+							// If there's an error with the fetch, health check failed
+							console.error("Error fetching health status:", error);
+							updateStatusIcons(false);
+						});
+				});
+			</script>
+		<?php 
+        }
+        ?>
+
 		<?php 
     }
 
@@ -5330,6 +5978,7 @@ class Admin {
 			   value="<?php 
         echo esc_html( Options::get_google_ads_merchant_id() );
         ?>"
+			   onclick="this.select();"
 		/>
 		<?php 
         self::display_status_icon( Options::get_google_ads_merchant_id() );
@@ -5564,19 +6213,114 @@ class Admin {
         ?>
 
 		<script>
-			var script   = document.createElement("script");
-			script.async = true;
-			script.src   = 'https://fast.wistia.com/embed/medias/<?php 
+			(function () {
+				const video_id = '<?php 
         echo esc_html( $wistia_id );
-        ?>.jsonp';
-			document.getElementsByTagName("head")[0].appendChild(script);
+        ?>';
+
+				// Configure the Wistia player
+				window._wq = window._wq || [];
+				_wq.push({
+					id     : video_id,
+					onReady: function (video) {
+						// Find the container for this specific video
+						const container = document.querySelector(`[data-wistia-id="${video_id}"]`);
+						if (container) {
+							// Make the video visible when ready
+							container.style.display    = "inline-block";
+							container.style.position   = "relative";
+							container.style.width      = "auto";
+							container.style.height     = "auto";
+							container.style.visibility = "visible";
+						}
+					},
+				});
+
+				// Load the Wistia script for this video
+				const script = document.createElement("script");
+				script.async = true;
+				script.src   = `https://fast.wistia.com/embed/medias/${video_id}.jsonp`;
+				document.getElementsByTagName("head")[0].appendChild(script);
+			})();
 		</script>
 
+		<!-- Video container - initially hidden via CSS -->
 		<div class="pmw wistia_embed wistia_async_<?php 
         echo esc_html( $wistia_id );
         ?> popover=true popoverContent=link videoFoam=false"
-			 style="display:inline-block;position:relative;text-decoration: none; vertical-align: top;">
+			 data-wistia-id="<?php 
+        echo esc_html( $wistia_id );
+        ?>">
 			<span class="dashicons dashicons-video-alt3"></span>
+		</div>
+		<?php 
+    }
+
+    /**
+     * Output the JavaScript functions for the copy button functionality.
+     * This should be called only once per page.
+     *
+     * @since 1.48.1
+     */
+    public static function output_copy_button_js() {
+        static $js_output = false;
+        // Only output the JavaScript once
+        if ( $js_output ) {
+            return;
+        }
+        $js_output = true;
+        ?>
+		<script>
+			const pmwCopyToClipboard = (inputId, tooltipId) => {
+				navigator.clipboard.writeText(document.getElementById(inputId).value);
+				const pmwCaFeedTooltip     = document.getElementById(tooltipId);
+				pmwCaFeedTooltip.innerHTML = "<?php 
+        esc_html_e( 'Copied', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>";
+			};
+
+			const pmwResetCopyButton = (tooltipId) => {
+				const pmwCaFeedTooltip     = document.getElementById(tooltipId);
+				pmwCaFeedTooltip.innerHTML = "<?php 
+        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>";
+			};
+		</script>
+		<?php 
+    }
+
+    /**
+     * Render a copy button with tooltip for a text input.
+     *
+     * @param string $input_id   The ID of the input element to copy from.
+     * @param string $tooltip_id Optional custom tooltip ID. If not provided, will be generated from the input ID.
+     *
+     * @since 1.48.1
+     */
+    public static function render_copy_button( $input_id, $tooltip_id = null ) {
+        // Ensure the JavaScript is output
+        self::output_copy_button_js();
+        // Generate a tooltip ID if not provided
+        if ( null === $tooltip_id ) {
+            $tooltip_id = $input_id . 'Tooltip';
+        }
+        ?>
+		<div class="pmwCaTooltip">
+			<a href="javascript:void(0)" class="pmw-copy-icon pmwCaTooltip"
+			   onclick="pmwCopyToClipboard('<?php 
+        echo esc_attr( $input_id );
+        ?>', '<?php 
+        echo esc_attr( $tooltip_id );
+        ?>')"
+			   onmouseout="pmwResetCopyButton('<?php 
+        echo esc_attr( $tooltip_id );
+        ?>')"></a>
+			<span class="pmwCaTooltiptext"
+				  id="<?php 
+        echo esc_attr( $tooltip_id );
+        ?>"><?php 
+        esc_html_e( 'Copy to clipboard', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?></span>
 		</div>
 		<?php 
     }

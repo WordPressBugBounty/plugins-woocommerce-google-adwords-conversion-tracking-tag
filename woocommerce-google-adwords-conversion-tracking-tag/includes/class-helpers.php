@@ -911,6 +911,11 @@ class Helpers {
         }
         if ( Environment::is_cookiebot_active() ) {
             $attributes['data-cookieconsent'] = ['ignore'];
+            $attributes['data-uc-allowed'] = ['true'];
+            // The Cookiebot plugin now seems to also load the Usercentrics CMP script in some cases.
+        }
+        if ( Environment::is_usercentrics_cmp_active() ) {
+            $attributes['data-uc-allowed'] = ['true'];
         }
         // Elementor burger menus are not working with Cloudflare's Rocket Loader
         // source: https://secure.helpscout.net/conversation/2793909416/3974/

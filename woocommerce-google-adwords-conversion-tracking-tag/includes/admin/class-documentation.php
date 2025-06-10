@@ -402,11 +402,15 @@ class Documentation {
 				'wcm'     => '',
 			],
 			'google_tag_gateway_measurement_path' 				=> [
-				'default' => '/docs/wpm/plugin-configuration/google#google-gtag-gateway-for-advertisers',
+				'default' => '/docs/wpm/plugin-configuration/google#google-tag-gateway-for-advertisers',
 				'wcm'     => '',
 			],
 			'google_tag_id' 									   => [
-				'default' => '/docs/wpm/plugin-configuration/google#google-gtag-gateway-for-advertisers',
+				'default' => '/docs/wpm/plugin-configuration/google#google-tag-gateway-for-advertisers',
+				'wcm'     => '',
+			],
+			'pageview_events_s2s' 									   => [
+				'default' => '/docs/wpm/plugin-configuration/general-settings#track-pageview-events-server-to-server',
 				'wcm'     => '',
 			],
 		];

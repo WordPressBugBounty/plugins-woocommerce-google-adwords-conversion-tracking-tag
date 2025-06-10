@@ -6,6 +6,7 @@ use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\LTV;
 use SweetCode\Pixel_Manager\Admin\Validations;
 use SweetCode\Pixel_Manager\Data\GA4_Data_API;
+use SweetCode\Pixel_Manager\Database;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_Microdata;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_MP_GA4;
@@ -16,6 +17,7 @@ use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\Shop;
+use WP_Error;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
 class Pixel_Manager {
@@ -325,6 +327,26 @@ class Pixel_Manager {
         ] );
     }
 
+    /**
+     * Callback function for the protected REST route permission check.
+     *
+     * This function checks if the current user has permission to access the protected route.
+     * If the user does not have permission, it returns a WP_Error with a 401 status code.
+     * If the user has permission, it returns true.
+     *
+     * @return /WP_Error|bool Returns a WP_Error if the user does not have permission, or true if they do.
+     *
+     * @since  1.49.0
+     */
+    public static function protected_rest_route_permission_callback() {
+        if ( Environment::can_current_user_edit_options() ) {
+            return true;
+        }
+        return new WP_Error('rest_forbidden', esc_html__( 'You can not view private data.', 'woocommerce-google-adwords-conversion-tracking-tag' ), [
+            'status' => 401,
+        ]);
+    }
+
     private function get_products_for_datalayer( $data ) {
         $product_ids = Helpers::generic_sanitization( $data['product_ids'] );
         if ( !$product_ids ) {
@@ -451,6 +473,12 @@ class Pixel_Manager {
         ] );
     }
 
+    /**
+     * Save imported settings from the REST API request.
+     *
+     * @param WP_REST_Request $request The request object containing the settings to be saved.
+     * @return void Responds with JSON success or error messages.
+     */
     public function pmw_save_imported_settings( $request ) {
         // Verify nonce
         if ( !wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
@@ -468,8 +496,8 @@ class Pixel_Manager {
                 'message' => 'Invalid options. Didn\'t pass validation.',
             ] );
         }
-        // All good, save options
-        update_option( PMW_DB_OPTIONS_NAME, $options );
+        // All good, save options with timestamp and automatic backup
+        Options::save_options_with_timestamp( $options, true );
         wp_send_json_success( [
             'message' => 'Options saved',
         ] );
@@ -748,44 +776,11 @@ class Pixel_Manager {
         if ( Options::is_google_active() ) {
             $data['google'] = $this->get_google_pixel_data();
         }
-        if ( Options::is_adroll_active() ) {
-            $data['adroll'] = $this->get_adroll_pixel_data();
-        }
-        if ( Options::is_linkedin_active() ) {
-            $data['linkedin'] = $this->get_linkedin_pixel_data();
-        }
-        if ( Options::is_bing_active() ) {
-            $data['bing'] = self::get_bing_pixel_data();
-        }
         if ( Options::is_facebook_active() ) {
             $data['facebook'] = $this->get_facebook_pixel_data();
         }
         if ( Options::is_hotjar_enabled() ) {
             $data['hotjar'] = $this->get_hotjar_pixel_data();
-        }
-        if ( Options::is_reddit_active() ) {
-            $data['reddit'] = $this->get_reddit_pixel_data();
-        }
-        if ( Options::is_outbrain_active() ) {
-            $data['outbrain'] = self::get_outbrain_pixel_data();
-        }
-        if ( Options::is_pinterest_active() ) {
-            $data['pinterest'] = $this->get_pinterest_pixel_data();
-        }
-        if ( Options::is_snapchat_active() ) {
-            $data['snapchat'] = $this->get_snapchat_pixel_data();
-        }
-        if ( Options::is_taboola_active() ) {
-            $data['taboola'] = self::get_taboola_pixel_data();
-        }
-        if ( Options::is_tiktok_active() ) {
-            $data['tiktok'] = $this->get_tiktok_pixel_data();
-        }
-        if ( Options::is_twitter_active() ) {
-            $data['twitter'] = $this->get_twitter_pixel_data();
-        }
-        if ( Options::is_vwo_active() ) {
-            $data['vwo'] = self::get_vwo_pixel_data();
         }
         return $data;
     }
@@ -1456,8 +1451,12 @@ class Pixel_Manager {
             'page_id'                    => get_the_ID(),
             'exclude_domains'            => apply_filters( 'pmw_exclude_domains_from_tracking', [] ),
             'server_2_server'            => [
-                'active'          => Options::server_2_server_enabled(),
-                'ip_exclude_list' => apply_filters( 'pmw_exclude_ips_from_server_2_server_events', [] ),
+                'active'             => Options::server_2_server_enabled(),
+                'ip_exclude_list'    => apply_filters( 'pmw_exclude_ips_from_server_2_server_events', [] ),
+                'pageview_event_s2s' => [
+                    'is_active' => Options::is_pageview_events_s2s_active() && Options::server_2_server_enabled(),
+                    'pixels'    => Options::pixels_that_require_s2s_pageview_events(),
+                ],
             ],
             'consent_management'         => [
                 'explicit_consent' => Options::is_consent_management_explicit_consent_active(),

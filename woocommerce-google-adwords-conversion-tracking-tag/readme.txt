@@ -1,10 +1,10 @@
 === Pixel Manager for WooCommerce – Track Conversions and Analytics, Google Ads, TikTok and more ===
-Contributors: alekv, wolfbaer
+Contributors: alekv, wolfbaer, freemius
 Tags: woocommerce, google analytics, google ads, facebook pixel, conversion tracking
 Requires at least: 3.7
 Tested up to: 6.8
 Requires PHP: 7.3
-Stable tag: 1.48.0
+Stable tag: 1.49.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -50,6 +50,10 @@ There is an extensive feature range in the free and especially the pro version.
 
 Unique tools like the [Payment Gateway Accuracy Report](https://sweetcode.com/docs/wpm/diagnostics?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=payment-gateway-accuracy-report#payment-gateway-tracking-accuracy-report) and [ACR](https://sweetcode.com/docs/wpm/features/acr?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=acr) (Pro).
 
+<strong>News</strong>
+
+[youtube https://www.youtube.com/watch?v=1_SoAVwU-Mw]
+
 <strong>Plugin Integrations</strong>
 
 * Google Ads Pixel
@@ -68,12 +72,13 @@ Unique tools like the [Payment Gateway Accuracy Report](https://sweetcode.com/do
 
 <strong>Highlights</strong>
 
+* Google Tag Gateway for Advertisers
 * Google Consent Mode v2
-* Effective order duplication prevention.
-* Dynamic remarketing audience collection.
-* Google Ads Cart Data tracking.
-* Consent management platform compatibility.
-* Google Analytics Enhanced E-Commerce.
+* Effective order duplication prevention
+* Dynamic remarketing audience collection
+* Google Ads Cart Data tracking
+* Consent management platform compatibility
+* Google Analytics Enhanced E-Commerce
 * [Payment Gateway Accuracy Report](https://sweetcode.com/docs/wpm/diagnostics?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=payment-gateway-accuracy-report#payment-gateway-tracking-accuracy-report)
 * Google Ads Enhanced Conversions (Pro)
 * Server-side tracking for many platforms (Pro)
@@ -82,6 +87,7 @@ Unique tools like the [Payment Gateway Accuracy Report](https://sweetcode.com/do
 
 <strong>Free Features</strong>
 
+* Google Tag Gateway for Advertisers
 * Google Consent Mode v2
 * Google Ads Conversion Value Tracking
 * Google Ads Dynamic Remarketing
@@ -144,7 +150,6 @@ It works with the following Consent Management plugins out of the box:
 * [Cookie Law Info](https://wordpress.org/plugins/cookie-law-info/)
 * [GDPR Cookie Compliance](https://wordpress.org/plugins/gdpr-cookie-compliance/)
 * [WP AutoTerms](https://wordpress.org/plugins/auto-terms-of-service-and-privacy-policy/)
-* [Usercentrics](https://usercentrics.com/)
 * [CookiePro by OneTrust](https://wordpress.org/plugins/cookiepro/)
 * [Termly](https://wordpress.org/plugins/uk-cookie-consent/)
 * [Iubenda](https://wordpress.org/plugins/iubenda-cookie-law-solution/)
@@ -295,6 +300,19 @@ We are committed to ensuring the security of our customers and their data. If yo
 1. Settings page
 
 == Changelog ==
+
+= 1.49.0  =
+*Release date - 10.06.2025*
+
+* New: Added a new queue runner _pmwq for developers who want to run Pixel Manager functions, no matter when the Pixel Manager is loaded.
+* New: Added a new automatic settings backup feature.
+* Tweak: Updated Wistia embed script and styling for better integration.
+* Tweak: Various admin UX improvements.
+* Tweak: Added a health check for the Google Tag Gateway.
+* Tweak: Removed some unused code.
+* Tweak: Added method to convert LTV order values to base currency when the shop uses specific multi-currency plugins.
+* Tweak: Improved payment gateway retrieval logic.
+* Tweak: Bumped up WC version compatibility to 9.9
 
 = 1.48.0  =
 *Release date - 22.05.2025*

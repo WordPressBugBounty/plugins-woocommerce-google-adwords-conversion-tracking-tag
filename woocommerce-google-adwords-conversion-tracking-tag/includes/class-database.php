@@ -19,8 +19,6 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 
 class Database {
 
-	private static $options_backup_name = 'wgact_options_backup';
-
 	public static function run_options_db_upgrade() {
 
 		$db_version = self::get_mysql_db_version();
@@ -54,7 +52,7 @@ class Database {
 		self::save_options_backup();
 
 		// Get the latest backup for version PMW_DB_VERSION
-		$options_backup = get_option(self::$options_backup_name);
+		$options_backup = get_option(Options::$options_backup_name);
 
 		// Run this if on a downgrade there is no backup of the options for the version of this plugin.
 		if (!isset($options_backup[PMW_DB_VERSION])) {
@@ -216,7 +214,7 @@ class Database {
 			$version = Options::get_db_version();
 		}
 
-		$options_backup = get_option(self::$options_backup_name);
+		$options_backup = get_option(Options::$options_backup_name);
 
 		// Upgrade from old method for saving versions to new one that also saves the timestamp.
 		if (isset($options_backup[$version]) && is_string($options_backup[$version])) {
@@ -227,6 +225,6 @@ class Database {
 
 		$options_backup[$version][time()] = Options::get_options();
 
-		update_option(self::$options_backup_name, $options_backup, false);
+		update_option(Options::$options_backup_name, $options_backup, false);
 	}
 }

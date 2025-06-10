@@ -17,6 +17,7 @@ class Options {
 
 	private static $options;
 	private static $options_obj;
+	public static  $options_backup_name = 'wgact_options_backup';
 
 	private static $did_init = false;
 
@@ -149,7 +150,7 @@ class Options {
 				],
 				'tcf_support'  => false,
 				'user_id'      => false,
-				'tag_gateway' => [
+				'tag_gateway'  => [
 					'measurement_path' => '',
 				],
 			],
@@ -263,10 +264,52 @@ class Options {
 					'level'             => 'warning',
 					'log_http_requests' => false,
 				],
+				'pageview_events_s2s'        => false,
 			],
 			'db_version' => PMW_DB_VERSION,
+			'timestamp'  => null, // This will be set when the options are saved
 		];
 	}
+
+	/**
+	 * Get the options backup
+	 *
+	 * @since 1.49.0
+	 */
+	public static function get_options_backup() {
+
+		// Get the backup options from the database
+		$backup_options = get_option(self::$options_backup_name);
+
+		if ($backup_options) {
+			return $backup_options;
+		}
+
+		return self::get_default_options();
+	}
+
+	/**
+	 * Get the automatic options backup
+	 *
+	 * @since 1.49.0
+	 */
+	public static function get_automatic_options_backup() {
+		$options_backup = self::get_options_backup();
+		return isset($options_backup['auto']) ? $options_backup['auto'] : [];
+	}
+
+	public static function get_automatic_options_backup_by_timestamp( $timestamp ) {
+
+		// Get the automatic options backup from the database
+		$automatic_options_backup = self::get_automatic_options_backup();
+
+		if (isset($automatic_options_backup[$timestamp])) {
+			return $automatic_options_backup[$timestamp];
+		}
+
+		return [];
+	}
+
 
 	public static function update_with_defaults( $target_array, $default_array ) {
 
@@ -549,7 +592,8 @@ class Options {
 	}
 
 	public static function get_google_ads_merchant_id() {
-		return (int) self::get_options_obj()->google->ads->aw_merchant_id;
+		$merchant_id = self::get_options_obj()->google->ads->aw_merchant_id;
+		return empty($merchant_id) ? '' : (int) $merchant_id;
 	}
 
 	public static function is_google_ads_conversion_cart_data_enabled() {
@@ -781,7 +825,7 @@ class Options {
 	public static function disable_http_request_logging() {
 		self::init();
 		self::$options['general']['logger']['log_http_requests'] = false;
-		update_option(PMW_DB_OPTIONS_NAME, self::$options);
+		self::save_options_with_timestamp(self::$options, true);
 	}
 
 	/**
@@ -873,6 +917,10 @@ class Options {
 		return false;
 	}
 
+	public static function is_pageview_events_s2s_active() {
+		return (bool) self::get_options_obj()->general->pageview_events_s2s;
+	}
+
 	public static function is_maximum_compatiblity_mode_active() {
 		return (bool) self::get_options_obj()->general->maximum_compatibility_mode;
 	}
@@ -927,6 +975,31 @@ class Options {
 			|| self::is_snapchat_capi_active();
 	}
 
+	/**
+	 * Returns the list of pixels that go through server-to-server pageview events.
+	 *
+	 * This is used to determine if they will be triggered through the pmw:page-view event.
+	 * If yes, they will go through a detour and we have to ensure that the pixels are loaded
+	 * before the pmw:page-view event is triggered.
+	 *
+	 * @return string[]
+	 *
+	 * @since 1.49.0
+	 */
+	public static function pixels_that_require_s2s_pageview_events() {
+		$pixels = [];
+
+		if (self::is_facebook_active()) {
+			$pixels[] = 'facebook';
+		}
+
+		if (self::is_snapchat_active()) {
+			$pixels[] = 'snapchat';
+		}
+
+		return $pixels;
+	}
+
 	public static function get_excluded_roles() {
 		return (array) self::get_options_obj()->shop->disable_tracking_for;
 	}
@@ -958,7 +1031,7 @@ class Options {
 	public static function enable_duplication_prevention() {
 		self::init();
 		self::$options['shop']['order_deduplication'] = true;
-		update_option(PMW_DB_OPTIONS_NAME, self::$options);
+		self::save_options_with_timestamp(self::$options, true);
 	}
 
 	public static function get_marketing_value_logic() {
@@ -987,5 +1060,254 @@ class Options {
 
 	public static function is_order_extra_details_active() {
 		return (bool) self::get_options_obj()->shop->order_extra_details->is_active;
+	}
+
+	/**
+	 * Save options with timestamp and create automatic backup using the same timestamp
+	 *
+	 * @param array $options       The options array to save
+	 * @param bool  $create_backup Whether to create an automatic backup before saving
+	 * @since 1.50.0
+	 */
+	public static function save_options_with_timestamp( $options, $create_backup = true, $timestamp = null ) {
+
+		if (null === $timestamp) {
+			// If no timestamp is provided, use the current time
+			$timestamp = time();
+		}
+
+		// Create automatic backup before saving if requested
+		if ($create_backup) {
+			self::save_automatic_options_backup_with_timestamp($timestamp);
+		}
+
+		// Set the timestamp in the options
+		$options['timestamp'] = $timestamp;
+
+		// Save the options
+		update_option(PMW_DB_OPTIONS_NAME, $options);
+
+		// Invalidate cache so new options are loaded
+		self::invalidate_cache();
+	}
+
+	/**
+	 * Create an automatic backup when options are updated with a specific timestamp
+	 *
+	 * @param int $timestamp The timestamp to use for the backup
+	 */
+	public static function save_automatic_options_backup_with_timestamp( $timestamp, $options = null ) {
+
+		// Create the backup entry
+		$options_backup = get_option(self::$options_backup_name, []);
+
+		// Ensure the auto backup section exists
+		if (!isset($options_backup['auto'])) {
+			$options_backup['auto'] = [];
+		}
+
+		// Save the current options as backup using the provided timestamp
+		if (null === $options) {
+			$options = self::get_options();
+		}
+
+		$options_backup['auto'][$timestamp] = $options;
+
+		// Apply retention policy with configurable settings
+		$options_backup['auto'] = self::apply_backup_retention_policy($options_backup['auto']);
+
+		// Save with autoload=false to avoid loading on every page request
+		update_option(self::$options_backup_name, $options_backup, false);
+	}
+
+	/**
+	 * Apply backup retention policy with configurable settings.
+	 * Default policy optimized for infrequent changes:
+	 * - Keep configurable number of most recent backups (default: 5)
+	 * - Keep 1 per day for configurable days (default: 14 days)
+	 * - Keep 1 per month for configurable months (default: 12 months)
+	 * - Keep 1 per year forever (archival)
+	 *
+	 * This policy is optimized for plugins that have infrequent changes but when
+	 * changes happen, they come in bursts.
+	 *
+	 * @param array $backups  Array of timestamp => options_data
+	 * @param array $settings Optional. Retention policy settings
+	 * @return array Filtered backups according to retention policy
+	 *
+	 * @since 1.49.0
+	 */
+	private static function apply_backup_retention_policy( $backups ) {
+
+		if (empty($backups)) {
+			return $backups;
+		}
+
+		// Default retention policy settings (can be overridden via parameter)
+		$settings = self::get_backup_retention_settings();
+
+		// Sort backups by timestamp (newest first)
+		krsort($backups);
+
+		$now               = time();
+		$retained_backups  = [];
+		$backup_timestamps = array_keys($backups);
+
+		// Step 1: Keep the configurable number of most recent backups
+		$recent_count = 0;
+		foreach ($backup_timestamps as $timestamp) {
+			if ($recent_count < $settings['recent_count']) {
+				$retained_backups[$timestamp] = $backups[$timestamp];
+				$recent_count++;
+			} else {
+				break;
+			}
+		}
+
+		// Get the oldest of the recent backups to determine where daily retention starts
+		$oldest_recent = $recent_count > 0 ? min(array_keys($retained_backups)) : $now;
+
+		// Step 2: Keep 1 per day for past configurable days (excluding recent backups)
+		$daily_backups = [];
+		$daily_cutoff  = $oldest_recent - ( $settings['daily_retention'] * 24 * 60 * 60 );
+
+		// Get the days that already have recent backups to exclude them from daily retention
+		$recent_days = [];
+		foreach ($retained_backups as $timestamp => $data) {
+			$recent_days[gmdate('Y-m-d', $timestamp)] = true;
+		}
+
+		foreach ($backup_timestamps as $timestamp) {
+			if ($timestamp >= $oldest_recent) {
+				continue; // Already included in recent backups
+			}
+
+			if ($timestamp >= $daily_cutoff) {
+				$day_key = gmdate('Y-m-d', $timestamp);
+
+				// Skip days that already have recent backups
+				if (isset($recent_days[$day_key])) {
+					continue;
+				}
+
+				if (!isset($daily_backups[$day_key]) || $timestamp > $daily_backups[$day_key]['timestamp']) {
+					$daily_backups[$day_key] = [
+						'timestamp' => $timestamp,
+						'data'      => $backups[$timestamp],
+					];
+				}
+			}
+		}
+
+		// Add daily backups to retained
+		foreach ($daily_backups as $day_backup) {
+			$retained_backups[$day_backup['timestamp']] = $day_backup['data'];
+		}
+
+		// Get the oldest daily backup timestamp
+		$oldest_daily = !empty($daily_backups) ? min(array_column($daily_backups, 'timestamp')) : $oldest_recent - ( $settings['daily_retention'] * 24 * 60 * 60 );
+
+		// Step 3: Keep 1 per month for past configurable months
+		$monthly_backups = [];
+		$monthly_cutoff  = $oldest_daily - ( $settings['monthly_retention'] * 30 * 24 * 60 * 60 ); // months before oldest daily
+
+		// Get all days that already have recent or daily backups
+		$excluded_days = [];
+		foreach ($retained_backups as $timestamp => $data) {
+			$excluded_days[gmdate('Y-m-d', $timestamp)] = true;
+		}
+
+		foreach ($backup_timestamps as $timestamp) {
+			if ($timestamp >= $oldest_daily) {
+				continue; // Already included in recent or daily
+			}
+
+			if ($timestamp >= $monthly_cutoff) {
+				$day_key = gmdate('Y-m-d', $timestamp);
+
+				// Skip days that already have recent or daily backups
+				if (isset($excluded_days[$day_key])) {
+					continue;
+				}
+
+				$month_key = gmdate('Y-m', $timestamp);
+				if (!isset($monthly_backups[$month_key]) || $timestamp > $monthly_backups[$month_key]['timestamp']) {
+					$monthly_backups[$month_key] = [
+						'timestamp' => $timestamp,
+						'data'      => $backups[$timestamp],
+					];
+				}
+			}
+		}
+
+		// Add monthly backups to retained
+		foreach ($monthly_backups as $month_backup) {
+			$retained_backups[$month_backup['timestamp']] = $month_backup['data'];
+		}
+
+		// Get the oldest monthly backup timestamp
+		$oldest_monthly = !empty($monthly_backups) ? min(array_column($monthly_backups, 'timestamp')) : $monthly_cutoff;
+
+		// Step 4: Keep 1 per year for everything older (archival) - only if enabled
+		if ($settings['enable_yearly']) {
+			$yearly_backups = [];
+
+			// Update excluded days to include monthly backups as well
+			foreach ($monthly_backups as $month_backup) {
+				$excluded_days[gmdate('Y-m-d', $month_backup['timestamp'])] = true;
+			}
+
+			foreach ($backup_timestamps as $timestamp) {
+				if ($timestamp >= $oldest_monthly) {
+					continue; // Already included
+				}
+
+				$day_key = gmdate('Y-m-d', $timestamp);
+
+				// Skip days that already have recent, daily, or monthly backups
+				if (isset($excluded_days[$day_key])) {
+					continue;
+				}
+
+				$year_key = gmdate('Y', $timestamp);
+				if (!isset($yearly_backups[$year_key]) || $timestamp > $yearly_backups[$year_key]['timestamp']) {
+					$yearly_backups[$year_key] = [
+						'timestamp' => $timestamp,
+						'data'      => $backups[$timestamp],
+					];
+				}
+			}
+
+			// Add yearly backups to retained
+			foreach ($yearly_backups as $year_backup) {
+				$retained_backups[$year_backup['timestamp']] = $year_backup['data'];
+			}
+		}
+
+		return $retained_backups;
+	}
+
+	/**
+	 * Get backup retention policy settings.
+	 * This method can be overridden or filtered to customize retention behavior.
+	 *
+	 * @return array Backup retention settings
+	 *
+	 * @since 1.49.0
+	 */
+	public static function get_backup_retention_settings() {
+		$default_settings = [
+			'recent_count'      => 5,    // Number of most recent backups to keep
+			'daily_retention'   => 14,   // Number of days to keep daily backups
+			'monthly_retention' => 12,   // Number of months to keep monthly backups
+			'enable_yearly'     => true, // Whether to keep yearly backups forever
+		];
+
+		/**
+		 * Filter backup retention policy settings.
+		 *
+		 * @param array $settings Default retention settings
+		 */
+		return apply_filters('pmw_backup_retention_settings', $default_settings);
 	}
 }

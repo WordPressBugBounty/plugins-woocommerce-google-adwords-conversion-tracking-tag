@@ -7,6 +7,7 @@ use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Helpers;
+use WC_Payment_Gateways;
 use WP_Query;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
@@ -530,17 +531,19 @@ class Debug_Info {
     /**
      * Get all payment gateways
      *
-     * It contains a safeguard to check if WC()->payment_gateways is set.
-     * In rare cases, it might not be set if a payment gateway is not following the WooCommerce standards.
+     * In rare cases, if a payment gateway is not following the WooCommerce standards,
+     * it might not be available in the WC_Payment_Gateways class.
+     *
      * Reference: https://secure.helpscout.net/conversation/2748380728/3697/
      *
      * @return array
      */
     public static function get_payment_gateways() {
-        if ( function_exists( 'WC' ) && isset( WC()->payment_gateways ) ) {
-            return WC()->payment_gateways->get_available_payment_gateways();
+        if ( !class_exists( 'WC_Payment_Gateways' ) ) {
+            return [];
         }
-        return [];
+        $gateways = ( new WC_Payment_Gateways() )->get_available_payment_gateways();
+        return ( is_array( $gateways ) ? $gateways : [] );
     }
 
     private static function get_last_orders_by_gateway_id( $gateway_id, $limit ) {

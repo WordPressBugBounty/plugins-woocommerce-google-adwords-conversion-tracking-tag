@@ -851,4 +851,48 @@ class Shop {
         );
     }
 
+    /**
+     * Get the order value in the base currency.
+     *
+     * This function is used to convert the order value to the base currency
+     * when using multi-currency plugins.
+     *
+     * @param $order
+     * @param $value
+     * @return float|mixed
+     *
+     * @since 1.49.0
+     */
+    public static function get_order_value_in_base_currency( $order, $value ) {
+        // Price Based on Country for WooCommerce
+        // https://wordpress.org/plugins/woocommerce-product-price-based-on-countries/
+        // If the meta key _wcpbc_base_exchange_rate exists, then we need to use the base exchange rate
+        $base_exchange_rate = $order->get_meta( '_wcpbc_base_exchange_rate' );
+        if ( $base_exchange_rate && is_numeric( $base_exchange_rate ) && $base_exchange_rate > 0 ) {
+            return $value * $base_exchange_rate;
+        }
+        // For WOOCS - WooCommerce Currency Switcher
+        // https://wordpress.org/plugins/woocommerce-currency-switcher/
+        // TODO - Untested, please report if this doesn't work
+        $woocs_order_rate = $order->get_meta( '_woocs_order_rate' );
+        if ( $woocs_order_rate && is_numeric( $woocs_order_rate ) && $woocs_order_rate > 0 ) {
+            return $value / $woocs_order_rate;
+        }
+        // For Currency Switcher for WooCommerce by WP Wham
+        // https://wordpress.org/plugins/currency-switcher-woocommerce/
+        // TODO - Untested, please report if this doesn't work
+        $alg_currency_rate = $order->get_meta( '_alg_wc_currency_rate' );
+        if ( $alg_currency_rate && is_numeric( $alg_currency_rate ) && $alg_currency_rate > 0 ) {
+            return $value / $alg_currency_rate;
+        }
+        // For Aelia Currency Switcher
+        // https://aelia.co/shop/currency-switcher-woocommerce/
+        // TODO - Untested, please report if this doesn't work
+        $aelia_order_exchange_rate = $order->get_meta( '_order_exchange_rate' );
+        if ( $aelia_order_exchange_rate && is_numeric( $aelia_order_exchange_rate ) && $aelia_order_exchange_rate > 0 ) {
+            return $value / $aelia_order_exchange_rate;
+        }
+        return $value;
+    }
+
 }

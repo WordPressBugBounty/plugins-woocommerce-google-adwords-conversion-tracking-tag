@@ -528,6 +528,10 @@ class Environment {
 		return is_plugin_active('cookiebot/cookiebot.php');
 	}
 
+	public static function is_usercentrics_cmp_active() {
+		return is_plugin_active('usercentrics-consent-management-platform/usercentrics.php');
+	}
+
 	public static function is_complianz_active() {
 		return is_plugin_active('complianz-gdpr/complianz-gpdr.php') || is_plugin_active('complianz-gdpr-premium/complianz-gpdr-premium.php');
 	}
