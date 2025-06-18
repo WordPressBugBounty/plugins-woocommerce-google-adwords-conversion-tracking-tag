@@ -531,8 +531,13 @@ class Google_Helpers {
         $tag_id = '';
         $google_base_url = 'https://www.googletagmanager.com/gtag/js?id=';
         // If Google Ads is active and the URL is reachable, return the Google Ads conversion ID
-        if ( Options::is_google_ads_active() && Helpers::is_url_accessible( $google_base_url . 'AW-' . Options::get_google_ads_conversion_id() ) ) {
-            return 'AW-' . Options::get_google_ads_conversion_id();
+        if ( Options::is_google_ads_active() ) {
+            $conversion_id = Options::get_google_ads_conversion_id();
+            $google_ads_tag_url = $google_base_url . 'AW-' . $conversion_id;
+            if ( Helpers::is_url_accessible( $google_ads_tag_url ) ) {
+                return 'AW-' . $conversion_id;
+            }
+            Logger::error( 'The Google Ads gtag script cannot be loaded through ' . $google_ads_tag_url . '. Please check your Google Ads settings.' );
         }
         // If Google Analytics is active and the URL is reachable, return the Google Analytics ID
         if ( Options::is_google_analytics_active() && Helpers::is_url_accessible( $google_base_url . Options::get_ga4_measurement_id() ) ) {

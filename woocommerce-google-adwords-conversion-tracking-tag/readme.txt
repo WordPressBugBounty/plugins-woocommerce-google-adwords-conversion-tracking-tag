@@ -4,7 +4,7 @@ Tags: woocommerce, google analytics, google ads, facebook pixel, conversion trac
 Requires at least: 3.7
 Tested up to: 6.8
 Requires PHP: 7.3
-Stable tag: 1.49.0
+Stable tag: 1.49.1
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -300,6 +300,15 @@ We are committed to ensuring the security of our customers and their data. If yo
 1. Settings page
 
 == Changelog ==
+
+= 1.49.1  =
+*Release date - 18.06.2025*
+
+* Tweak: Updated plugin URI to SweetCode site.
+* Tweak: Removed the deprecated Facebook Microdata output.
+* Tweak: Automatic options backup on plugin upgrades.
+* Fix: Fixed edge-case XSS vulnerabilities related to unquoted product ID injection in post-editing scenarios. Exploitation required specific conditions and permissions.
+* Fix: Fixed the "Show recent log file" link in the logs tab.
 
 = 1.49.0  =
 *Release date - 10.06.2025*

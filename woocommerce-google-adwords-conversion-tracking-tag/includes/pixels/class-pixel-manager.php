@@ -8,7 +8,6 @@ use SweetCode\Pixel_Manager\Admin\Validations;
 use SweetCode\Pixel_Manager\Data\GA4_Data_API;
 use SweetCode\Pixel_Manager\Database;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_CAPI;
-use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_Microdata;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_MP_GA4;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
 use SweetCode\Pixel_Manager\Geolocation;
@@ -68,11 +67,6 @@ class Pixel_Manager {
                 echo esc_attr( Options::get_facebook_domain_verification_id() );
                 ?>"/>
 				<?php 
-            }
-            if ( wpm_fs()->can_use_premium_code__premium_only() && Environment::is_woocommerce_active() && is_product() ) {
-                if ( Options::is_facebook_microdata_active() ) {
-                    Facebook_Microdata::inject_schema( wc_get_product( get_the_ID() ) );
-                }
             }
             // Add products to data layer from page transient
             if ( get_transient( 'pmw_products_for_datalayer_' . get_the_ID() ) ) {

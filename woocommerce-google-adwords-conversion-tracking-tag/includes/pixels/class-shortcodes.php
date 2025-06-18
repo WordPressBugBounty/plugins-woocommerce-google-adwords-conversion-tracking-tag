@@ -60,8 +60,8 @@ class Shortcodes {
 
 			<script>
 				jQuery(document).on("pmw:ready", function () {
-					jQuery(document).trigger("pmw:view-item", wpm.getProductDetailsFormattedForEvent(<?php echo esc_html($shortcode_attributes['product-id']); ?>))
-				})
+					jQuery(document).trigger("pmw:view-item", wpm.getProductDetailsFormattedForEvent(<?php echo intval($shortcode_attributes['product-id']); ?>));
+				});
 			</script>
 			<?php
 		}
@@ -221,9 +221,9 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("snaptr").then(function () {
-					snaptr("track", '<?php echo esc_js($shortcode_attributes['snap-event']); ?>')
+					snaptr("track", "<?php echo esc_js($shortcode_attributes['snap-event']); ?>");
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -242,9 +242,9 @@ class Shortcodes {
 						id    : <?php echo esc_html(Options::get_taboola_account_id()); ?>,
 						notify: "event",
 						name  : "<?php echo esc_js($shortcode_attributes['taboola-event']); ?>",
-					})
+					});
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -255,9 +255,9 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("ttq").then(function () {
-					ttq.track('<?php echo esc_js($shortcode_attributes['tiktok-event']); ?>')
+					ttq.track("<?php echo esc_js($shortcode_attributes['tiktok-event']); ?>");
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -268,9 +268,9 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("gtag").then(function () {
-					gtag("event", "conversion", {"send_to": 'AW-<?php echo esc_js($shortcode_attributes['gads-conversion-id']); ?>/<?php echo esc_js($shortcode_attributes['gads-conversion-label']); ?>'})
+					gtag("event", "conversion", {"send_to": "AW-<?php echo esc_js($shortcode_attributes['gads-conversion-id']); ?>/<?php echo esc_js($shortcode_attributes['gads-conversion-label']); ?>"});
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -286,10 +286,10 @@ class Shortcodes {
 		<script>
 			wpmFunctionExists("lintrk").then(function () {
 					lintrk("track", {
-						conversion_id: <?php echo esc_js($shortcode_attributes['lintrk-event']); ?>
-					})
+						conversion_id: <?php echo intval($shortcode_attributes['lintrk-event']); ?>,
+					});
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -310,14 +310,14 @@ class Shortcodes {
 			<script>
 				jQuery(document).on("pmw:ready", function () {
 
-					let eventId = wpm.getRandomEventId()
+					let eventId = wpm.getRandomEventId();
 
 					wpmFunctionExists("fbq").then(function () {
 							fbq("<?php echo esc_html($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>", {}, {
 								eventID: eventId,
-							})
+							});
 						},
-					)
+					);
 
 					wpm.sendEventPayloadToServer({
 						facebook: {
@@ -326,8 +326,8 @@ class Shortcodes {
 							user_data       : wpm.getFbUserData(),
 							event_source_url: window.location.href,
 						},
-					})
-				})
+					});
+				});
 
 			</script>
 			<?php
@@ -336,9 +336,9 @@ class Shortcodes {
 
 			<script>
 				wpmFunctionExists("fbq").then(function () {
-						fbq("<?php echo esc_html($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>")
+						fbq("<?php echo esc_html($track_instruction); ?>", "<?php echo esc_js($shortcode_attributes['meta-event']); ?>");
 					},
-				)
+				);
 			</script>
 			<?php
 		}
@@ -351,9 +351,9 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("twq").then(function () {
-					twq("track", '<?php echo esc_js($shortcode_attributes['twc-event']); ?>')
+					twq("track", "<?php echo esc_js($shortcode_attributes['twc-event']); ?>");
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -368,9 +368,9 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("obApi").then(function () {
-					obApi("track", '<?php echo esc_js($shortcode_attributes['outbrain-event']); ?>')
+					obApi("track", "<?php echo esc_js($shortcode_attributes['outbrain-event']); ?>");
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -384,9 +384,9 @@ class Shortcodes {
 
 			<script>
 				wpmFunctionExists("pintrk").then(function () {
-						pintrk("track", '<?php echo esc_js($shortcode_attributes['pinc-event']); ?>')
+						pintrk("track", "<?php echo esc_js($shortcode_attributes['pinc-event']); ?>");
 					},
-				)
+				);
 			</script>
 			<?php
 		} else {
@@ -394,11 +394,11 @@ class Shortcodes {
 
 			<script>
 				wpmFunctionExists("pintrk").then(function () {
-						pintrk("track", '<?php echo esc_js($shortcode_attributes['pinc-event']); ?>', {
-							lead_type: '<?php echo esc_js($shortcode_attributes['pinc-lead-type']); ?>',
-						})
+						pintrk("track", "<?php echo esc_js($shortcode_attributes['pinc-event']); ?>", {
+							lead_type: "<?php echo esc_js($shortcode_attributes['pinc-lead-type']); ?>",
+						});
 					},
-				)
+				);
 			</script>
 			<?php
 		}
@@ -410,14 +410,14 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("uetq").then(function () {
-					window.uetq = window.uetq || []
-					window.uetq.push("event", '<?php echo esc_js($shortcode_attributes['ms-ads-event']); ?>', {
-						"event_category": '<?php echo esc_js($shortcode_attributes['ms-ads-event-category']); ?>',
-						"event_label"   : '<?php echo esc_js($shortcode_attributes['ms-ads-event-label']); ?>',
-						"event_value"   : '<?php echo esc_js($shortcode_attributes['ms-ads-event-value']); ?>',
-					})
+					window.uetq = window.uetq || [];
+					window.uetq.push("event", "<?php echo esc_js($shortcode_attributes['ms-ads-event']); ?>", {
+						"event_category": "<?php echo esc_js($shortcode_attributes['ms-ads-event-category']); ?>",
+						"event_label"   : "<?php echo esc_js($shortcode_attributes['ms-ads-event-label']); ?>",
+						"event_value"   : "<?php echo esc_js($shortcode_attributes['ms-ads-event-value']); ?>",
+					});
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -427,9 +427,9 @@ class Shortcodes {
 
 		<script>
 			wpmFunctionExists("rdt").then(function () {
-					rdt("track", '<?php echo esc_js($shortcode_attributes['reddit-event']); ?>')
+					rdt("track", "<?php echo esc_js($shortcode_attributes['reddit-event']); ?>");
 				},
-			)
+			);
 		</script>
 		<?php
 	}
@@ -442,11 +442,11 @@ class Shortcodes {
 				window.wpmFunctionExists = function (functionName) {
 					return new Promise(function (resolve) {
 						(function waitForVar() {
-							if (typeof window[functionName] !== "undefined") return resolve()
-							setTimeout(waitForVar, 1000)
-						})()
-					})
-				}
+							if (typeof window[functionName] !== "undefined") return resolve();
+							setTimeout(waitForVar, 1000);
+						})();
+					});
+				};
 			}
 		</script>
 		<?php

@@ -292,6 +292,7 @@ class Shop {
     public static function pmw_get_the_title( $post = 0 ) {
         $post = get_post( $post );
         $title = ( isset( $post->post_title ) ? $post->post_title : '' );
+        // Decoding is safe here because the value is always JSON-encoded before output.
         return wp_specialchars_decode( $title );
     }
 

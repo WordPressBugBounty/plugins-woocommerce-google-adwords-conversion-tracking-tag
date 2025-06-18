@@ -923,18 +923,6 @@ class Admin {
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
-        // This feature is deprecated since 1.25.1
-        // We keep it active for users who are currently using it.
-        if ( Options::is_facebook_microdata_active() ) {
-            // add fields for Facebook microdata
-            add_settings_field(
-                'wpm_setting_facebook_microdata_active',
-                esc_html__( 'Meta (Facebook) Microdata Tags for Catalogues', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                [__CLASS__, 'setting_html_facebook_microdata'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-        }
     }
 
     public static function add_section_advanced_subsection_pinterest( $section_ids ) {
@@ -4663,39 +4651,6 @@ class Admin {
         echo '&nbsp;<code>uk6zwiftxsaywayn14x0aouhz4fhd</code>';
     }
 
-    // TODO: Added deprecated message on 26.04.2024
-    public static function setting_html_facebook_microdata() {
-        // adding the hidden input is a hack to make WordPress save the option with the value zero,
-        // instead of not saving it and remove that array key entirely
-        // https://stackoverflow.com/a/1992745/4688612
-        ?>
-		<label>
-			<input type="hidden" value="0" name="wgact_plugin_options[facebook][microdata]">
-			<input type="checkbox"
-				   id="wpm_setting_facebook_microdata_active"
-				   name="wgact_plugin_options[facebook][microdata]"
-				   value="1"
-				<?php 
-        checked( Options::is_facebook_microdata_active() );
-        ?>
-				<?php 
-        echo esc_html( self::disable_if_demo() );
-        ?>
-			/>
-			<?php 
-        esc_html_e( 'Enable Meta (Facebook) product microdata output', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>
-		</label>
-		<?php 
-        self::display_status_icon( Options::is_facebook_microdata_active(), Options::is_facebook_active(), true );
-        self::get_documentation_html_by_key( 'facebook_microdata' );
-        self::html_status_icon_deprecated();
-        self::html_pro_feature();
-        echo '<p></p><span class="dashicons dashicons-info"></span>';
-        esc_html_e( 'The Facebook Microdata feature in the Pixel Manager has been deprecated. Please use a dedicated feed plugin for this purpose. The feature will be removed in a future version.', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '</p><br>';
-    }
-
     public static function setting_html_pinterest_ad_account_id() {
         $text_length = max( strlen( Options::get_pinterest_ad_account_id() ), 40 );
         ?>
@@ -5543,6 +5498,7 @@ class Admin {
         ?>
 
 		<button id="wgact_show_recent_log_file"
+				type="button"
 				class="button button-primary"
 				style="margin-top: 0"
 				onclick="window.open('<?php 
@@ -5570,66 +5526,32 @@ class Admin {
 
 		</button>
 		<?php 
-        // Add a button with which the most recent log file can be downloaded
-        $external_url_to_most_recent_log = Helpers::get_external_url_to_most_recent_log( $source );
+        // Add a button to download all plugin log files as a zip
+        $all_log_files = Helpers::get_all_plugin_log_file_paths( $source );
         ?>
 
-		<button id="wgact_download_log_file"
+		<button id="wgact_download_logs_zip"
+				type="button"
 				class="button button-primary"
 				style="margin-top: 0"
-				onclick="window.open('<?php 
-        echo esc_url( $external_url_to_most_recent_log );
-        ?>')"
+				data-source="<?php 
+        echo esc_attr( $source );
+        ?>"
 			<?php 
-        disabled( !$external_url_to_most_recent_log );
+        disabled( empty( $all_log_files ) );
         ?>
 		>
 			<?php 
-        if ( $external_url_to_most_recent_log ) {
+        if ( !empty( $all_log_files ) ) {
             ?>
 				<?php 
-            esc_html_e( 'Download recent log file', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            esc_html_e( 'Download all log files', 'woocommerce-google-adwords-conversion-tracking-tag' );
             ?>
 			<?php 
         } else {
             ?>
 				<?php 
-            esc_html_e( 'No log file found to download', 'woocommerce-google-adwords-conversion-tracking-tag' );
-            ?>
-			<?php 
-        }
-        ?>
-		</button>
-
-		<?php 
-        // Button to copy all log file links to the clipboard
-        $all_external_log_file_urls = Helpers::get_all_external_log_file_urls( $source );
-        ?>
-
-		<button id="wgact_copy_log_file_links"
-				class="button button-primary"
-				style="margin-top: 0"
-				data-links="<?php 
-        echo esc_js( $all_external_log_file_urls );
-        ?>"
-				data-text-copied="<?php 
-        esc_html_e( 'Copied!', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>"
-			<?php 
-        disabled( !$all_external_log_file_urls );
-        ?>
-		>
-			<?php 
-        if ( $all_external_log_file_urls ) {
-            ?>
-				<?php 
-            esc_html_e( 'Copy log file links', 'woocommerce-google-adwords-conversion-tracking-tag' );
-            ?>
-			<?php 
-        } else {
-            ?>
-				<?php 
-            esc_html_e( 'No log file links found to copy', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            esc_html_e( 'No log files found to download', 'woocommerce-google-adwords-conversion-tracking-tag' );
             ?>
 			<?php 
         }

@@ -1275,7 +1275,7 @@ msgid "No log file found to view"
 msgstr ""
 
 #: includes/admin/class-admin.php:5644
-msgid "Download recent log file"
+msgid "Download all log files"
 msgstr ""
 
 #: includes/admin/class-admin.php:5646

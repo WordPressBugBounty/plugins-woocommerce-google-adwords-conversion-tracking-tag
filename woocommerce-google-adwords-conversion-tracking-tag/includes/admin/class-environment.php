@@ -115,20 +115,50 @@ class Environment {
 //        add_filter('upgrader_post_install', [__CLASS__, 'purge_cache_of_all_cache_plugins'], 10, 3);
 
 		// Purge cache after plugin update
-		add_action('upgrader_process_complete', [ __CLASS__, 'upgrader_purge_cache_if_pmw_was_updated' ], 10, 2);
+		add_action('upgrader_process_complete', [ __CLASS__, 'upgrader_process_complete_tasks' ], 10, 2);
 	}
 
-	public static function upgrader_purge_cache_if_pmw_was_updated( $upgrader_object, $options ) {
+	/**
+	 * This function is called after a plugin has been updated.
+	 * It checks if the updated plugin is PMW and runs tasks accordingly.
+	 *
+	 * It purges the entire cache.
+	 *
+	 * @param \WP_Upgrader $upgrader_object
+	 * @param array        $options
+	 *
+	 * @return void
+	 */
+	public static function upgrader_process_complete_tasks( $upgrader_object, $options ) {
 
-		if (
-			isset($options['type']) &&
-			'plugin' === $options['type'] &&
-			isset($options['plugins']) &&
-			is_array($options['plugins']) &&
-			in_array(PMW_PLUGIN_BASENAME, $options['plugins'], true)
-		) {
-			self::purge_entire_cache();
+		if (!isset($options['type'])) {
+			return;
 		}
+		if ('plugin' !== $options['type']) {
+			return;
+		}
+		if (!isset($options['plugins'])) {
+			return;
+		}
+		if (!is_array($options['plugins'])) {
+			return;
+		}
+		if (!in_array(PMW_PLUGIN_BASENAME, $options['plugins'], true)) {
+			return;
+		}
+
+		/**
+		 * Save a backup of the current options.
+		 */
+
+		Options::save_automatic_options_backup_with_timestamp(time());
+
+		/**
+		 * We purge the entire cache.
+		 * This is necessary because the plugin has been updated and we need to make sure that all front-end pages use the latest version of the plugin.
+		 * This is especially important for the first layer cache, which is usually handled by a cache plugin.
+		 */
+		self::purge_entire_cache();
 	}
 
 	/**

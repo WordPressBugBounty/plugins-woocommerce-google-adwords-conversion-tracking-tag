@@ -1095,6 +1095,8 @@ class Options {
 	 * Create an automatic backup when options are updated with a specific timestamp
 	 *
 	 * @param int $timestamp The timestamp to use for the backup
+	 *
+	 * @since 1.49.0
 	 */
 	public static function save_automatic_options_backup_with_timestamp( $timestamp, $options = null ) {
 

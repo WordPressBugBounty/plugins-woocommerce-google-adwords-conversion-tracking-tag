@@ -774,7 +774,20 @@ class Helpers {
         if ( empty( $file_name ) ) {
             return null;
         }
-        return admin_url( 'admin.php?page=wc-status&tab=logs&log_file=' . $file_name );
+        // Extract file ID by removing the hash suffix and .log extension
+        // Convert from format: pmw-2025-06-10-2dc3f32ec2d3b5648224688f83d50e51.log
+        // To format: pmw-2025-06-10
+        $file_id = $file_name;
+        // Remove .log extension if present
+        if ( substr( $file_id, -4 ) === '.log' ) {
+            $file_id = substr( $file_id, 0, -4 );
+        }
+        // Remove hash suffix (32 character hex string preceded by a dash)
+        // Pattern: source-YYYY-MM-DD-hash32chars
+        if ( preg_match( '/^(.+-\\d{4}-\\d{2}-\\d{2})-[a-f0-9]{32}$/', $file_id, $matches ) ) {
+            $file_id = $matches[1];
+        }
+        return admin_url( 'admin.php?page=wc-status&tab=logs&view=single_file&file_id=' . $file_id );
     }
 
     public static function get_external_url_to_most_recent_log( $source ) {
@@ -793,39 +806,6 @@ class Helpers {
         $wc_log_dir = substr( trailingslashit( WC_LOG_DIR ), strpos( trailingslashit( WC_LOG_DIR ), '/wp-content/' ) );
         $wc_log_dir = get_bloginfo( 'url' ) . $wc_log_dir;
         return trailingslashit( $wc_log_dir );
-    }
-
-    /**
-     * Gets all external log file URLs based on a specific source.
-     *
-     * This function searches all log files in the WooCommerce logs directory,
-     * selects those that start with the specified source or 'fatal-errors',
-     * and returns their URL.
-     *
-     * @param string $source The source log files to search for.
-     *
-     * @return string A JSON-encoded array of URLs to the log files.
-     *
-     * @since 1.36.0
-     */
-    public static function get_all_external_log_file_urls( $source ) {
-        $needles = ['fatal-errors', $source];
-        $logs = WC_Log_Handler_File::get_log_files();
-        $logs = array_filter( $logs, function ( $key ) use($needles) {
-            foreach ( $needles as $needle ) {
-                if ( strpos( $key, $needle . '-' ) === 0 ) {
-                    return true;
-                }
-            }
-            return false;
-        }, ARRAY_FILTER_USE_KEY );
-        $logs = array_values( array_map( function ( $log ) {
-            return self::get_url_to_log_dir() . $log;
-        }, $logs ) );
-        if ( empty( $logs ) ) {
-            return null;
-        }
-        return wp_json_encode( $logs );
     }
 
     /**
@@ -1025,6 +1005,49 @@ class Helpers {
 
     public static function is_wcm_distro_free_version() {
         return self::is_pmw_wcm_distro() && self::is_pmw_pro_version_not_active();
+    }
+
+    /**
+     * Gets all plugin log files based on a specific source.
+     *
+     * This function searches all log files in the WooCommerce logs directory,
+     * selects those that start with the specified source,
+     * and returns their file paths.
+     *
+     * @param string $source The source log files to search for.
+     *
+     * @return array Array of log file paths.
+     *
+     * @since 1.36.1
+     */
+    public static function get_all_plugin_log_file_paths( $source ) {
+        // return empty array if the class WC_Log_Handler_File does not exist
+        if ( !class_exists( 'WC_Log_Handler_File' ) ) {
+            return [];
+        }
+        $logs = WC_Log_Handler_File::get_log_files();
+        if ( empty( $logs ) ) {
+            return [];
+        }
+        $logs = array_filter( $logs, function ( $key ) use($source) {
+            return strpos( $key, $source . '-' ) === 0;
+        }, ARRAY_FILTER_USE_KEY );
+        if ( empty( $logs ) ) {
+            return [];
+        }
+        // Return full paths to the log files
+        $log_dir = ( defined( 'WC_LOG_DIR' ) ? trailingslashit( WC_LOG_DIR ) : '' );
+        if ( empty( $log_dir ) ) {
+            return [];
+        }
+        $log_files = [];
+        foreach ( $logs as $log_filename ) {
+            $log_path = $log_dir . $log_filename;
+            if ( file_exists( $log_path ) && is_readable( $log_path ) && filesize( $log_path ) > 0 ) {
+                $log_files[] = $log_path;
+            }
+        }
+        return $log_files;
     }
 
 }
