@@ -21,11 +21,8 @@
  *            Dynamic Remarketing Variations Output
  *            Google Ads Conversion Cart Data
  *
- *  TODO: TikTok EAPI
  *  TODO: Newsletter subscription
  *  TODO: Upgrade to Premium version
- *  TODO: Gateway accuracy warning
- *  TODO: Detect WooCommerce GA Integration (rule, only if one, GA3 or GA4 are enabled)
  *  TODO: Detect MonsterInsights
  *  TODO: Detect Tatvic
  *  TODO: Detect WooCommerce Conversion Tracking
@@ -60,6 +57,9 @@ class Opportunities {
 					<?php esc_html_e('Opportunities show how you could tweak the plugin settings to get more out of the Pixel Manager.', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 				</p>
 			</div>
+
+			<?php self::html_header(); ?>
+
 			<div>
 				<h2>
 					<?php esc_html_e('Available Opportunities', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></h2>
@@ -82,20 +82,69 @@ class Opportunities {
 
 	private static function opportunities_not_dismissed() {
 
+		$opportunities = [];
+
 		foreach (self::get_opportunities() as $opportunity) {
 			if ($opportunity::is_not_dismissed()) {
-
-				$opportunity::output_card();
+				$opportunities[] = $opportunity;
 			}
+		}
+
+		// Sort by impact: high first, then medium, then low
+		$opportunities = self::sort_opportunities_by_impact($opportunities);
+
+		foreach ($opportunities as $opportunity) {
+			$opportunity::output_card();
 		}
 	}
 
 	private static function opportunities_dismissed() {
+
+		$opportunities = [];
+
 		foreach (self::get_opportunities() as $opportunity) {
 			if ($opportunity::is_dismissed()) {
-				$opportunity::output_card();
+				$opportunities[] = $opportunity;
 			}
 		}
+
+		// Sort by impact: high first, then medium, then low
+		$opportunities = self::sort_opportunities_by_impact($opportunities);
+
+		foreach ($opportunities as $opportunity) {
+			$opportunity::output_card();
+		}
+	}
+
+	/**
+	 * Sort opportunities by impact level (high → medium → low).
+	 *
+	 * @param array $opportunities Array of opportunity class names.
+	 * @return array Sorted array of opportunity class names.
+	 * @since 1.48.0
+	 */
+	private static function sort_opportunities_by_impact( $opportunities ) {
+
+		$impact_order = [
+			'high'   => 1,
+			'medium' => 2,
+			'low'    => 3,
+		];
+
+		usort($opportunities, function ( $a, $b ) use ( $impact_order ) {
+			$a_card_data = $a::card_data();
+			$b_card_data = $b::card_data();
+
+			$a_impact = strtolower(isset($a_card_data['impact']) ? $a_card_data['impact'] : 'low');
+			$b_impact = strtolower(isset($b_card_data['impact']) ? $b_card_data['impact'] : 'low');
+
+			$a_order = isset($impact_order[$a_impact]) ? $impact_order[$a_impact] : 4;
+			$b_order = isset($impact_order[$b_impact]) ? $impact_order[$b_impact] : 4;
+
+			return $a_order - $b_order;
+		});
+
+		return $opportunities;
 	}
 
 	public static function card_html( $card_data, $custom_middle_html = null ) {
@@ -120,7 +169,7 @@ class Opportunities {
 						<div class="opportunity-card-top-impact">
 							<?php esc_html_e('Impact', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>:
 						</div>
-						<div class="opportunity-card-top-impact-level">
+						<div class="opportunity-card-top-impact-level impact-<?php echo esc_attr(strtolower($card_data['impact'])); ?>">
 							<?php echo esc_html($card_data['impact']); ?>
 						</div>
 					</div>
@@ -136,7 +185,7 @@ class Opportunities {
 					<?php else : ?>
 						<?php foreach ($card_data['description'] as $description) : ?>
 							<p class="opportunity-card-description">
-								<?php echo esc_html($description); ?>
+								<?php echo wp_kses_post($description); ?>
 							</p>
 						<?php endforeach; ?>
 					<?php endif; ?>
@@ -175,6 +224,27 @@ class Opportunities {
 								<?php esc_html_e('Setup', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 							</div>
 						</a>
+					<?php endif; ?>
+
+					<?php if (isset($card_data['custom_buttons']) && is_array($card_data['custom_buttons'])) : ?>
+						<?php foreach ($card_data['custom_buttons'] as $button) : ?>
+							<!-- Custom Button -->
+							<a class="opportunity-card-button-link <?php echo isset($button['class']) ? esc_attr($button['class']) : ''; ?>"
+							   href="<?php echo isset($button['url']) ? esc_url($button['url']) : '#'; ?>"
+								<?php if (isset($button['target'])) : ?>
+									target="<?php echo esc_attr($button['target']); ?>"
+								<?php endif; ?>
+								<?php if (isset($button['data_attributes']) && is_array($button['data_attributes'])) : ?>
+									<?php foreach ($button['data_attributes'] as $attr_name => $attr_value) : ?>
+										data-<?php echo esc_attr($attr_name); ?>="<?php echo esc_attr($attr_value); ?>"
+									<?php endforeach; ?>
+								<?php endif; ?>
+							>
+								<div class="opportunity-card-bottom-button">
+									<?php echo esc_html($button['label']); ?>
+								</div>
+							</a>
+						<?php endforeach; ?>
 					<?php endif; ?>
 
 
@@ -269,6 +339,152 @@ class Opportunities {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Count the number of active (non-dismissed) opportunities.
+	 *
+	 * @return int The count of active opportunities.
+	 * @since 1.53.0
+	 */
+	public static function get_active_opportunities_count() {
+
+		$count = 0;
+
+		foreach (self::get_opportunities() as $opportunity) {
+			if (class_exists($opportunity)) {
+				if (
+					$opportunity::available()
+					&& $opportunity::is_not_dismissed()
+				) {
+					$count++;
+				}
+			}
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Count active opportunities grouped by impact level.
+	 *
+	 * @return array Associative array with 'high', 'medium', 'low' counts.
+	 * @since 1.53.0
+	 */
+	public static function get_active_opportunities_by_impact() {
+
+		$counts = [
+			'high'   => 0,
+			'medium' => 0,
+			'low'    => 0,
+		];
+
+		foreach (self::get_opportunities() as $opportunity) {
+			if (class_exists($opportunity)) {
+				if (
+					$opportunity::available()
+					&& $opportunity::is_not_dismissed()
+				) {
+					$card_data = $opportunity::card_data();
+					$impact    = strtolower(isset($card_data['impact']) ? $card_data['impact'] : 'low');
+
+					if (isset($counts[$impact])) {
+						$counts[$impact]++;
+					} else {
+						$counts['low']++;
+					}
+				}
+			}
+		}
+
+		return $counts;
+	}
+
+	/**
+	 * Count the number of dismissed opportunities.
+	 *
+	 * @return int The count of dismissed opportunities.
+	 * @since 1.48.0
+	 */
+	public static function get_dismissed_opportunities_count() {
+
+		$count = 0;
+
+		foreach (self::get_opportunities() as $opportunity) {
+			if (class_exists($opportunity)) {
+				if (
+					$opportunity::available()
+					&& $opportunity::is_dismissed()
+				) {
+					$count++;
+				}
+			}
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Render the statistics header for the Opportunities tab.
+	 *
+	 * @since 1.48.0
+	 */
+	private static function html_header() {
+
+		$impact_counts   = self::get_active_opportunities_by_impact();
+		$total_active    = array_sum($impact_counts);
+		$dismissed_count = self::get_dismissed_opportunities_count();
+
+		?>
+		<div class="pmw">
+			<div class="pmw-opportunities-header">
+				<?php if (0 === $total_active) : ?>
+					<div class="pmw-opportunities-complete">
+						<div class="pmw-opportunities-complete-icon">🎉</div>
+						<div class="pmw-opportunities-complete-content">
+							<div class="pmw-opportunities-complete-title">
+								<?php esc_html_e('All caught up!', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+							</div>
+							<div class="pmw-opportunities-complete-text">
+								<?php esc_html_e('You have addressed all available opportunities. Great job optimizing your tracking setup!', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+							</div>
+						</div>
+						<?php if ($dismissed_count > 0) : ?>
+							<div class="pmw-stat-card dismissed">
+								<div class="pmw-stat-card-count"><?php echo esc_html($dismissed_count); ?></div>
+								<div class="pmw-stat-card-label"><?php esc_html_e('Dismissed', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+							</div>
+						<?php endif; ?>
+					</div>
+				<?php else : ?>
+					<div class="pmw-stat-card total">
+						<div class="pmw-stat-card-count"><?php echo esc_html($total_active); ?></div>
+						<div class="pmw-stat-card-label"><?php esc_html_e('Available', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+					</div>
+					<div class="pmw-stat-cards-impact">
+						<div class="pmw-stat-card impact-high">
+							<div class="pmw-stat-card-count"><?php echo esc_html($impact_counts['high']); ?></div>
+							<div class="pmw-stat-card-label"><?php esc_html_e('High', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+						</div>
+						<div class="pmw-stat-card impact-medium">
+							<div class="pmw-stat-card-count"><?php echo esc_html($impact_counts['medium']); ?></div>
+							<div class="pmw-stat-card-label"><?php esc_html_e('Medium', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+						</div>
+						<div class="pmw-stat-card impact-low">
+							<div class="pmw-stat-card-count"><?php echo esc_html($impact_counts['low']); ?></div>
+							<div class="pmw-stat-card-label"><?php esc_html_e('Low', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+						</div>
+					</div>
+					<?php if ($dismissed_count > 0) : ?>
+						<div class="pmw-stat-card dismissed">
+							<div class="pmw-stat-card-count"><?php echo esc_html($dismissed_count); ?></div>
+							<div class="pmw-stat-card-label"><?php esc_html_e('Dismissed', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+						</div>
+					<?php endif; ?>
+				<?php endif; ?>
+			</div>
+		</div>
+		<?php
 	}
 
 	public static function dismiss_opportunity( $opportunity_id ) {

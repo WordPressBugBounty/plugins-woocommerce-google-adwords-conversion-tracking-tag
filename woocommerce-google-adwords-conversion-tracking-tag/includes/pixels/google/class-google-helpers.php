@@ -55,7 +55,7 @@ class Google_Helpers {
             'category'       => implode( ',', Product::get_product_category( $product->get_id() ) ),
             'category_array' => Product::get_product_category( $product->get_id() ),
             'variant'        => ( (string) ($product->get_type() === 'variation') ? Product::get_formatted_variant_text( $product ) : '' ),
-            'price'          => self::pmw_get_order_item_price( $order_item ),
+            'price'          => Product::pmw_get_order_item_price( $order_item ),
         ];
     }
 
@@ -75,26 +75,6 @@ class Google_Helpers {
         );
         // Change the output of the product ID type for Google Analytics
         return (string) apply_filters( 'pmw_product_id_type_for_google_analytics', $ga_id_type );
-    }
-
-    /**
-     * Get the price of an order item.
-     *
-     * @param $order_item
-     *
-     * @return float
-     */
-    public static function pmw_get_order_item_price( $order_item ) {
-        if ( Environment::is_woo_discount_rules_active() ) {
-            $item_value = $order_item->get_meta( '_advanced_woo_discount_item_total_discount' );
-            if ( isset( $item_value['discounted_price'] ) && 0 !== $item_value['discounted_price'] ) {
-                return (float) $item_value['discounted_price'];
-            }
-            if ( isset( $item_value['initial_price'] ) && 0 !== $item_value['initial_price'] ) {
-                return (float) $item_value['initial_price'];
-            }
-        }
-        return (float) $order_item->get_order()->get_item_total( $order_item, Product::output_product_prices_with_tax() );
     }
 
     public static function add_categories_to_ga4_product_items( $item_details_array, $categories ) {
@@ -523,56 +503,67 @@ class Google_Helpers {
     /**
      * Determine the Google tag ID
      *
-     * @return string
+     * @return array
      *
      * @since 1.46.1
      */
-    public static function determine_google_tag_id() {
-        $tag_id = '';
+    public static function determine_google_tag_id_information() {
+        $tag_id_information = [
+            'active'     => null,
+            'suppressed' => [],
+        ];
         $google_base_url = 'https://www.googletagmanager.com/gtag/js?id=';
-        // If Google Ads is active and the URL is reachable, return the Google Ads conversion ID
         if ( Options::is_google_ads_active() ) {
             $conversion_id = Options::get_google_ads_conversion_id();
-            $google_ads_tag_url = $google_base_url . 'AW-' . $conversion_id;
+            $conversion_id_with_prefix = 'AW-' . $conversion_id;
+            $google_ads_tag_url = $google_base_url . $conversion_id_with_prefix;
             if ( Helpers::is_url_accessible( $google_ads_tag_url ) ) {
-                return 'AW-' . $conversion_id;
+                $tag_id_information['active'] = $conversion_id_with_prefix;
+            } else {
+                $tag_id_information['suppressed'][] = $conversion_id_with_prefix;
+                Logger::debug( 'The Google Ads gtag script cannot be loaded through ' . $google_ads_tag_url . '. Please check your Google Ads settings.' );
             }
-            Logger::error( 'The Google Ads gtag script cannot be loaded through ' . $google_ads_tag_url . '. Please check your Google Ads settings.' );
         }
-        // If Google Analytics is active and the URL is reachable, return the Google Analytics ID
-        if ( Options::is_google_analytics_active() && Helpers::is_url_accessible( $google_base_url . Options::get_ga4_measurement_id() ) ) {
-            return (string) Options::get_ga4_measurement_id();
+        if ( Options::is_google_analytics_active() ) {
+            $ga4_id = Options::get_ga4_measurement_id();
+            $ga4_url = $google_base_url . $ga4_id;
+            if ( Helpers::is_url_accessible( $ga4_url ) ) {
+                if ( !isset( $tag_id_information['active'] ) ) {
+                    $tag_id_information['active'] = $ga4_id;
+                }
+            } else {
+                $tag_id_information['suppressed'][] = $ga4_id;
+                Logger::debug( 'The Google Analytics gtag script cannot be loaded through ' . $ga4_url . '. Please check your Google Analytics settings.' );
+            }
         }
-        // Fallback to base Google Ads conversion ID if the URL is not reachable
-        if ( Options::is_google_ads_active() && Helpers::is_url_accessible( $google_base_url . Options::get_google_ads_conversion_id() ) ) {
-            return (string) Options::get_google_ads_conversion_id();
-        }
-        return $tag_id;
+        return $tag_id_information;
     }
 
     /**
      * Get the Google tag ID
      *
-     * @return string
+     * @return array
      *
      * @since 1.46.1
      */
-    public static function get_google_tag_id() {
-        $transient_name = 'pmw_google_tag_id';
+    public static function get_google_tag_id_information() {
+        $transient_name = 'pmw_google_tag_id_information';
         // If saved in transient get from transient
-        $google_tag_id = get_transient( $transient_name );
-        if ( $google_tag_id ) {
-            return $google_tag_id;
+        $google_tag_id_information = get_transient( $transient_name );
+        if ( $google_tag_id_information ) {
+            return $google_tag_id_information;
         }
-        $google_tag_id = apply_filters_deprecated(
+        $google_tag_id_information = self::determine_google_tag_id_information();
+        $tag_active = $google_tag_id_information['active'];
+        $tag_active = apply_filters_deprecated(
             'pmw_google_tracking_id',
-            [self::determine_google_tag_id()],
+            [$tag_active],
             '1.48.0',
             'google_tag_id'
         );
-        $google_tag_id = apply_filters( 'google_tag_id', $google_tag_id );
-        set_transient( $transient_name, $google_tag_id, HOUR_IN_SECONDS );
-        return $google_tag_id;
+        $google_tag_id_information['active'] = apply_filters( 'google_tag_id', $tag_active );
+        set_transient( $transient_name, $google_tag_id_information, HOUR_IN_SECONDS );
+        return $google_tag_id_information;
     }
 
     /**

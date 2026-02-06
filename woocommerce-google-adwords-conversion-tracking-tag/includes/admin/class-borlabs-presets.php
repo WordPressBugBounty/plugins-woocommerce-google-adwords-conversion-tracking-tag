@@ -81,7 +81,7 @@ class Borlabs_Presets {
 				],
 				'privacy_policy_url' => 'https://twitter.com/privacy',
 			],
-			'wpm-cookie'       => [
+			'pmw-cookie'       => [
 				'active'      => true,
 				'group_id'    => 'essential',
 				'name'        => [

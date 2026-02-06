@@ -392,6 +392,27 @@ a.advanced-section-link {
     color: #2271b1;
 }
 
+.pmw .opportunity-card-top-impact-level.impact-high,
+.pmw .notification-card-top-impact-level.impact-high {
+    background: #fde8e8;
+    border-color: #f56565;
+    color: #c53030;
+}
+
+.pmw .opportunity-card-top-impact-level.impact-medium,
+.pmw .notification-card-top-impact-level.impact-medium {
+    background: #fef3c7;
+    border-color: #f6ad55;
+    color: #c05621;
+}
+
+.pmw .opportunity-card-top-impact-level.impact-low,
+.pmw .notification-card-top-impact-level.impact-low {
+    background: #e6fffa;
+    border-color: #48bb78;
+    color: #276749;
+}
+
 .pmw .opportunity-card-middle,
 .pmw .notification-card-middle {
     margin-top: 10px;
@@ -461,6 +482,155 @@ a.advanced-section-link {
 .pmw.notification .dashicons-video-alt3 {
     font-size: 36px;
     margin-top: -4px;
+}
+
+/* Opportunities Header Statistics */
+.pmw .pmw-opportunities-header {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    margin: 20px 0 24px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.pmw .pmw-stat-cards-impact {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+}
+
+.pmw .pmw-stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 24px;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 2px solid #e2e8f0;
+    min-width: 90px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pmw .pmw-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.pmw .pmw-stat-card.total {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    min-width: 110px;
+}
+
+.pmw .pmw-stat-card.total .pmw-stat-card-count,
+.pmw .pmw-stat-card.total .pmw-stat-card-label {
+    color: #475569;
+}
+
+.pmw .pmw-stat-card.impact-high {
+    background: #fde8e8;
+    border-color: #f56565;
+}
+
+.pmw .pmw-stat-card.impact-high .pmw-stat-card-count {
+    color: #c53030;
+}
+
+.pmw .pmw-stat-card.impact-high .pmw-stat-card-label {
+    color: #c53030;
+}
+
+.pmw .pmw-stat-card.impact-medium {
+    background: #fef3c7;
+    border-color: #f6ad55;
+}
+
+.pmw .pmw-stat-card.impact-medium .pmw-stat-card-count {
+    color: #c05621;
+}
+
+.pmw .pmw-stat-card.impact-medium .pmw-stat-card-label {
+    color: #c05621;
+}
+
+.pmw .pmw-stat-card.impact-low {
+    background: #e6fffa;
+    border-color: #48bb78;
+}
+
+.pmw .pmw-stat-card.impact-low .pmw-stat-card-count {
+    color: #276749;
+}
+
+.pmw .pmw-stat-card.impact-low .pmw-stat-card-label {
+    color: #276749;
+}
+
+.pmw .pmw-stat-card.dismissed {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.pmw .pmw-stat-card.dismissed .pmw-stat-card-count {
+    color: #6b7280;
+}
+
+.pmw .pmw-stat-card.dismissed .pmw-stat-card-label {
+    color: #6b7280;
+}
+
+.pmw .pmw-stat-card-count {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.pmw .pmw-stat-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+}
+
+/* All caught up state */
+.pmw .pmw-opportunities-complete {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-radius: 8px;
+    border: 2px solid #34d399;
+}
+
+.pmw .pmw-opportunities-complete-icon {
+    font-size: 48px;
+    line-height: 1;
+}
+
+.pmw .pmw-opportunities-complete-content {
+    flex: 1;
+}
+
+.pmw .pmw-opportunities-complete-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #065f46;
+    margin-bottom: 4px;
+}
+
+.pmw .pmw-opportunities-complete-text {
+    font-size: 14px;
+    color: #047857;
+    line-height: 1.4;
 }
 
 .pmw.dev-banner {
@@ -636,4 +806,384 @@ a.advanced-section-link {
     padding: 0 8px;
     line-height: 2;
     min-height: 30px;
+}
+
+/* Chatbot Widget Button */
+#pmw-chatbot-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9998;
+}
+
+.pmw-chatbot-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: white;
+}
+
+.pmw-chatbot-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.pmw-chatbot-toggle:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+.pmw-chatbot-toggle svg {
+    width: 28px;
+    height: 28px;
+}
+
+/* Chatbot Side Panel */
+.pmw-chatbot-panel {
+    position: fixed;
+    top: 32px; /* Height of WordPress admin bar */
+    right: -450px;
+    width: 450px;
+    height: calc(100vh - 32px); /* Subtract admin bar height */
+    background: white;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Push content to the left when panel is open */
+body.pmw-chatbot-open #wpcontent,
+body.pmw-chatbot-open #wpfooter {
+    margin-right: 450px;
+    transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Adjust for mobile admin bar (46px) */
+@media screen and (max-width: 782px) {
+    .pmw-chatbot-panel {
+        top: 46px;
+        height: calc(100vh - 46px);
+    }
+    
+    /* On mobile, don't push content, just overlay */
+    body.pmw-chatbot-open #wpcontent,
+    body.pmw-chatbot-open #wpfooter {
+        margin-right: 0;
+    }
+}
+
+.pmw-chatbot-panel.pmw-chatbot-panel-open {
+    right: 0;
+}
+
+.pmw-chatbot-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.pmw-chatbot-panel-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+}
+
+.pmw-chatbot-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+    color: white;
+}
+
+.pmw-chatbot-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.pmw-chatbot-close:focus {
+    outline: 2px solid rgba(255, 255, 255, 0.5);
+    outline-offset: 2px;
+}
+
+.pmw-chatbot-close svg {
+    width: 20px;
+    height: 20px;
+}
+
+.pmw-chatbot-panel-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.pmw-chatbot-panel-content iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Hide widget on mobile devices */
+@media (max-width: 768px) {
+    .pmw-chatbot-panel {
+        width: 100%;
+        right: -100%;
+    }
+}
+
+/* Notification badge for opportunities tab */
+.nav-tab-wrapper .nav-tab {
+    position: relative;
+}
+
+.pmw-tab-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    display: inline-block;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    color: #fff;
+    background-color: #d63638;
+    border-radius: 9px;
+    box-sizing: border-box;
+}
+
+/* Notification badge styling for admin menu - inherits from awaiting-mod but ensures consistent styling */
+.pmw-menu-badge {
+    /* Uses WordPress's awaiting-mod base styles */
+    /* Additional styling if needed */
+}
+
+/* Rating notice styles */
+.pmw.pmw-rating-notice {
+    border-left-width: 4px;
+}
+
+.pmw.pmw-rating-notice .button {
+    vertical-align: middle;
+}
+
+.pmw.pmw-rating-notice .pmw-rating-dismiss-button {
+    min-width: 120px;
+    cursor: pointer;
+}
+
+.pmw.pmw-rating-notice .pmw-rating-dismiss-button:hover {
+    border-color: #0071a1;
+    color: #0071a1;
+}
+
+/* Backup table styles */
+.pmw-backup-section {
+    margin: 15px 0;
+    padding: 0;
+}
+
+.pmw-backup-heading {
+    margin-bottom: 8px;
+    font-size: 1.5em;
+    color: #23282d;
+}
+
+.pmw-backup-description {
+    margin-bottom: 12px;
+    color: #646970;
+    font-size: 14px;
+    max-width: 800px;
+}
+
+.pmw-no-backups-message {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border: 1px solid #e2e4e7;
+    border-radius: 4px;
+    text-align: center;
+    color: #646970;
+}
+
+.pmw-table-container {
+    margin-top: 12px;
+    max-width: 100%;
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.pmw-backup-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    border: 1px solid #e2e4e7;
+    background-color: #fff;
+    font-size: 14px;
+    border-radius: 4px;
+}
+
+.pmw-backup-table th {
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #23282d;
+    white-space: nowrap;
+}
+
+.pmw-backup-table th:first-child {
+    border-top-left-radius: 4px;
+}
+
+.pmw-backup-table th:last-child {
+    border-top-right-radius: 4px;
+}
+
+.pmw-timestamp-id {
+    background: #f1f1f1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: #555;
+    display: inline-block;
+    font-family: monospace;
+    border: 1px solid #e0e0e0;
+}
+
+.pmw-backup-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+    transition: background-color 0.15s ease;
+}
+
+.pmw-backup-table tr:last-child td {
+    border-bottom: none;
+}
+
+.pmw-backup-table tr:last-child td:first-child {
+    border-bottom-left-radius: 4px;
+}
+
+.pmw-backup-table tr:last-child td:last-child {
+    border-bottom-right-radius: 4px;
+}
+
+.pmw-backup-table tr:hover {
+    background-color: #f7fafd;
+}
+
+/* Active row styling */
+.pmw-backup-table tr.pmw-active-row {
+    background-color: #f0fff3;
+}
+
+.pmw-backup-table tr.pmw-active-row:hover {
+    background-color: #e8f5e8;
+}
+
+/* DB Version styling */
+.pmw-db-version {
+    display: inline-block;
+    padding: 2px 6px;
+    background-color: #f0f0f0;
+    border-radius: 12px;
+    font-size: 0.9em;
+    border: 1px solid #e5e5e5;
+}
+
+/* Button styling */
+.pmw-backup-table .button {
+    min-width: 70px;
+    text-align: center;
+    padding: 2px 8px;
+    height: auto;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.pmw-backup-table .button:hover {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pmw-backup-table .button-primary {
+    background-color: #2271b1;
+    border-color: #2271b1;
+}
+
+.pmw-backup-table .button-primary:hover {
+    background-color: #135e96;
+    border-color: #135e96;
+}
+
+.pmw-backup-table .pmw-restore-backup-button {
+    background-color: #f8f8f8;
+    border-color: #c3c4c7;
+    color: #2c3338;
+}
+
+.pmw-backup-table .pmw-restore-backup-button:hover {
+    background-color: #f0f0f0;
+    border-color: #8c8f94;
+    color: #000;
+}
+
+.pmw-backup-table .button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Status indicators */
+.pmw-backup-table .pmw-active-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: #2e7d32;
+    background-color: #f0fff4;
+    border: 1px solid #c6e6c9;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 13px;
+}
+
+.pmw-backup-table .pmw-backup-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #626262;
+    background-color: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 13px;
 }

@@ -42,7 +42,7 @@ if ( function_exists( 'wpm_fs' ) ) {
                         'is_require_payment' => true,
                     ],
                     'menu'             => [
-                        'slug'           => 'wpm',
+                        'slug'           => 'pmw',
                         'override_exact' => true,
                         'contact'        => false,
                         'support'        => false,
@@ -60,18 +60,18 @@ if ( function_exists( 'wpm_fs' ) ) {
         wpm_fs();
         // Signal that SDK was initiated.
         do_action( 'wpm_fs_loaded' );
-        function wpm_fs_settings_url() {
+        function pmw_fs_settings_url() {
             if ( pmw_is_woocommerce_active() ) {
-                return admin_url( 'admin.php?page=wpm&section=main&subsection=google' );
+                return admin_url( 'admin.php?page=pmw&section=main&subsection=google' );
             } else {
-                return admin_url( 'options-general.php?page=wpm&section=main&subsection=google' );
+                return admin_url( 'options-general.php?page=pmw&section=main&subsection=google' );
             }
         }
 
-        wpm_fs()->add_filter( 'connect_url', 'wpm_fs_settings_url' );
-        wpm_fs()->add_filter( 'after_skip_url', 'wpm_fs_settings_url' );
-        wpm_fs()->add_filter( 'after_connect_url', 'wpm_fs_settings_url' );
-        wpm_fs()->add_filter( 'after_pending_connect_url', 'wpm_fs_settings_url' );
+        wpm_fs()->add_filter( 'connect_url', 'pmw_fs_settings_url' );
+        wpm_fs()->add_filter( 'after_skip_url', 'pmw_fs_settings_url' );
+        wpm_fs()->add_filter( 'after_connect_url', 'pmw_fs_settings_url' );
+        wpm_fs()->add_filter( 'after_pending_connect_url', 'pmw_fs_settings_url' );
     }
     // Run the PMW loader
     require_once 'pmw-loader.php';

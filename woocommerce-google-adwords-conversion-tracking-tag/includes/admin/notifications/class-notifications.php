@@ -22,7 +22,7 @@ class Notifications {
         add_action( 'admin_enqueue_scripts', [__CLASS__, 'inject_admin_scripts'] );
         add_action( 'admin_enqueue_scripts', [__CLASS__, 'wpm_admin_css'] );
         add_action( 'admin_notices', function () {
-            if ( Environment::is_allowed_notification_page() ) {
+            if ( Environment::is_allowed_notification_page() || Environment::is_pmw_settings_page() ) {
                 self::opportunities_notification();
                 self::show_notifications();
             }
@@ -115,7 +115,7 @@ class Notifications {
 
     public static function can_current_page_show_pmw_notification() {
         global $hook_suffix;
-        $allowed_pages = ['page_wpm', 'index.php', 'dashboard'];
+        $allowed_pages = ['page_pmw', 'index.php', 'dashboard'];
         /**
          * We can't use in_array because woocommerce_page_wpm
          * is malformed on certain installs, but the substring
@@ -345,26 +345,89 @@ class Notifications {
         if ( self::cannot_show_dashboard_opportunities_message() ) {
             return;
         }
+        $total_count = Opportunities::get_active_opportunities_count();
+        $counts_by_impact = Opportunities::get_active_opportunities_by_impact();
         ?>
 		<div id="active-opportunities-notification"
 			 class="notice notice-info pmw active-opportunities-notification"
-			 style="padding: 8px;display: flex;flex-direction: row;justify-content: space-between;">
+			 style="padding: 12px 16px;display: flex;flex-direction: row;justify-content: space-between;align-items: flex-start;">
 			<div>
-				<div style="color:black;">
-						<span>
-							<?php 
-        esc_html_e( 'The Pixel Manager has detected new opportunities which can help improve tracking and campaign performance.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+				<div style="color:black;margin-bottom: 8px;">
+					<strong style="font-size: 14px;">
+						<?php 
+        printf( 
+            /* translators: %d: number of opportunities */
+            esc_html( _n(
+                '🚀 %d Opportunity Detected!',
+                '🚀 %d Opportunities Detected!',
+                $total_count,
+                'woocommerce-google-adwords-conversion-tracking-tag'
+            ) ),
+            absint( $total_count )
+         );
         ?>
+					</strong>
+				</div>
+				<div style="color:#444;margin-bottom: 10px;">
+					<?php 
+        esc_html_e( 'The Pixel Manager has detected opportunities to improve your tracking and campaign performance.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+				</div>
+
+				<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+					<?php 
+        if ( $counts_by_impact['high'] > 0 ) {
+            ?>
+						<span class="pmw-opportunity-badge pmw-opportunity-badge-high" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #fde8e8; border: 1px solid #f56565; color: #c53030;">
+							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #f56565; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+            echo esc_html( $counts_by_impact['high'] );
+            ?></span>
+							<?php 
+            esc_html_e( 'High Impact', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
 						</span>
+					<?php 
+        }
+        ?>
+
+					<?php 
+        if ( $counts_by_impact['medium'] > 0 ) {
+            ?>
+						<span class="pmw-opportunity-badge pmw-opportunity-badge-medium" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #fef3c7; border: 1px solid #f6ad55; color: #c05621;">
+							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #f6ad55; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+            echo esc_html( $counts_by_impact['medium'] );
+            ?></span>
+							<?php 
+            esc_html_e( 'Medium Impact', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+						</span>
+					<?php 
+        }
+        ?>
+
+					<?php 
+        if ( $counts_by_impact['low'] > 0 ) {
+            ?>
+						<span class="pmw-opportunity-badge pmw-opportunity-badge-low" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #e6fffa; border: 1px solid #48bb78; color: #276749;">
+							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #48bb78; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+            echo esc_html( $counts_by_impact['low'] );
+            ?></span>
+							<?php 
+            esc_html_e( 'Low Impact', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+						</span>
+					<?php 
+        }
+        ?>
 				</div>
 
 				<a href="<?php 
-        echo esc_url_raw( '/wp-admin/admin.php?page=wpm&section=opportunities' );
+        echo esc_url_raw( '/wp-admin/admin.php?page=pmw&section=opportunities' );
         ?>"
 				   style="text-decoration: none;box-shadow: none;">
-					<div id="pmw-purchase-new-license-button" class="button" style="margin: 10px 0 10px 0">
+					<div class="button button-primary" style="margin: 0;">
 						<?php 
-        esc_html_e( 'Show the opportunities', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( 'View Opportunities', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
 					</div>
 				</a>

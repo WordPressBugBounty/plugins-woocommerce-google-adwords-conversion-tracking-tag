@@ -40,20 +40,16 @@ class Dynamic_Remarketing_Variations_Output extends Opportunity {
 			),
 			'description' => [
 				esc_html__(
-					'The Pixel Manager detected that at least one paid ads pixel is enabled, Dynamic Remarketing is enabled, but Variations Output has yet to be enabled.',
+					'Variations Output is disabled. Enabling it allows dynamic remarketing audiences at the variation level for more precise retargeting.',
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 				esc_html__(
-					'Enabling Dynamic Remarketing Variations Output will allow you to collect more fine-grained, dynamic audiences down to the product variation level.',
-					'woocommerce-google-adwords-conversion-tracking-tag'
-				),
-				esc_html__(
-					'When enabling this setting, you also need to upload product variations to your catalogs.',
+					'This setting is off by default because it must match your product feed: if you upload parent products, keep it disabled; if you upload variations, enable it. We cannot detect your feed setup automatically.',
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
 			'impact'      => esc_html__(
-				'low',
+				'medium',
 				'woocommerce-google-adwords-conversion-tracking-tag'
 			),
 			'setup_link'  => Documentation::get_link('variations_output'),

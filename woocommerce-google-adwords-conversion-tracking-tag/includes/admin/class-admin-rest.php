@@ -46,8 +46,17 @@ class Admin_REST {
 				}
 
 				if ('generic-notification' === $data['type']) {
-					$pmw_notifications              = get_option(PMW_DB_NOTIFICATIONS_NAME);
-					$pmw_notifications[$data['id']] = time();
+					$pmw_notifications = get_option(PMW_DB_NOTIFICATIONS_NAME);
+
+					if (empty($pmw_notifications) || !is_array($pmw_notifications)) {
+						$pmw_notifications = [];
+					}
+
+					if (!isset($pmw_notifications[$data['id']]) || !is_array($pmw_notifications[$data['id']])) {
+						$pmw_notifications[$data['id']] = [];
+					}
+
+					$pmw_notifications[$data['id']]['dismissed'] = time();
 
 					update_option(PMW_DB_NOTIFICATIONS_NAME, $pmw_notifications);
 					wp_send_json_success();

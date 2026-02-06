@@ -39,9 +39,12 @@ class Debug_Info {
             //			$html .= 'php.ini file: ' . php_ini_loaded_file() . PHP_EOL;
             $html .= 'WordPress memory limit:    ' . Environment::get_wp_memory_limit() . PHP_EOL;
             $curl_available = ( Environment::is_curl_active() ? 'yes' : 'no' );
-            $html .= 'curl available:            ' . $curl_available . PHP_EOL;
-            $transients_enabled = ( Environment::is_transients_enabled() ? 'yes' : 'no' );
-            $html .= 'transients enabled:        ' . $transients_enabled . PHP_EOL;
+            $html .= 'curl available:                            ' . $curl_available . PHP_EOL;
+            $transients_enabled = Environment::is_transients_enabled();
+            $transients_warning = ( $transients_enabled ? '' : ' <--------- !!!!! TRANSIENTS DISABLED !!!!!' );
+            $html .= 'Transients enabled:                        ' . (( $transients_enabled ? 'yes' : 'no' )) . $transients_warning . PHP_EOL;
+            $external_object_cache = Environment::get_external_object_cache();
+            $html .= 'External object cache (Redis/Memcached):   ' . $external_object_cache . PHP_EOL;
             $html .= PHP_EOL;
             $html .= 'wp_remote_get to Cloudflare:           ' . self::pmw_remote_get_response( 'https://www.cloudflare.com/cdn-cgi/trace' ) . PHP_EOL;
             //			$html .= 'wp_remote_get to Google Analytics API: ' . self::pmw_remote_get_response('https://www.google-analytics.com/debug/collect') . PHP_EOL;
@@ -249,8 +252,13 @@ class Debug_Info {
             apply_filters( 'pmw_tracking_accuracy_analysis_max_order_amount', $maximum_orders_to_analyze ),
             $maximum_orders_to_analyze
          );
-        set_transient( 'pmw_tracking_accuracy_analysis_running', true );
-        set_transient( 'pmw_tracking_accuracy_analysis_max_orders', $maximum_orders_to_analyze );
+        // Set the running lock with a 30-minute expiration to prevent permanent locks
+        // if the analysis crashes or times out. This is especially important with
+        // external object caches (Redis/Memcached) where transients without expiration
+        // can behave unexpectedly.
+        set_transient( 'pmw_tracking_accuracy_analysis_running', true, 30 * MINUTE_IN_SECONDS );
+        // Store max orders with expiration to match the analysis data lifecycle
+        set_transient( 'pmw_tracking_accuracy_analysis_max_orders', $maximum_orders_to_analyze, MONTH_IN_SECONDS );
         return $maximum_orders_to_analyze;
     }
 
@@ -338,7 +346,7 @@ class Debug_Info {
                 'percentage'           => floor( Helpers::get_percentage( self::get_count_of_measured_orders( $gateway_orders ), count( $gateway_orders ) ) ),
             ];
         }
-        set_transient( 'pmw_tracking_accuracy_analysis', $analysis, MONTH_IN_SECONDS );
+        self::set_transient_with_verification( 'pmw_tracking_accuracy_analysis', $analysis, MONTH_IN_SECONDS );
     }
 
     public static function get_gateway_analysis_weighted_array() {
@@ -391,7 +399,7 @@ class Debug_Info {
         usort( $analysis, function ( $a, $b ) {
             return $b['order_count_total'] - $a['order_count_total'];
         } );
-        set_transient( 'pmw_tracking_accuracy_analysis_weighted', $analysis, MONTH_IN_SECONDS );
+        self::set_transient_with_verification( 'pmw_tracking_accuracy_analysis_weighted', $analysis, MONTH_IN_SECONDS );
     }
 
     private static function get_count_of_measured_orders( $orders ) {
@@ -665,7 +673,7 @@ class Debug_Info {
             // Traditional post tables are in use.
             $tracked_payment_methods = $wpdb->get_col( "SELECT DISTINCT meta_value FROM {$wpdb->prefix}postmeta WHERE `meta_key` = '_payment_method' AND meta_value != ''" );
         }
-        set_transient( 'pmw_tracked_payment_methods', $tracked_payment_methods, MONTH_IN_SECONDS );
+        self::set_transient_with_verification( 'pmw_tracked_payment_methods', $tracked_payment_methods, MONTH_IN_SECONDS );
     }
 
     public static function tracking_accuracy_loading_message() {
@@ -677,6 +685,55 @@ class Debug_Info {
 
     private static function return_transients_deactivated_text() {
         return __( 'Transients are deactivated. Please activate them to use this feature.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Set a transient with verification that it was stored correctly.
+     *
+     * This is important for sites using external object caches (Redis/Memcached)
+     * where transients might fail to store due to:
+     * - Memory limits being exceeded
+     * - Data size limits per key
+     * - Cache eviction policies
+     * - Serialization issues with complex data
+     *
+     * If verification fails, we log the error for debugging purposes.
+     *
+     * @param string $transient  Transient name.
+     * @param mixed  $value      Transient value.
+     * @param int    $expiration Time until expiration in seconds.
+     *
+     * @return bool True if the transient was set and verified, false otherwise.
+     *
+     * @since 1.47.0
+     */
+    private static function set_transient_with_verification( $transient, $value, $expiration ) {
+        // Attempt to set the transient
+        $result = set_transient( $transient, $value, $expiration );
+        if ( !$result ) {
+            Logger::debug( 'Failed to set transient: ' . $transient );
+            return false;
+        }
+        // Verify the transient was actually stored by reading it back
+        $stored_value = get_transient( $transient );
+        if ( false === $stored_value ) {
+            Logger::debug( sprintf( 'Transient verification failed for %s. External object cache (Redis/Memcached) may have rejected the data. Cache type: %s', $transient, Environment::get_external_object_cache() ) );
+            return false;
+        }
+        // For arrays, verify the count matches as a sanity check
+        // This helps detect partial data corruption
+        if ( is_array( $value ) && is_array( $stored_value ) ) {
+            if ( count( $value ) !== count( $stored_value ) ) {
+                Logger::debug( sprintf(
+                    'Transient data mismatch for %s. Expected %d items, got %d. Possible data corruption.',
+                    $transient,
+                    count( $value ),
+                    count( $stored_value )
+                ) );
+                return false;
+            }
+        }
+        return true;
     }
 
 }

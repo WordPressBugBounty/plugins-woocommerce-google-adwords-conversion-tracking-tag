@@ -203,6 +203,21 @@ class Validations {
 			}
 		}
 
+		// validate ['google']['ads']['phone_conversion_number']
+		if (isset($input['google']['ads']['phone_conversion_number'])) {
+
+			// Trim space, newlines and quotes
+			$input['google']['ads']['phone_conversion_number'] = Helpers::trim_string($input['google']['ads']['phone_conversion_number']);
+
+			if (!self::is_phone_number($input['google']['ads']['phone_conversion_number'])) {
+				$input['google']['ads']['phone_conversion_number']
+					= Options::get_google_ads_phone_conversion_number()
+					? Options::get_google_ads_phone_conversion_number()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-phone-conversion-number', esc_html__('You have entered an invalid phone number for Google Ads phone conversion tracking.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// validate ['google]['tag_gateway']['measurement_path']
 		if (isset($input['google']['tag_gateway']['measurement_path'])) {
 
@@ -343,9 +358,9 @@ class Validations {
 			}
 		}
 
-		// Validate LinkedIn conversion IDs add_to_cart
+		// Validate LinkedIn conversion IDs
+		$input = self::validate_linkedin_conversion_id($input, 'view_content');
 		$input = self::validate_linkedin_conversion_id($input, 'add_to_cart');
-		$input = self::validate_linkedin_conversion_id($input, 'start_checkout');
 		$input = self::validate_linkedin_conversion_id($input, 'purchase');
 
 		// validate Outbrain advertiser ID
@@ -408,13 +423,13 @@ class Validations {
 			}
 		}
 
-		// Validate Twitter event add_to_cart
+		// Validate Twitter event IDs
 		$input = self::validate_twitter_event($input, 'add_to_cart');
 		$input = self::validate_twitter_event($input, 'add_to_wishlist');
 		$input = self::validate_twitter_event($input, 'view_content');
 		$input = self::validate_twitter_event($input, 'search');
 		$input = self::validate_twitter_event($input, 'initiate_checkout');
-//		$input = self::validate_twitter_event($input, 'add_payment_info);
+		$input = self::validate_twitter_event($input, 'add_payment_info');
 		$input = self::validate_twitter_event($input, 'purchase');
 
 		// validate Pinterest pixel ID
@@ -537,6 +552,30 @@ class Validations {
 			}
 		}
 
+		// Validate CrazyEgg account number
+		if (isset($input['crazyegg']['account_number'])) {
+
+			// Trim space, newlines and quotes
+			$input['crazyegg']['account_number'] = Helpers::trim_string($input['crazyegg']['account_number']);
+
+			// Extract account number from full script tag if pasted
+			// Pattern: //script.crazyegg.com/pages/scripts/0131/9772.js -> 01319772
+			if (preg_match('/script\.crazyegg\.com\/pages\/scripts\/(\d+)\/(\d+)\.js/', $input['crazyegg']['account_number'], $matches)) {
+				$input['crazyegg']['account_number'] = $matches[1] . $matches[2];
+			} else {
+				// Strip all non-digits (handles formats like 0131/9772 or 0131-9772)
+				$input['crazyegg']['account_number'] = preg_replace('/\D/', '', $input['crazyegg']['account_number']);
+			}
+
+			if (!self::is_crazyegg_account_number($input['crazyegg']['account_number'])) {
+				$input['crazyegg']['account_number']
+					= Options::get_crazyegg_account_number()
+					? Options::get_crazyegg_account_number()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-crazyegg-account-number', esc_html__('You have entered an invalid CrazyEgg account number. It must be exactly 8 digits.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Validate Reddit advertiser ID
 		if (isset($input['pixels']['reddit']['advertiser_id'])) {
 
@@ -549,6 +588,36 @@ class Validations {
 					? Options::get_reddit_advertiser_id()
 					: '';
 				add_settings_error('wgact_plugin_options', 'invalid-reddit-advertiser-id', esc_html__('You have entered an invalid Reddit pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate Reddit CAPI token
+		if (isset($input['pixels']['reddit']['capi']['token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['reddit']['capi']['token'] = Helpers::trim_string($input['pixels']['reddit']['capi']['token']);
+
+			if (!self::is_reddit_capi_token($input['pixels']['reddit']['capi']['token'])) {
+				$input['pixels']['reddit']['capi']['token']
+					= Options::get_reddit_capi_token()
+					? Options::get_reddit_capi_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-reddit-capi-token', esc_html__('You have entered an invalid Reddit CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate Reddit CAPI test event code
+		if (isset($input['pixels']['reddit']['capi']['test_event_code'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['reddit']['capi']['test_event_code'] = Helpers::trim_string($input['pixels']['reddit']['capi']['test_event_code']);
+
+			if (!self::is_reddit_capi_test_event_code($input['pixels']['reddit']['capi']['test_event_code'])) {
+				$input['pixels']['reddit']['capi']['test_event_code']
+					= Options::get_reddit_capi_test_event_code()
+					? Options::get_reddit_capi_test_event_code()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-reddit-capi-test-event-code', esc_html__('You have entered an invalid Reddit CAPI test event code.', 'woocommerce-google-adwords-conversion-tracking-tag'));
 			}
 		}
 
@@ -594,6 +663,21 @@ class Validations {
 					? Options::get_ab_tasty_account_id()
 					: '';
 				add_settings_error('wgact_plugin_options', 'invalid-vwo-account-id', esc_html__('You have entered an invalid AB Tasty account ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Contentsquare tag ID
+		if (isset($input['pixels']['contentsquare']['tag_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['contentsquare']['tag_id'] = Helpers::trim_string($input['pixels']['contentsquare']['tag_id']);
+
+			if (!self::is_contentsquare_tag_id($input['pixels']['contentsquare']['tag_id'])) {
+				$input['pixels']['contentsquare']['tag_id']
+					= Options::get_contentsquare_tag_id()
+					? Options::get_contentsquare_tag_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-contentsquare-tag-id', esc_html__('You have entered an invalid Contentsquare tag ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
 			}
 		}
 
@@ -937,9 +1021,32 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	public static function is_crazyegg_account_number( $string ) {
+
+		$re = '/^\d{8}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_reddit_advertiser_id( $string ) {
 
 		$re = '/^(a2_|t2_)[a-z0-9]{4,12}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_reddit_capi_token( $string ) {
+
+		// Reddit CAPI token is a JWT token with three Base64URL-encoded parts separated by dots
+		$re = '/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_reddit_capi_test_event_code( $string ) {
+
+		// Reddit test event code format: t2_ followed by alphanumeric characters
+		$re = '/^t2_[a-z0-9]{4,12}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -961,6 +1068,14 @@ class Validations {
 	public static function is_ab_tasty_account_id( $string ) {
 
 		$re = '/^[\da-z]{26,38}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_contentsquare_tag_id( $string ) {
+
+		// Contentsquare tag ID format: alphanumeric string like b457e22cc0c6e
+		$re = '/^[a-z0-9]{10,20}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1022,6 +1137,17 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	public static function is_phone_number( $string ) {
+
+		// Accepts various phone number formats:
+		// +1-555-555-5555, +1 555 555 5555, +1.555.555.5555, +15555555555
+		// (555) 555-5555, 555-555-5555, 555.555.5555, 5555555555
+		// International formats with country codes
+		$re = '/^[\+]?[\d\s\-\.\(\)]{7,20}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_google_optimize_measurement_id( $string ) {
 
 		$re = '/^(GTM|OPT)-[A-Z0-9]{6,8}$/m';
@@ -1031,7 +1157,7 @@ class Validations {
 
 	public static function is_google_analytics_4_measurement_id( $string ) {
 
-		$re = '/^G-[A-Z0-9]{10,12}$/m';
+		$re = '/^(G|GT)-[A-Z0-9]{8,12}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}

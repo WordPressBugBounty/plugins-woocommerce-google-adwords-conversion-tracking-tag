@@ -30,13 +30,13 @@ class Ask_For_Rating {
 
 		// ask for a rating in a plugin notice
 		add_action('admin_enqueue_scripts', [ $this, 'wpm_rating_script' ]);
-		add_action('wp_ajax_wpm_dismissed_notice_handler', [ $this, 'ajax_rating_notice_handler' ]);
+		add_action('wp_ajax_pmw_dismissed_notice_handler', [ $this, 'ajax_rating_notice_handler' ]);
 		add_action('admin_notices', [ $this, 'ask_for_rating_notice' ]);
 	}
 
 	public function wpm_rating_script() {
 		wp_enqueue_script(
-			'wpm-ask-for-rating',
+			'pmw-ask-for-rating',
 			PMW_PLUGIN_DIR_PATH . 'js/admin/ask-for-rating.js',
 			[ 'jquery' ],
 			PMW_CURRENT_VERSION,
@@ -44,7 +44,7 @@ class Ask_For_Rating {
 		);
 
 		wp_localize_script(
-			'wpm-ask-for-rating',
+			'pmw-ask-for-rating',
 			'ajax_var', [
 			'url'   => admin_url('admin-ajax.php'),
 			'nonce' => wp_create_nonce('ajax-nonce'),
@@ -165,58 +165,65 @@ class Ask_For_Rating {
 	// show an admin notice to ask for a plugin rating
 	public function ask_for_rating_notices( $conversions_count ) {
 		?>
-		<div class="notice notice-success wpm-rating-success-notice" style="display: none">
-			<div style="color:#02830b; margin-top:10px">
+		<div id="pmw-rating-notice"
+			 class="notice notice-success pmw pmw-rating-notice"
+			 style="padding: 12px 16px; display: none; flex-direction: row; justify-content: space-between; align-items: flex-start; border-left-color: #46b450;">
 
-				<span>
+			<!-- Left side: Message and CTA -->
+			<div style="flex: 1;">
+				<div style="color: #1e1e1e; margin-bottom: 8px;">
+					<strong style="font-size: 14px;">
 						<?php
 						printf(
-						/* translators: %d: the amount of purchase conversions that have been measured */
-							esc_html__('Hey, I noticed that you tracked more than %d purchase conversions with the Pixel Manager for WooCommerce plugin - that\'s awesome! Could you please do me a BIG favour and give it a 5-star rating on WordPress? It will help to spread the word and boost our motivation.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-							esc_html($conversions_count)
+							/* translators: %s: the amount of purchase conversions that have been measured (formatted with strong tags) */
+							esc_html__('Thank you for using the Pixel Manager! You\'ve successfully tracked %s conversions 🎉', 'woocommerce-google-adwords-conversion-tracking-tag'),
+							'<span style="color: #46b450;">' . esc_html(number_format_i18n($conversions_count)) . '</span>'
 						);
 						?>
+					</strong>
+				</div>
 
-				</span>
-				<br>
-				<div style="margin-top:5px;">
+				<div style="color: #444; margin-bottom: 10px; line-height: 1.5;">
+					<?php esc_html_e('If you have a moment, a quick review would help other WooCommerce store owners find a reliable tracking solution.', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+				</div>
 
-					<span>- Aleksandar (Lead developer)</span>
+				<div style="color: #666; font-size: 13px; font-style: italic; margin-bottom: 12px;">
+					— Aleksandar, Lead Developer
+				</div>
+
+				<!-- Stars and CTA -->
+				<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+					<a id="pmw-rate-it"
+					   href="https://wordpress.org/support/plugin/woocommerce-google-adwords-conversion-tracking-tag/reviews/#new-post"
+					   target="_blank"
+					   style="text-decoration: none; box-shadow: none;">
+						<div class="button button-primary" style="margin: 0;">
+							<?php esc_html_e('Leave a Review', 'woocommerce-google-adwords-conversion-tracking-tag'); ?> ⭐
+						</div>
+					</a>
+					<span style="font-size: 18px; letter-spacing: 2px;">⭐⭐⭐⭐⭐</span>
+				</div>
+
+				<div style="color: #888; font-size: 12px; margin-top: 8px;">
+					<?php esc_html_e('Takes ~30 seconds · Join hundreds of store owners who\'ve reviewed', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 				</div>
 			</div>
-			<div style="">
 
-				<ul style="list-style-type: disc ;padding-left:20px;">
-					<li>
-						<a id="wpm-rate-it" href="#" style="font-weight: bold;">
-							<?php esc_html_e('Ok, you deserve it', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-						</a>
-					</li>
-					<li>
-						<a id="wpm-maybe-later" href="#">
-							<?php esc_html_e('Nope, maybe later', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-						</a>
-					</li>
-					<li>
-
-						<div style=" margin-bottom: 10px; display: flex; justify-content: space-between">
-							<div style="white-space:normal;">
-								<a id="wpm-already-did" href="#">
-									<?php esc_html_e('I already did', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-								</a>
-							</div>
-							<div
-									style="white-space:normal; bottom:0; right: 0; margin-bottom: 0; margin-right: 5px;align-self: flex-end;">
-								<a href="<?php echo esc_url(( new Documentation() )->get_link('the_dismiss_button_doesnt_work_why')); ?>"
-								   target="_blank">
-									<?php esc_html_e('If the dismiss button is not working, here\'s why >>', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-								</a>
-							</div>
-						</div>
-					</li>
-				</ul>
+			<!-- Right side: Secondary actions -->
+			<div style="text-align: right; display: flex; flex-direction: column; gap: 6px; margin-left: 20px;">
+				<div id="pmw-already-did"
+					 class="button pmw-rating-dismiss-button"
+					 style="white-space: normal; text-align: center;"
+					 data-action="rating_done">
+					<?php esc_html_e('Already reviewed', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+				</div>
+				<div id="pmw-maybe-later"
+					 class="button pmw-rating-dismiss-button"
+					 style="white-space: normal; text-align: center;"
+					 data-action="later">
+					<?php esc_html_e('Maybe later', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+				</div>
 			</div>
-
 		</div>
 		<?php
 	}

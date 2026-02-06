@@ -33,13 +33,14 @@ spl_autoload_register(function ( $fully_qualified_class_name ) use ( $package_na
 	// Replace underscores with hyphens.
 	$file_name = str_ireplace('_', '-', $file_name);
 
-	// If the file name does not start with 'trait-' or 'interface-' then it's a class.
+	// If the file name does not start with 'trait-', 'interface-', or 'abstract-' then it's a class.
 	// In that case add 'class-' to the beginning of the file name.
 	// Otherwise, leave the file name as is.
 
 	$file_name_prefixes = [
 		'trait',
 		'interface',
+		'abstract',
 	];
 
 	$prefix_found = false;

@@ -79,27 +79,106 @@ class Geolocation {
 	/**
 	 * Get current user IP Address.
 	 *
-	 * Source: https://woocommerce.github.io/code-reference/files/woocommerce-includes-class-wc-geolocation.html#source-view.80
+	 * Checks various headers set by CDNs and proxies in order of reliability:
+	 * 1. Cloudflare (CF-Connecting-IP) - Most reliable when behind Cloudflare
+	 * 2. Sucuri (X-Sucuri-ClientIP) - Set by Sucuri WAF
+	 * 3. Akamai/Cloudflare Enterprise (True-Client-IP)
+	 * 4. Incapsula (Incap-Client-IP) - Set by Imperva Incapsula
+	 * 5. Generic proxy headers (X-Real-IP, X-Forwarded-For)
+	 * 6. Direct connection (REMOTE_ADDR) - Fallback
 	 *
 	 * @return string
 	 */
 	public static function get_ip_address() {
 
-		// If class WC_Geolocation exists, use it to get the IP address
-		if (class_exists('WC_Geolocation')) {
-			return \WC_Geolocation::get_ip_address();
+		/**
+		 * Filter to override server variables for IP detection.
+		 * Useful for testing or custom IP detection logic.
+		 *
+		 * @param array|null $server_override Array of server variables to use instead of actual request data.
+		 *                                    Return null to use the actual request data.
+		 */
+		$server_override = apply_filters('pmw_geolocation_server_vars', null);
+
+		if (null !== $server_override && is_array($server_override)) {
+			$_server = $server_override;
 		} else {
-			if (isset($_SERVER['HTTP_X_REAL_IP'])) {
-				return sanitize_text_field(wp_unslash($_SERVER['HTTP_X_REAL_IP']));
-			} elseif (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-				// Proxy servers can send through this header like this: X-Forwarded-For: client1, proxy1, proxy2
-				// Make sure we always only send through the first IP in the list which should always be the client IP.
-				return (string) rest_is_ip_address(trim(current(preg_split('/,/', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']))))));
-			} elseif (isset($_SERVER['REMOTE_ADDR'])) {
-				return sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
-			}
-			return '';
+			$_server = Helpers::get_input_vars(INPUT_SERVER);
 		}
+
+		/**
+		 * Priority order for IP detection headers.
+		 * CDN-specific headers are checked first as they are most reliable.
+		 *
+		 * - HTTP_CF_CONNECTING_IP: Cloudflare's header containing the original visitor IP
+		 * - HTTP_X_SUCURI_CLIENTIP: Sucuri WAF's header for the original client IP
+		 * - HTTP_TRUE_CLIENT_IP: Used by Akamai and Cloudflare Enterprise
+		 * - HTTP_INCAP_CLIENT_IP: Imperva Incapsula's header for the original client IP
+		 * - HTTP_FASTLY_CLIENT_IP: Fastly CDN's header for the original client IP
+		 * - HTTP_X_FORWARDED_FOR: Standard proxy header (may contain multiple IPs), also used by AWS ALB/CloudFront
+		 * - HTTP_X_REAL_IP: Common header set by nginx and other reverse proxies
+		 * - REMOTE_ADDR: Direct connection IP (fallback, may be CDN IP if not configured)
+		 */
+		$ip_headers = [
+			'HTTP_CF_CONNECTING_IP',    // Cloudflare
+			'HTTP_X_SUCURI_CLIENTIP',   // Sucuri WAF
+			'HTTP_TRUE_CLIENT_IP',      // Akamai / Cloudflare Enterprise
+			'HTTP_INCAP_CLIENT_IP',     // Imperva Incapsula
+			'HTTP_FASTLY_CLIENT_IP',    // Fastly CDN
+			'HTTP_X_FORWARDED_FOR',     // Standard proxy header (AWS ALB/CloudFront also use this)
+			'HTTP_X_REAL_IP',           // Nginx reverse proxy
+			'REMOTE_ADDR',              // Direct connection (fallback)
+		];
+
+		foreach ($ip_headers as $header) {
+			if (!empty($_server[$header])) {
+				$ip = sanitize_text_field($_server[$header]);
+
+				// X-Forwarded-For can contain multiple IPs: client, proxy1, proxy2
+				// We want the first one (the original client)
+				if (false !== strpos($ip, ',')) {
+					$ip = trim(explode(',', $ip)[0]);
+				}
+
+				// Validate the IP address
+				if (filter_var($ip, FILTER_VALIDATE_IP)) {
+					self::log_ip_detection($header, $ip, $_server);
+					return $ip;
+				}
+			}
+		}
+
+		// Note: No logging here - empty IP is expected for health checks, bots, etc.
+		return '';
+	}
+
+	/**
+	 * Log IP detection details for debugging.
+	 *
+	 * @param string $detected_header The header that provided the IP.
+	 * @param string $ip              The detected IP address.
+	 * @param array  $server          The server variables array.
+	 * @return void
+	 */
+	private static function log_ip_detection( $detected_header, $ip, $server ) {
+
+		// Only log in debug mode to avoid performance impact
+		if (!Helpers::is_pmw_debug_mode_active()) {
+			return;
+		}
+
+		// Only log when IP source is not the default REMOTE_ADDR (reduces noise)
+		if ('REMOTE_ADDR' === $detected_header) {
+			return;
+		}
+
+		Logger::debug(
+			sprintf(
+				'Geolocation: IP detected from %s: %s',
+				$detected_header,
+				$ip
+			)
+		);
 	}
 
 	/**

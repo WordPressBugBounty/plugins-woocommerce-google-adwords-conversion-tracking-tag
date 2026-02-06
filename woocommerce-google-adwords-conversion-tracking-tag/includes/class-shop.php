@@ -16,6 +16,25 @@ class Shop {
 
     private static $transient_identifiers;
 
+    /**
+     * Determine if the user should be tracked.
+     *
+     * This function implements role-based tracking restrictions to prevent certain user types
+     * (e.g., administrators, shop managers) from being tracked by analytics pixels. This helps
+     * maintain data accuracy by filtering out internal traffic and test orders.
+     *
+     * Logic flow:
+     * 1. Anonymous visitors (user_id = 0) are always tracked
+     * 2. If a user_id is provided, retrieve that specific user object
+     * 3. If no user_id is provided but the user is logged in, retrieve the current user
+     * 4. Check if any of the user's roles match the roles configured to be excluded from tracking
+     *    in the plugin settings (shop->disable_tracking_for option)
+     * 5. Return false if the user has a restricted role, true otherwise
+     *
+     * @param int|null $user_id The user ID to check. If null, the current user will be used.
+     *                          If 0, the user is considered anonymous.
+     * @return bool True if the user should be tracked, false otherwise.
+     */
     public static function track_user( $user_id = null ) {
         $user = null;
         if ( 0 === $user_id ) {

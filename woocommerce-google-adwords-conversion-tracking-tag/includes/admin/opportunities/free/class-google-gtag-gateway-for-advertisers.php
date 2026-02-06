@@ -23,14 +23,26 @@ class Google_Gtag_Gateway_For_Advertisers extends Opportunity {
 			return false;
 		}
 
-		// Return false if not behind Cloudflare
-		// For now, we only push it to Cloudflare users
-		// because for all other users it's much more challenging to set up
-		if (!Environment::is_server_behind_cloudflare()) {
+		// Only show if Cloudflare is available (plugin active or server behind Cloudflare)
+		if (!self::is_cloudflare_available()) {
 			return false;
 		}
 
 		return true;
+	}
+
+	/**
+	 * Check if Cloudflare is available for use.
+	 *
+	 * The Google Tag Gateway works best with Cloudflare because it can handle
+	 * all requests at the CDN level, reducing server load.
+	 *
+	 * @return bool True if Cloudflare is available, false otherwise
+	 *
+	 * @since 1.48.0
+	 */
+	private static function is_cloudflare_available() {
+		return Environment::is_cloudflare_active() || Environment::is_server_behind_cloudflare();
 	}
 
 	public static function card_data() {

@@ -2,45 +2,38 @@ jQuery(function () {
 
 	const queryString = window.location.search
 	const urlParams   = new URLSearchParams(queryString)
+	const pageParam   = urlParams.get("page")
 
-	let pageParam = urlParams.get("page")
-
-	if ("/wp-admin/index.php" === location.pathname || "/wp-admin/" === location.pathname || "wpm" === pageParam) {
-		jQuery(".wpm-rating-success-notice").show()
+	// Show the rating notice on dashboard and PMW settings pages
+	if ("/wp-admin/index.php" === location.pathname || "/wp-admin/" === location.pathname || "pmw" === pageParam) {
+		jQuery("#pmw-rating-notice").css("display", "flex")
 	}
 
-	// go and rate it or already done
-	jQuery(document).on("click", "#wpm-rate-it", function (e) {
-		process_click(e, "rating_done")
-
-		let win = window.open("https://wordpress.org/support/view/plugin-reviews/woocommerce-google-adwords-conversion-tracking-tag?rate=5#postform", "_blank")
-		win.focus()
+	// Handle "Leave a Review" button click - also dismiss the notice
+	jQuery(document).on("click", "#pmw-rate-it", function () {
+		sendRatingAction("rating_done")
+		// Link opens in new tab via href, so just hide the notice
+		jQuery("#pmw-rating-notice").fadeOut(300)
 	})
 
-	jQuery(document).on("click", "#wpm-already-did", function (e) {
-		process_click(e, "rating_done")
-	})
-
-	// maybe rate later
-	jQuery(document).on("click", "#wpm-maybe-later", function (e) {
-		process_click(e, "later")
-	})
-
-	function process_click(e, set) {
-
+	// Handle secondary action buttons (Already reviewed, Maybe later)
+	jQuery(document).on("click", ".pmw-rating-dismiss-button", function (e) {
 		e.preventDefault()
+		const action = jQuery(this).data("action")
+		sendRatingAction(action)
+		jQuery("#pmw-rating-notice").fadeOut(300)
+	})
 
-		let data = {
-			action: "wpm_dismissed_notice_handler",
+	/**
+	 * Send the rating action to the server via AJAX
+	 *
+	 * @param {string} action - The action to perform: 'rating_done' or 'later'
+	 */
+	function sendRatingAction(action) {
+		jQuery.post(ajax_var.url, {
+			action: "pmw_dismissed_notice_handler",
 			nonce : ajax_var.nonce,
-			set   : set,
-		}
-
-		jQuery.post(ajax_var.url, data, (response) => {
-			// console.log('Got this from the server: ' + response);
-			// console.log('update rating done');
+			set   : action,
 		})
-
-		jQuery(".wpm-rating-success-notice").remove()
 	}
 })

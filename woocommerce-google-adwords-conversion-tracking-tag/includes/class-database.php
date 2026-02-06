@@ -4,7 +4,6 @@
  */
 
 // TODO Move Facebook Advanced Matching down to to ['facebook']['advanced_matching']
-// TODO Move Facebook Send Anonymous Hits down one level to ['facebook']['capi']['process_anonymous_hits']
 
 // TODO Strategy for saving backup versions:
 // 1. Save version with version and timestamp ['db_version']['timestamp']

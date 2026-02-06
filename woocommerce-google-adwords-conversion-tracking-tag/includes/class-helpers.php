@@ -75,7 +75,7 @@ class Helpers {
     }
 
     public static function is_allowed_notification_page( $page ) {
-        $allowed_pages = ['page_wpm', 'index.php', 'dashboard'];
+        $allowed_pages = ['page_pmw', 'index.php', 'dashboard'];
         foreach ( $allowed_pages as $allowed_page ) {
             if ( strpos( $page, $allowed_page ) !== false ) {
                 return true;
@@ -1008,6 +1008,35 @@ class Helpers {
     }
 
     /**
+     * Check if this is a free distribution of the plugin.
+     * Free distributions include:
+     * - WordPress.org free version (wgact.php)
+     * - WooCommerce Marketplace free version (woocommerce-pixel-manager-free.php)
+     * - Any version where Freemius SDK indicates no premium code access
+     *
+     * Note: The first check using Freemius SDK is necessary for local testing
+     * because file names are not correct before preparing the distribution build.
+     *
+     * @return bool True if it's a free distribution, false for pro distribution
+     * @since 1.51.0
+     */
+    public static function is_free_plugin_distribution() {
+        if ( function_exists( 'wpm_fs' ) && wpm_fs()->is_premium() ) {
+            return false;
+        }
+        // Fallback: Check if it's the WordPress.org free version
+        if ( str_contains( PMW_PLUGIN_BASENAME, 'wgact.php' ) ) {
+            return true;
+        }
+        // Fallback: Check if it's the WooCommerce Marketplace free version
+        if ( str_contains( PMW_PLUGIN_BASENAME, 'woocommerce-pixel-manager-free/woocommerce-pixel-manager-free.php' ) ) {
+            return true;
+        }
+        // Otherwise it's a pro distribution
+        return false;
+    }
+
+    /**
      * Gets all plugin log files based on a specific source.
      *
      * This function searches all log files in the WooCommerce logs directory,
@@ -1048,6 +1077,20 @@ class Helpers {
             }
         }
         return $log_files;
+    }
+
+    /**
+     * Check if the current page is a cart, checkout, or purchase confirmation page.
+     *
+     * @return bool True if on cart, checkout, or order-received page.
+     */
+    public static function is_cart_or_checkout_page() {
+        // WooCommerce functions may not be available yet
+        if ( !function_exists( 'is_cart' ) || !function_exists( 'is_checkout' ) ) {
+            return false;
+        }
+        // is_checkout() returns true for both checkout and order-received (thank you) page
+        return is_cart() || is_checkout();
     }
 
 }

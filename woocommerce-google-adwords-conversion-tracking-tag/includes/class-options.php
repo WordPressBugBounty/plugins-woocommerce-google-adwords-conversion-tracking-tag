@@ -103,7 +103,6 @@ class Options {
 					'token'             => '',
 					'test_event_code'   => '',
 					'user_transparency' => [
-						'process_anonymous_hits'             => false,
 						'send_additional_client_identifiers' => false,
 					],
 				],
@@ -157,14 +156,16 @@ class Options {
 			'hotjar'     => [
 				'site_id' => '',
 			],
+			'crazyegg'   => [
+				'account_number' => '',
+			],
 			'pinterest'  => [
 				'pixel_id'          => '',
 				'ad_account_id'     => '',
 				'enhanced_match'    => false,
 				'advanced_matching' => false,
 				'apic'              => [
-					'token'                  => '',
-					'process_anonymous_hits' => false,
+					'token' => '',
 				],
 			],
 			'snapchat'   => [
@@ -178,9 +179,8 @@ class Options {
 				'pixel_id'          => '',
 				'advanced_matching' => false,
 				'eapi'              => [
-					'token'                  => '',
-					'test_event_code'        => '',
-					'process_anonymous_hits' => false,
+					'token'           => '',
+					'test_event_code' => '',
 				],
 			],
 			'twitter'    => [
@@ -206,12 +206,9 @@ class Options {
 				'linkedin'   => [
 					'partner_id'     => '',
 					'conversion_ids' => [
-						'search'         => '',
-						'view_content'   => '',
-						'add_to_list'    => '',
-						'add_to_cart'    => '',
-						'start_checkout' => '',
-						'purchase'       => '',
+						'view_content' => '',
+						'add_to_cart'  => '',
+						'purchase'     => '',
 					],
 				],
 				'optimizely' => [
@@ -223,12 +220,19 @@ class Options {
 				'reddit'     => [
 					'advertiser_id'     => '',
 					'advanced_matching' => false,
+					'capi'              => [
+						'token'           => '',
+						'test_event_code' => '',
+					],
 				],
 				'taboola'    => [
 					'account_id' => '',
 				],
 				'vwo'        => [
 					'account_id' => '',
+				],
+				'contentsquare' => [
+					'tag_id' => '',
 				],
 			],
 			'shop'       => [
@@ -265,6 +269,9 @@ class Options {
 					'log_http_requests' => false,
 				],
 				'pageview_events_s2s'        => false,
+				'modules'                    => [
+					'load_deprecated_functions' => true,
+				],
 			],
 			'db_version' => PMW_DB_VERSION,
 			'timestamp'  => null, // This will be set when the options are saved
@@ -382,10 +389,6 @@ class Options {
 		return self::get_options_obj()->facebook->capi->test_event_code;
 	}
 
-	public static function is_facebook_capi_user_transparency_process_anonymous_hits_active() {
-		return (bool) self::get_options_obj()->facebook->capi->user_transparency->process_anonymous_hits;
-	}
-
 	public static function is_facebook_capi_advanced_matching_enabled() {
 		return (bool) self::get_options_obj()->facebook->capi->user_transparency->send_additional_client_identifiers;
 	}
@@ -434,10 +437,6 @@ class Options {
 		return (bool) self::get_options_obj()->tiktok->advanced_matching;
 	}
 
-	public static function is_tiktok_eapi_process_anonymous_hits_active() {
-		return (bool) self::get_options_obj()->tiktok->eapi->process_anonymous_hits;
-	}
-
 	/**
 	 * Hotjar
 	 */
@@ -448,6 +447,18 @@ class Options {
 
 	public static function is_hotjar_enabled() {
 		return (bool) self::get_hotjar_site_id();
+	}
+
+	/**
+	 * CrazyEgg
+	 */
+
+	public static function get_crazyegg_account_number() {
+		return self::get_options_obj()->crazyegg->account_number;
+	}
+
+	public static function is_crazyegg_enabled() {
+		return (bool) self::get_crazyegg_account_number();
 	}
 
 	/**
@@ -525,10 +536,6 @@ class Options {
 
 	public static function is_pinterest_advanced_matching_active() {
 		return (bool) self::get_options_obj()->pinterest->advanced_matching;
-	}
-
-	public static function is_pinterest_apic_process_anonymous_hits_active() {
-		return (bool) self::get_options_obj()->pinterest->apic->process_anonymous_hits;
 	}
 
 	/**
@@ -758,6 +765,22 @@ class Options {
 		return (bool) self::get_options_obj()->pixels->reddit->advanced_matching;
 	}
 
+	public static function get_reddit_capi_token() {
+		return self::get_options_obj()->pixels->reddit->capi->token;
+	}
+
+	public static function get_reddit_capi_test_event_code() {
+		return self::get_options_obj()->pixels->reddit->capi->test_event_code;
+	}
+
+	public static function is_reddit_capi_active() {
+		return self::is_reddit_active() && (bool) self::get_reddit_capi_token();
+	}
+
+	public static function is_reddit_capi_test_event_code_set() {
+		return (bool) self::get_reddit_capi_test_event_code();
+	}
+
 	/**
 	 * Taboola
 	 */
@@ -804,6 +827,18 @@ class Options {
 
 	public static function is_ab_tasty_active() {
 		return (bool) self::get_ab_tasty_account_id();
+	}
+
+	/**
+	 * Contentsquare
+	 */
+
+	public static function get_contentsquare_tag_id() {
+		return self::get_options_obj()->pixels->contentsquare->tag_id;
+	}
+
+	public static function is_contentsquare_active() {
+		return (bool) self::get_contentsquare_tag_id();
 	}
 
 	/**
@@ -930,6 +965,34 @@ class Options {
 	}
 
 	/**
+	 * Check if a specific module should be loaded.
+	 *
+	 * @param string $module_name The name of the module to check.
+	 * @return bool True if the module should be loaded, false otherwise.
+	 * @since 1.51.0
+	 */
+	public static function should_load_module( $module_name ) {
+		$options = self::get_options_obj();
+
+		if (isset($options->general->modules->$module_name)) {
+			return (bool) $options->general->modules->$module_name;
+		}
+
+		// Default to true for backward compatibility
+		return true;
+	}
+
+	/**
+	 * Check if deprecated functions module should be loaded.
+	 *
+	 * @return bool True if deprecated functions should be loaded.
+	 * @since 1.51.0
+	 */
+	public static function should_load_deprecated_functions() {
+		return self::should_load_module('load_deprecated_functions');
+	}
+
+	/**
 	 * Ensure that lazy loading is only active if the optimizers (VWO, Optimizely, AB Tasty, etc.) allow it.
 	 * The reason is, because optimizers might flicker the page during loading (when test variations are applied).
 	 *
@@ -946,33 +1009,58 @@ class Options {
 		return true;
 	}
 
+	/**
+	 * Check if any statistics pixels are active
+	 *
+	 * Uses the Pixel_Registry to automatically detect all active statistics pixels.
+	 * No manual updates needed when adding new statistics pixels - just ensure they
+	 * implement Pixel_Descriptor with get_category() returning 'statistics'.
+	 *
+	 * @return bool True if at least one statistics pixel is active
+	 * @since 1.52.0 Refactored to use pixel registry for automatic detection
+	 */
 	public static function is_at_least_one_statistics_pixel_active() {
-		return self::is_ga4_enabled()
-			|| self::is_hotjar_enabled()
-			|| self::is_vwo_active();
+		return \SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry::has_active_statistics_pixels();
 	}
 
+	/**
+	 * Check if any marketing pixels are active
+	 *
+	 * Uses the Pixel_Registry to automatically detect all active marketing pixels.
+	 * No manual updates needed when adding new marketing pixels - just ensure they
+	 * implement Pixel_Descriptor with get_category() returning 'marketing'.
+	 *
+	 * @return bool True if at least one marketing pixel is active
+	 * @since 1.52.0 Refactored to use pixel registry for automatic detection
+	 */
 	public static function is_at_least_one_marketing_pixel_active() {
-		return self::is_adroll_active()
-			|| self::is_bing_active()
-			|| self::is_facebook_active()
-			|| self::is_google_ads_active()
-			|| self::is_linkedin_active()
-			|| self::is_outbrain_active()
-			|| self::is_pinterest_active()
-			|| self::is_reddit_active()
-			|| self::is_snapchat_active()
-			|| self::is_taboola_active()
-			|| self::is_tiktok_active()
-			|| self::is_twitter_active();
+		return \SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry::has_active_marketing_pixels();
 	}
 
+	/**
+	 * Check if any server-to-server (S2S) integrations are enabled
+	 *
+	 * This method uses the Pixel_Registry to automatically detect all available S2S integrations.
+	 *
+	 * When adding a new S2S pixel:
+	 * 1. Create the adapter class extending Abstract_Pixel_Adapter (e.g., MyPixel_Adapter)
+	 * 2. Implement is_available() to check if your pixel is configured
+	 * 3. Add `new MyPixel_Adapter();` at the bottom of your adapter file (auto-registers)
+	 * 4. Load the adapter class in Pixel_Manager::__construct() with class_exists()
+	 *
+	 * That's it! The registry will automatically detect it - no updates needed here.
+	 *
+	 * @return bool True if at least one S2S integration is active
+	 * @since 1.52.0 Refactored to use adapter registry for automatic detection
+	 */
 	public static function server_2_server_enabled() {
-		return
-			self::is_facebook_capi_active()
-			|| self::is_tiktok_eapi_active()
-			|| self::is_pinterest_apic_active()
-			|| self::is_snapchat_capi_active();
+		// Use the pixel registry for dynamic detection
+		if (class_exists('\SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry')) {
+			return \SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry::has_available_adapters();
+		}
+
+		// Fallback for edge cases where registry isn't loaded (shouldn't happen in normal flow)
+		return false;
 	}
 
 	/**
@@ -995,6 +1083,10 @@ class Options {
 
 		if (self::is_snapchat_active()) {
 			$pixels[] = 'snapchat';
+		}
+
+		if (self::is_reddit_active()) {
+			$pixels[] = 'reddit';
 		}
 
 		return $pixels;

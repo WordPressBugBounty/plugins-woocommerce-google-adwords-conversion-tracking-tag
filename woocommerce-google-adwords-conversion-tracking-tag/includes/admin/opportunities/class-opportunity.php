@@ -49,10 +49,24 @@ abstract class Opportunity {
 			return false;
 		}
 
-		if (isset($option[static::card_data()['id']]['dismissed'])) {
+		$card_data = static::card_data();
+
+		// Check if dismissed key exists
+		if (!isset($option[$card_data['id']]['dismissed'])) {
+			return false;
+		}
+
+		// If no repeat_interval defined, stay dismissed forever
+		if (!isset($card_data['repeat_interval'])) {
 			return true;
 		}
 
+		// Check if current time is still within the repeat interval
+		if (time() < ( $option[$card_data['id']]['dismissed'] + $card_data['repeat_interval'] )) {
+			return true; // Still within cooldown period
+		}
+
+		// Cooldown expired, show opportunity again
 		return false;
 	}
 
