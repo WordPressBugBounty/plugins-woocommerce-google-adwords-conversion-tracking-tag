@@ -94,8 +94,8 @@ class Ask_For_Rating {
 
 	public function ask_for_rating_notice() {
 
-		// Don't show if were not an admin
-		if (!Environment::get_user_edit_capability()) {
+		// Don't show if the user lacks the required capabilities.
+		if (!Environment::can_current_user_edit_options()) {
 			return;
 		}
 
@@ -132,7 +132,11 @@ class Ask_For_Rating {
 		}
 
 		// For testing purposes
-		if (defined('PMW_ALWAYS_AKS_FOR_RATING') && PMW_ALWAYS_AKS_FOR_RATING) {
+		$force_rating_notice =
+			( defined('PMW_ALWAYS_ASK_FOR_RATING') && PMW_ALWAYS_ASK_FOR_RATING )
+			|| ( defined('PMW_ALWAYS_AKS_FOR_RATING') && PMW_ALWAYS_AKS_FOR_RATING );
+
+		if ($force_rating_notice) {
 			$this->ask_for_rating_notices($conversions_count);
 			return;
 		}
@@ -156,7 +160,7 @@ class Ask_For_Rating {
 
 	private function get_default_settings() {
 		return [
-			'conversions_count' => 1,
+			'conversions_count' => 0,
 			'rating_threshold'  => 10,
 			'rating_done'       => false,
 		];

@@ -162,6 +162,15 @@ function pmw_gtg_get_config_directory() {
 		}
 	}
 
+	// Method 4: Fallback to plugin directory config
+	// The plugin writes a redundant config copy next to this proxy file.
+	// __DIR__ is always reliable, regardless of hosting configuration
+	// (symlinks, WP Engine, non-standard layouts, etc.)
+	$fallback_dir = __DIR__ . '/pmw-gtg-config';
+	if ( is_dir( $fallback_dir ) ) {
+		return $fallback_dir;
+	}
+
 	return false;
 }
 
@@ -288,8 +297,10 @@ if ( isset( $_GET['healthCheck'] ) ) {
 		pmw_gtg_send_fallback_response( 'config-file-not-found' );
 	}
 
-	// Check config age (24 hours max)
-	if ( ( time() - filemtime( $config_file ) ) >= 86400 ) {
+	// Check config age (7 days max — safety net for when WP-Cron fails)
+	// WP-Cron refreshes the config every 24 hours under normal conditions.
+	// This extended TTL prevents false 503s on hosts where cron is unreliable.
+	if ( ( time() - filemtime( $config_file ) ) >= 604800 ) {
 		pmw_gtg_send_fallback_response( 'config-expired' );
 	}
 
@@ -305,17 +316,24 @@ if ( isset( $_GET['healthCheck'] ) ) {
 	}
 
 	// Config is valid - log if enabled
-	if ( ! empty( $config['logging_enabled'] ) && ! empty( $config['log_directory'] ) ) {
+	if ( ! empty( $config['logging_enabled'] ) ) {
 		$log_level = isset( $config['log_level'] ) ? $config['log_level'] : 'error';
 		$level_priority = [ 'debug' => 7, 'info' => 6, 'notice' => 5, 'warning' => 4, 'error' => 3 ];
 		$configured_priority = isset( $level_priority[ $log_level ] ) ? $level_priority[ $log_level ] : 3;
 
 		if ( 6 <= $configured_priority ) { // info level = 6
-			$wp_content = dirname( dirname( $config['log_directory'] ) );
-			$debug_log  = $wp_content . '/debug.log';
-			$timestamp  = gmdate( 'd-M-Y H:i:s \U\T\C' );
-			$log_entry  = "[{$timestamp}] pmw [info] [GTG-Proxy-Standalone] Health check request received - proxy functional\n";
-			@file_put_contents( $debug_log, $log_entry, FILE_APPEND | LOCK_EX );
+			// Use wp_content_dir from config (multisite-safe), fallback to log_directory derivation
+			$debug_log = null;
+			if ( ! empty( $config['wp_content_dir'] ) ) {
+				$debug_log = $config['wp_content_dir'] . '/debug.log';
+			} elseif ( ! empty( $config['log_directory'] ) ) {
+				$debug_log = dirname( dirname( $config['log_directory'] ) ) . '/debug.log';
+			}
+			if ( $debug_log ) {
+				$timestamp  = gmdate( 'd-M-Y H:i:s \U\T\C' );
+				$log_entry  = "[{$timestamp}] pmw [info] [GTG-Proxy-Standalone] Health check request received - proxy functional\n";
+				@file_put_contents( $debug_log, $log_entry, FILE_APPEND | LOCK_EX );
+			}
 		}
 	}
 
@@ -355,11 +373,14 @@ final class PMW_GTG_Proxy_Standalone {
 	const REQUEST_TIMEOUT = 5;
 
 	/**
-	 * Cache file max age in seconds (1 hour)
+	 * Cache file max age in seconds (7 days)
+	 *
+	 * WP-Cron refreshes the config every 24 hours under normal conditions.
+	 * This extended TTL is a safety net for hosts where cron is unreliable.
 	 *
 	 * @var int
 	 */
-	const CACHE_MAX_AGE = 86400;
+	const CACHE_MAX_AGE = 604800;
 
 	/**
 	 * FPS path placeholder used by Google's response
@@ -485,10 +506,10 @@ final class PMW_GTG_Proxy_Standalone {
 			$tag_id = isset( $_GET['id'] ) ? self::sanitize_tag_id( $_GET['id'] ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_geo method
 			$geo    = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Path is validated against allowed patterns
-			$s_path = isset( $_GET['s'] ) ? $_GET['s'] : '';
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Mpath is used in URL construction only
-			$mpath  = isset( $_GET['mpath'] ) ? $_GET['mpath'] : '';
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_s_path method
+			$s_path = isset( $_GET['s'] ) ? self::sanitize_s_path( $_GET['s'] ) : '';
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_mpath method
+			$mpath  = isset( $_GET['mpath'] ) ? self::sanitize_mpath( $_GET['mpath'] ) : '';
 
 			// Build destination path
 			$destination_path = self::build_destination_path( $s_path, $_GET, $tag_id, $path );
@@ -625,12 +646,12 @@ final class PMW_GTG_Proxy_Standalone {
 		// Get parameters
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_tag_id method
 		$tag_id = isset( $_GET['id'] ) ? self::sanitize_tag_id( $_GET['id'] ) : '';
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Path is validated against allowed patterns
-		$s_path = isset( $_GET['s'] ) ? $_GET['s'] : '';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_s_path method
+		$s_path = isset( $_GET['s'] ) ? self::sanitize_s_path( $_GET['s'] ) : '';
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_geo method
 		$geo    = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Mpath is used in URL construction only
-		$mpath  = isset( $_GET['mpath'] ) ? $_GET['mpath'] : '';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_mpath method
+		$mpath  = isset( $_GET['mpath'] ) ? self::sanitize_mpath( $_GET['mpath'] ) : '';
 
 		self::log(
 			'Processing direct access request',
@@ -756,7 +777,7 @@ final class PMW_GTG_Proxy_Standalone {
 			pmw_gtg_send_fallback_response( 'config-file-missing' );
 		}
 
-		// Step 5: Check config age (24 hours max)
+		// Step 5: Check config age (7 days max — safety net for WP-Cron failures)
 		if ( ( time() - filemtime( $cache_file ) ) >= self::CACHE_MAX_AGE ) {
 			pmw_gtg_send_fallback_response( 'config-expired' );
 		}
@@ -777,8 +798,83 @@ final class PMW_GTG_Proxy_Standalone {
 			pmw_gtg_send_fallback_response( 'config-missing-fields' );
 		}
 
+		// Step 8: Validate config field contents to prevent abuse via compromised config files
+		if ( ! self::validate_config( $config ) ) {
+			pmw_gtg_send_fallback_response( 'config-validation-failed' );
+		}
+
 		self::$config = $config;
 		return $config;
+	}
+
+	/**
+	 * Validate config field contents
+	 *
+	 * Ensures config values are safe before the proxy acts on them.
+	 * Prevents a compromised config file from redirecting traffic or
+	 * causing writes to arbitrary locations.
+	 *
+	 * @param array $config The decoded config array.
+	 * @return bool True if config is valid, false otherwise.
+	 *
+	 * @since 1.56.1
+	 */
+	private static function validate_config( $config ) {
+		// Validate measurement_path: must start with /, only safe chars, max 64 chars
+		if ( ! empty( $config['measurement_path'] ) ) {
+			$mp = $config['measurement_path'];
+			if ( '/' !== $mp[0] || strlen( $mp ) > 64 || ! preg_match( '/^\/[a-zA-Z0-9\/_-]+$/', $mp ) ) {
+				return false;
+			}
+		}
+
+		// Validate proxy_url: must be a valid URL, scheme must be http or https
+		if ( ! empty( $config['proxy_url'] ) ) {
+			if ( ! filter_var( $config['proxy_url'], FILTER_VALIDATE_URL ) ) {
+				return false;
+			}
+			$proxy_parsed = parse_url( $config['proxy_url'] );
+			if ( ! $proxy_parsed || ! isset( $proxy_parsed['scheme'] ) || ! in_array( $proxy_parsed['scheme'], [ 'http', 'https' ], true ) ) {
+				return false;
+			}
+			// proxy_url host must match site_url host to prevent redirect to external domains
+			if ( ! empty( $config['site_url'] ) ) {
+				$site_parsed = parse_url( $config['site_url'] );
+				if ( $site_parsed && isset( $site_parsed['host'], $proxy_parsed['host'] ) ) {
+					if ( strtolower( $proxy_parsed['host'] ) !== strtolower( $site_parsed['host'] ) ) {
+						return false;
+					}
+				}
+			}
+		}
+
+		// Validate site_url: must be a valid URL with http(s) scheme
+		if ( ! empty( $config['site_url'] ) ) {
+			if ( ! filter_var( $config['site_url'], FILTER_VALIDATE_URL ) ) {
+				return false;
+			}
+			$site_scheme = parse_url( $config['site_url'], PHP_URL_SCHEME );
+			if ( ! in_array( $site_scheme, [ 'http', 'https' ], true ) ) {
+				return false;
+			}
+		}
+
+		// Validate log_directory: if present, must be absolute path without traversal
+		if ( ! empty( $config['log_directory'] ) ) {
+			$log_dir = $config['log_directory'];
+			if ( '/' !== $log_dir[0] || false !== strpos( $log_dir, '..' ) ) {
+				return false;
+			}
+		}
+
+		// Validate log_level: must be a known level
+		if ( ! empty( $config['log_level'] ) ) {
+			if ( ! isset( self::LOG_LEVELS[ $config['log_level'] ] ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -836,11 +932,16 @@ final class PMW_GTG_Proxy_Standalone {
 		$log_entry = "[{$timestamp}] pmw [{$level_str}] [GTG-Proxy-Standalone] {$message}{$context_str}" . PHP_EOL;
 
 		// Try to find WordPress debug.log
-		// The log_directory in config points to wp-content/uploads/pmw-logs/
-		// WordPress debug.log is at wp-content/debug.log
+		// Use wp_content_dir from config (most reliable, especially for multisite)
+		// Fallback to deriving from log_directory for backwards compatibility
 		$log_file = null;
-		if ( ! empty( $config['log_directory'] ) ) {
-			// Navigate from pmw-logs to wp-content/debug.log
+		if ( ! empty( $config['wp_content_dir'] ) ) {
+			$debug_log = $config['wp_content_dir'] . '/debug.log';
+			if ( is_writable( dirname( $debug_log ) ) ) {
+				$log_file = $debug_log;
+			}
+		} elseif ( ! empty( $config['log_directory'] ) ) {
+			// Legacy fallback: navigate from pmw-logs to wp-content/debug.log
 			// /path/wp-content/uploads/pmw-logs/ -> /path/wp-content/debug.log
 			$wp_content = dirname( dirname( $config['log_directory'] ) );
 			$debug_log  = $wp_content . '/debug.log';
@@ -948,6 +1049,51 @@ final class PMW_GTG_Proxy_Standalone {
 			return '';
 		}
 		return $geo;
+	}
+
+	/**
+	 * Sanitize the s (path) parameter
+	 *
+	 * Strips null bytes, non-printable characters, and limits length.
+	 * Defense-in-depth: the FPS URL validation (is_valid_fps_url) is the
+	 * primary gate, but sanitizing inputs prevents unexpected behavior.
+	 *
+	 * @param string $s_path Raw path parameter.
+	 * @return string Sanitized path parameter.
+	 *
+	 * @since 1.56.1
+	 */
+	private static function sanitize_s_path( $s_path ) {
+		// Remove null bytes
+		$s_path = str_replace( chr( 0 ), '', $s_path );
+		// Remove non-printable characters
+		$s_path = preg_replace( '/[\x00-\x1F\x7F]/', '', $s_path );
+		// Limit length to 2048 characters
+		if ( strlen( $s_path ) > 2048 ) {
+			$s_path = substr( $s_path, 0, 2048 );
+		}
+		return $s_path;
+	}
+
+	/**
+	 * Sanitize the mpath (measurement path) parameter
+	 *
+	 * Restricts to alphanumeric characters, hyphens, and underscores only,
+	 * matching the measurement path format. Limits to 64 characters.
+	 *
+	 * @param string $mpath Raw mpath parameter.
+	 * @return string Sanitized mpath parameter.
+	 *
+	 * @since 1.56.1
+	 */
+	private static function sanitize_mpath( $mpath ) {
+		// Strip everything except safe characters
+		$mpath = preg_replace( '/[^A-Za-z0-9_-]/', '', $mpath );
+		// Limit length to 64 characters
+		if ( strlen( $mpath ) > 64 ) {
+			$mpath = substr( $mpath, 0, 64 );
+		}
+		return $mpath;
 	}
 
 	/**

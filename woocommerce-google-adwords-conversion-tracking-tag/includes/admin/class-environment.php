@@ -648,6 +648,39 @@ class Environment {
 		return is_plugin_active('cookie-law-info/cookie-law-info.php');
 	}
 
+	/**
+	 * Check if Google Automated Discounts for WooCommerce (GADWC) is active.
+	 *
+	 * Checks constant, class, and all known plugin basenames across distributions
+	 * (Freemius free, Freemius premium, WooCommerce Marketplace).
+	 *
+	 * @return bool
+	 * @since 1.57.0
+	 */
+	public static function is_gadwc_active() {
+		return defined('SGADWC_CURRENT_VERSION')
+			|| class_exists('SGADWC')
+			|| is_plugin_active('sgadwc/sgadwc.php')
+			|| is_plugin_active('sgadwc-premium/sgadwc.php')
+			|| is_plugin_active('google-automated-discounts-pro-for-woocommerce/google-automated-discounts-pro-for-woocommerce.php');
+	}
+
+	/**
+	 * Check if Google Customer Reviews for WooCommerce (GCR) is active.
+	 *
+	 * Checks constant, class, and all known plugin basenames across distributions
+	 * (Freemius free, Freemius premium).
+	 *
+	 * @return bool
+	 * @since 1.57.0
+	 */
+	public static function is_gcr_active() {
+		return defined('GCR_CURRENT_VERSION')
+			|| class_exists('GCR')
+			|| is_plugin_active('google-customer-reviews-for-woocommerce/google-customer-reviews-for-woocommerce.php')
+			|| is_plugin_active('google-customer-reviews-for-woocommerce-premium/google-customer-reviews-for-woocommerce.php');
+	}
+
 	public static function is_real_cookie_banner_active() {
 		return
 			is_plugin_active('real-cookie-banner/index.php')

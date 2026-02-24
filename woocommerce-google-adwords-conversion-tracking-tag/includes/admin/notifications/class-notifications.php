@@ -329,6 +329,27 @@ class Notifications {
         ?>
 					<!-- Settings Link end -->
 
+					<!-- Portal Link -->
+					<?php 
+        if ( isset( $notification_data['portal_link'] ) ) {
+            ?>
+						<a class="notification-card-button-link"
+						   href="<?php 
+            echo esc_html( $notification_data['portal_link'] );
+            ?>"
+						   target="_blank"
+						>
+							<div class="notification-card-bottom-button">
+								<?php 
+            esc_html_e( 'SSP Portal', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+							</div>
+						</a>
+					<?php 
+        }
+        ?>
+					<!-- Portal Link end -->
+
 				</div>
 				<!-- bottom end -->
 
@@ -378,8 +399,8 @@ class Notifications {
 					<?php 
         if ( $counts_by_impact['high'] > 0 ) {
             ?>
-						<span class="pmw-opportunity-badge pmw-opportunity-badge-high" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #fde8e8; border: 1px solid #f56565; color: #c53030;">
-							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #f56565; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+						<span class="pmw-opportunity-badge pmw-opportunity-badge-high" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #f3e8ff; border: 1px solid #8b5cf6; color: #5b21b6;">
+							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #8b5cf6; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
             echo esc_html( $counts_by_impact['high'] );
             ?></span>
 							<?php 
@@ -393,8 +414,8 @@ class Notifications {
 					<?php 
         if ( $counts_by_impact['medium'] > 0 ) {
             ?>
-						<span class="pmw-opportunity-badge pmw-opportunity-badge-medium" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #fef3c7; border: 1px solid #f6ad55; color: #c05621;">
-							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #f6ad55; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+						<span class="pmw-opportunity-badge pmw-opportunity-badge-medium" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #dbeafe; border: 1px solid #3b82f6; color: #1e40af;">
+							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #3b82f6; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
             echo esc_html( $counts_by_impact['medium'] );
             ?></span>
 							<?php 
@@ -408,8 +429,8 @@ class Notifications {
 					<?php 
         if ( $counts_by_impact['low'] > 0 ) {
             ?>
-						<span class="pmw-opportunity-badge pmw-opportunity-badge-low" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #e6fffa; border: 1px solid #48bb78; color: #276749;">
-							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #48bb78; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+						<span class="pmw-opportunity-badge pmw-opportunity-badge-low" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
+							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #14b8a6; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
             echo esc_html( $counts_by_impact['low'] );
             ?></span>
 							<?php 

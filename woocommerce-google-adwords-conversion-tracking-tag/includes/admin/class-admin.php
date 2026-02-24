@@ -303,18 +303,109 @@ class Admin {
         if ( !Environment::is_pmw_settings_page() ) {
             return;
         }
-        self::add_section_main();
-        self::add_section_advanced();
-        if ( Environment::is_woocommerce_active() ) {
-            self::add_section_shop();
+        $tabs = self::get_admin_tabs();
+        foreach ( $tabs as $tab ) {
+            if ( isset( $tab['add_section_callback'] ) && is_callable( $tab['add_section_callback'] ) ) {
+                call_user_func( $tab['add_section_callback'] );
+            }
         }
-        self::add_section_consent_management();
-        self::add_section_opportunities();
+    }
+
+    /**
+     * Get the registered admin tabs, sorted by priority.
+     *
+     * Add-ons can use the 'pmw_admin_tabs' filter to register their own tabs.
+     *
+     * Each tab array should contain:
+     * - 'slug'                (string) Unique tab identifier
+     * - 'title'               (string) Display title
+     * - 'priority'            (int)    Sort order (lower = earlier)
+     * - 'show_save_button'    (bool)   Whether the save button is shown for this tab
+     * - 'add_section_callback' (callable) Function that registers the tab's settings sections and fields
+     * - 'option_name'         (string) Optional. The wp_options key this tab saves to (for add-on tabs)
+     * - 'sanitize_callback'   (callable) Optional. Validation/sanitize function for add-on tab data
+     *
+     * @return array Sorted array of tab configurations.
+     *
+     * @since 1.57.0
+     */
+    public static function get_admin_tabs() {
+        $tabs = [[
+            'slug'                 => 'main',
+            'priority'             => 10,
+            'show_save_button'     => true,
+            'add_section_callback' => [__CLASS__, 'add_section_main'],
+        ], [
+            'slug'                 => 'advanced',
+            'priority'             => 20,
+            'show_save_button'     => true,
+            'add_section_callback' => [__CLASS__, 'add_section_advanced'],
+        ]];
         if ( Environment::is_woocommerce_active() ) {
-            self::add_section_diagnostics();
+            $tabs[] = [
+                'slug'                 => 'shop',
+                'priority'             => 30,
+                'show_save_button'     => true,
+                'add_section_callback' => [__CLASS__, 'add_section_shop'],
+            ];
         }
-        self::add_section_support();
-        self::add_section_logs();
+        // SSE tab — requires active pro license
+        if ( Helpers::is_pmw_pro_version_active() || Options::is_pro_version_demo_active() ) {
+            $tabs[] = [
+                'slug'                 => 'sse',
+                'priority'             => 25,
+                'show_save_button'     => true,
+                'add_section_callback' => [__CLASS__, 'add_section_sse__premium_only'],
+            ];
+        }
+        $tabs[] = [
+            'slug'                 => 'consent-management',
+            'priority'             => 40,
+            'show_save_button'     => true,
+            'add_section_callback' => [__CLASS__, 'add_section_consent_management'],
+        ];
+        $tabs[] = [
+            'slug'                 => 'opportunities',
+            'priority'             => 70,
+            'show_save_button'     => false,
+            'add_section_callback' => [__CLASS__, 'add_section_opportunities'],
+        ];
+        if ( Environment::is_woocommerce_active() ) {
+            $tabs[] = [
+                'slug'                 => 'diagnostics',
+                'priority'             => 80,
+                'show_save_button'     => false,
+                'add_section_callback' => [__CLASS__, 'add_section_diagnostics'],
+            ];
+        }
+        $tabs[] = [
+            'slug'                 => 'support',
+            'priority'             => 90,
+            'show_save_button'     => false,
+            'add_section_callback' => [__CLASS__, 'add_section_support'],
+        ];
+        $tabs[] = [
+            'slug'                 => 'logger',
+            'priority'             => 100,
+            'show_save_button'     => true,
+            'add_section_callback' => [__CLASS__, 'add_section_logs'],
+        ];
+        /**
+         * Filter the admin settings tabs.
+         *
+         * Add-ons can use this filter to register their own tabs with custom
+         * priority, rendering, and save handling.
+         *
+         * @param array $tabs Array of tab configuration arrays.
+         *
+         * @since 1.57.0
+         */
+        $tabs = apply_filters( 'pmw_admin_tabs', $tabs );
+        // Sort by priority
+        usort( $tabs, function ( $a, $b ) {
+            return (( isset( $a['priority'] ) ? $a['priority'] : 50 )) - (( isset( $b['priority'] ) ? $b['priority'] : 50 ));
+        } );
+        return $tabs;
     }
 
     public static function add_section_main() {
@@ -632,14 +723,6 @@ class Admin {
                 'pmw_setting_lazy_load_pmw',
                 esc_html__( 'Lazy Load PMW', 'woocommerce-google-adwords-conversion-tracking-tag' ),
                 [__CLASS__, 'html_lazy_load_pmw'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-            // Add option for tracking PageView events through s2s
-            add_settings_field(
-                'pmw_setting_track_pageview_events_s2s',
-                esc_html__( 'Track PageView Events Server-to-Server', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-                [__CLASS__, 'html_track_pageview_events_s2s'],
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
@@ -1433,6 +1516,27 @@ class Admin {
         );
     }
 
+    /**
+     * Convert an SSP status slug to a human-readable label.
+     *
+     * @param string $status
+     *
+     * @return string
+     * @since 1.57.0
+     */
+    private static function ssp_status_label( $status ) {
+        $labels = [
+            'active'         => __( 'Active', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'pending_dns'    => __( 'Pending DNS', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'disabled'       => __( 'Disabled', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'deleted'        => __( 'Deleted', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'waiting_config' => __( 'Waiting for Config', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'synced'         => __( 'Synced', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'sync_error'     => __( 'Sync Error', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+        ];
+        return ( isset( $labels[$status] ) ? $labels[$status] : __( 'Unknown', 'woocommerce-google-adwords-conversion-tracking-tag' ) );
+    }
+
     public static function add_section_support() {
         $section_ids = [
             'title'         => esc_html__( 'Support', 'woocommerce-google-adwords-conversion-tracking-tag' ),
@@ -1460,9 +1564,31 @@ class Admin {
         );
     }
 
+    /**
+     * Render the section marker div with data attributes for JS tab rendering.
+     *
+     * The priority and show-save-button attributes are looked up from the
+     * registered tabs configuration. If no matching tab is found, defaults
+     * are used (priority=50, show-save-button=true).
+     *
+     * @param array $section_ids Section configuration array with 'title', 'slug', and optional 'badge_count'.
+     *
+     * @since 1.57.0
+     */
     public static function section_generic_opening_div_html( $section_ids ) {
         $badge_count = ( isset( $section_ids['badge_count'] ) ? $section_ids['badge_count'] : 0 );
-        echo '<div class="section" data-section-title="' . esc_js( $section_ids['title'] ) . '" data-section-slug="' . esc_js( $section_ids['slug'] ) . '" data-badge-count="' . esc_attr( $badge_count ) . '"></div>';
+        $priority = 50;
+        $show_save_button = true;
+        // Look up priority and show_save_button from the registered tabs
+        $tabs = self::get_admin_tabs();
+        foreach ( $tabs as $tab ) {
+            if ( $tab['slug'] === $section_ids['slug'] ) {
+                $priority = ( isset( $tab['priority'] ) ? $tab['priority'] : 50 );
+                $show_save_button = ( isset( $tab['show_save_button'] ) ? $tab['show_save_button'] : true );
+                break;
+            }
+        }
+        echo '<div class="section"' . ' data-section-title="' . esc_js( $section_ids['title'] ) . '"' . ' data-section-slug="' . esc_js( $section_ids['slug'] ) . '"' . ' data-badge-count="' . esc_attr( $badge_count ) . '"' . ' data-priority="' . esc_attr( $priority ) . '"' . ' data-show-save-button="' . esc_attr( ( $show_save_button ? '1' : '0' ) ) . '"' . '></div>';
     }
 
     public static function subsection_generic_opening_div_html( $section_ids, $sub_section_ids ) {
@@ -1565,11 +1691,20 @@ class Admin {
 
 			<h2 class="nav-tab-wrapper"></h2>
 
-			<form id="pmw_settings_form" action="options.php" method="post">
+			<form id="pmw_settings_form" method="post">
 
 				<?php 
-        settings_fields( 'wpm_plugin_options_group' );
+        // Keep nonce for REST save validation
+        wp_nonce_field( 'pmw_settings_save', 'pmw_settings_nonce' );
         do_settings_sections( 'wpm_plugin_options_page' );
+        /**
+         * Fires after PMW's own settings sections have been rendered,
+         * but before the submit button. Add-on plugins should use
+         * this hook to output their settings fields.
+         *
+         * @since 1.57.0
+         */
+        do_action( 'pmw_admin_settings_after_sections' );
         submit_button();
         self::inject_developer_banner();
         ?>
@@ -5166,6 +5301,113 @@ class Admin {
     }
 
     /**
+     * HTML output for the skip empty S2S events toggle.
+     *
+     * When enabled, server-side events that contain no destination platform data
+     * (e.g., no Facebook, TikTok, Snapchat, etc.) will not be sent to the server.
+     *
+     * @since 1.57.0
+     */
+    public static function html_skip_empty_s2s_events() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[general][skip_empty_s2s_events]">
+			<input type="checkbox"
+				   id="pmw_setting_skip_empty_s2s_events"
+				   name="wgact_plugin_options[general][skip_empty_s2s_events]"
+				   value="1"
+				<?php 
+        checked( Options::is_skip_empty_s2s_events_active() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+
+			<?php 
+        esc_html_e( 'Skip server-side events with no destination platforms', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_skip_empty_s2s_events_active(), true, true );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+
+		<p style="margin-top: 10px">
+			<span class="dashicons dashicons-info"></span>
+			<?php 
+        esc_html_e( 'When enabled, events that have no destination platform (e.g., Facebook, TikTok) in their payload will not be sent to the server. This reduces unnecessary load on your WooCommerce server and the Server-Side Proxy. Disable this if you want all events to be sent regardless of whether a platform processes them.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</p>
+		<?php 
+    }
+
+    /**
+     * HTML output for the always send S2S events toggle.
+     *
+     * When enabled, server-side events are sent to ad platforms even when
+     * browser-side pixels haven't loaded (e.g. due to a consent manager).
+     * Browser-side tracking remains unaffected.
+     *
+     * @since 1.57.0
+     */
+    public static function html_always_send_s2s() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[general][always_send_s2s]">
+			<input type="checkbox"
+				   id="pmw_setting_always_send_s2s"
+				   name="wgact_plugin_options[general][always_send_s2s]"
+				   value="1"
+				<?php 
+        checked( Options::is_always_send_s2s_active() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+
+			<?php 
+        esc_html_e( 'Always send server-side events, even when browser-side pixels have not loaded', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_always_send_s2s_active(), Options::server_2_server_enabled(), true );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+
+		<?php 
+        if ( Options::is_always_send_s2s_active() && !Options::server_2_server_enabled() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'For this feature to be used, at least one server-to-server feature, like Facebook CAPI must be enabled.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<p style="margin-top: 10px">
+			<span class="dashicons dashicons-info"></span>
+			<?php 
+        esc_html_e( 'When enabled, server-side events are sent to ad platforms even when browser-side pixels have not loaded (e.g. due to a consent manager). Browser-side tracking remains unaffected — only server-side events are sent independently. Useful for platforms that support cookieless or limited-data server-side integrations.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</p>
+		<?php 
+    }
+
+    /**
      * HTML output for the deprecated functions module toggle.
      *
      * @since 1.51.0
@@ -5829,7 +6071,7 @@ class Admin {
     }
 
     private static function html_experiment() {
-        return '<div class="pmw-status-icon beta">' . esc_html__( 'experiment', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</div>';
+        return '<div class="pmw-status-icon beta" style="vertical-align: middle; margin-top: -2px">' . esc_html__( 'beta', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</div>';
     }
 
     private static function html_beta_e( $margin_top = '1px' ) {

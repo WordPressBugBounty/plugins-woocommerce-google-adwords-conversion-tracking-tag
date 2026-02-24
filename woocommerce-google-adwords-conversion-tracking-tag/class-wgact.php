@@ -11,6 +11,7 @@
  */
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
+use SweetCode\Pixel_Manager\Abilities;
 use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Admin_REST;
 use SweetCode\Pixel_Manager\Admin\Borlabs;
@@ -19,12 +20,15 @@ use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\LTV;
 use SweetCode\Pixel_Manager\Admin\Notifications\Notifications;
 use SweetCode\Pixel_Manager\Admin\Order_Columns;
+use SweetCode\Pixel_Manager\Admin\SSP_REST;
 use SweetCode\Pixel_Manager\Deprecated_Filters;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Product;
+use SweetCode\Pixel_Manager\SSP_Purchase_Proxy;
+use SweetCode\Pixel_Manager\SSP_Sync;
 use SweetCode\Pixel_Manager\Shop;
 use SweetCode\Pixel_Manager\Admin\Ask_For_Rating;
 // autoloader
@@ -60,6 +64,11 @@ class WCPM {
         register_deactivation_hook( __FILE__, function () {
             $timestamp = wp_next_scheduled( 'pmw_tracking_accuracy_analysis' );
             wp_unschedule_event( $timestamp, 'pmw_tracking_accuracy_analysis' );
+        } );
+        register_deactivation_hook( __FILE__, function () {
+            if ( class_exists( '\\SweetCode\\Pixel_Manager\\Pixels\\Google\\GTG_Proxy' ) ) {
+                \SweetCode\Pixel_Manager\Pixels\Google\GTG_Proxy::unschedule_config_refresh();
+            }
         } );
         Deprecated_Filters::load_deprecated_filters();
         if ( Environment::is_woocommerce_active() ) {
@@ -296,6 +305,8 @@ class WCPM {
             add_filter( 'plugin_action_links_' . PMW_PLUGIN_BASENAME, [$this, 'pmw_settings_link'] );
         }
         Deprecated_Filters::load_deprecated_filters();
+        // Register abilities with the WordPress Abilities API (WP 6.9+)
+        Abilities::init();
         // inject pixels into front end
         $this->inject_pixels();
     }

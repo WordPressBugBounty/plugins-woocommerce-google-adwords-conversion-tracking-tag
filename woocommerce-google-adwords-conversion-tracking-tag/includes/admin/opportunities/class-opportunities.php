@@ -147,81 +147,122 @@ class Opportunities {
 		return $opportunities;
 	}
 
+	/**
+	 * Get emoji based on impact level.
+	 *
+	 * @param string $impact The impact level (high, medium, low).
+	 * @return string The corresponding emoji.
+	 * @since 1.56.0
+	 */
+	private static function get_impact_emoji( $impact ) {
+		$impact_lower = strtolower($impact);
+
+		switch ($impact_lower) {
+			case 'high':
+				return '🚀';
+			case 'medium':
+				return '📈';
+			case 'low':
+				return '💡';
+			default:
+				return '💡';
+		}
+	}
+
+	/**
+	 * Get border color based on impact level.
+	 *
+	 * @param string $impact The impact level (high, medium, low).
+	 * @return string The corresponding hex color.
+	 * @since 1.56.0
+	 */
+	private static function get_impact_border_color( $impact ) {
+		$impact_lower = strtolower($impact);
+
+		switch ($impact_lower) {
+			case 'high':
+				return '#8b5cf6';
+			case 'medium':
+				return '#3b82f6';
+			case 'low':
+				return '#14b8a6';
+			default:
+				return '#2271b1';
+		}
+	}
+
 	public static function card_html( $card_data, $custom_middle_html = null ) {
 
-		$main_card_classes = [
-			'opportunity-card',
-		];
-
-		if ($card_data['dismissed']) {
-			$main_card_classes[] = 'dismissed';
-		}
+		$is_dismissed      = !empty($card_data['dismissed']);
+		$impact            = isset($card_data['impact']) ? $card_data['impact'] : 'low';
+		$impact_lower      = strtolower($impact);
+		$emoji             = self::get_impact_emoji($impact);
+		$border_color      = self::get_impact_border_color($impact);
+		$dismissed_opacity = $is_dismissed ? 'opacity: 0.7;' : '';
 
 		?>
 		<div class="pmw">
-			<div id="pmw-opportunity-<?php echo esc_html($card_data['id']); ?>"
-				 class="<?php echo esc_html(implode(' ', $main_card_classes)); ?>"
-			>
-				<!-- top -->
-				<div class="opportunity-card-top">
-					<div><b><?php echo esc_html($card_data['title']); ?></b></div>
-					<div class="opportunity-card-top-right">
-						<div class="opportunity-card-top-impact">
-							<?php esc_html_e('Impact', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>:
-						</div>
-						<div class="opportunity-card-top-impact-level impact-<?php echo esc_attr(strtolower($card_data['impact'])); ?>">
-							<?php echo esc_html($card_data['impact']); ?>
-						</div>
-					</div>
+			<div id="pmw-opportunity-<?php echo esc_attr($card_data['id']); ?>"
+				 class="notice notice-info inline opportunity-card-modern <?php echo $is_dismissed ? 'dismissed' : ''; ?>"
+				 style="padding: 0; display: flex; flex-direction: column; border-left-color: <?php echo esc_attr($border_color); ?>; margin: 10px 0; border-radius: 5px; <?php echo esc_attr($dismissed_opacity); ?>">
+
+				<!-- Top: Title and Impact Badge -->
+				<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px;">
+					<strong style="font-size: 14px; color: #1e1e1e;">
+						<?php echo esc_html($emoji); ?> <?php echo esc_html($card_data['title']); ?>
+					</strong>
+					<!-- Impact badge -->
+					<span class="opportunity-card-top-impact-level impact-<?php echo esc_attr($impact_lower); ?>"
+						  style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500;">
+						<?php
+						/* translators: %s: the impact level (High, Medium, Low) */
+						printf(esc_html__('Impact: %s', 'woocommerce-google-adwords-conversion-tracking-tag'), esc_html(ucfirst($impact)));
+						?>
+					</span>
 				</div>
 
-				<hr class="opportunity-card-hr">
+				<hr style="margin: 0; border: none; border-top: 1px solid #ddd;">
 
-				<!-- middle -->
-				<div class="opportunity-card-middle">
-
+				<!-- Middle: Description -->
+				<div style="padding: 12px 16px; color: #444; line-height: 1.5;">
 					<?php if (!empty($custom_middle_html)) : ?>
-						<?php echo esc_html($custom_middle_html); ?>
+						<?php echo wp_kses_post($custom_middle_html); ?>
 					<?php else : ?>
-						<?php foreach ($card_data['description'] as $description) : ?>
-							<p class="opportunity-card-description">
-								<?php echo wp_kses_post($description); ?>
-							</p>
+						<?php foreach ($card_data['description'] as $index => $description) : ?>
+							<span><?php echo wp_kses_post($description); ?></span>
+							<?php if ($index < count($card_data['description']) - 1) : ?>
+								<br><br>
+							<?php endif; ?>
 						<?php endforeach; ?>
 					<?php endif; ?>
-
 				</div>
 
-				<hr class="opportunity-card-hr">
+				<hr style="margin: 0; border: none; border-top: 1px solid #ddd;">
 
-				<!-- bottom -->
-				<div class="opportunity-card-bottom">
-
+				<!-- Bottom: Action buttons (aligned right) -->
+				<div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding: 12px 16px;">
 					<?php if (isset($card_data['setup_video'])) : ?>
-						<!-- Video Link-->
-						<div>
-							<script>
-								var script   = document.createElement("script");
-								script.async = true;
-								script.src   = 'https://fast.wistia.com/embed/medias/<?php echo esc_html($card_data['setup_video']); ?>.jsonp';
-								document.getElementsByTagName("head")[0].appendChild(script);
-							</script>
-
-							<div class="opportunities wistia_embed wistia_async_<?php echo esc_html($card_data['setup_video']); ?> popover=true popoverContent=link videoFoam=false"
-								 style="display:inline-block;height:123;position:relative;width:150;text-decoration: none; vertical-align: top;">
-								<span class="dashicons dashicons-video-alt3" style="font-size: 36px"></span>
-							</div>
+						<!-- Video Link -->
+						<script>
+							var script   = document.createElement("script");
+							script.async = true;
+							script.src   = 'https://fast.wistia.com/embed/medias/<?php echo esc_attr($card_data['setup_video']); ?>.jsonp';
+							document.getElementsByTagName("head")[0].appendChild(script);
+						</script>
+						<div class="opportunities wistia_embed wistia_async_<?php echo esc_attr($card_data['setup_video']); ?> popover=true popoverContent=link videoFoam=false"
+							 style="display: inline-flex; align-items: center; text-decoration: none; cursor: pointer;">
+							<span class="dashicons dashicons-video-alt3" style="font-size: 20px; width: 20px; height: 20px; margin-right: 4px;"></span>
+							<span style="color: #2271b1;"><?php esc_html_e('Watch Video', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></span>
 						</div>
 					<?php endif; ?>
 
 					<?php if (isset($card_data['setup_link'])) : ?>
-						<!-- Setup Link-->
-						<a class="opportunity-card-button-link"
-						   href="<?php echo esc_html($card_data['setup_link']); ?>"
+						<!-- Setup Link -->
+						<a href="<?php echo esc_url($card_data['setup_link']); ?>"
 						   target="_blank"
-						>
-							<div class="opportunity-card-bottom-button">
-								<?php esc_html_e('Setup', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+						   style="text-decoration: none; box-shadow: none;">
+							<div class="button button-primary" style="margin: 0;">
+								<?php esc_html_e('Setup', 'woocommerce-google-adwords-conversion-tracking-tag'); ?> ⚙️
 							</div>
 						</a>
 					<?php endif; ?>
@@ -229,7 +270,7 @@ class Opportunities {
 					<?php if (isset($card_data['custom_buttons']) && is_array($card_data['custom_buttons'])) : ?>
 						<?php foreach ($card_data['custom_buttons'] as $button) : ?>
 							<!-- Custom Button -->
-							<a class="opportunity-card-button-link <?php echo isset($button['class']) ? esc_attr($button['class']) : ''; ?>"
+							<a class="<?php echo isset($button['class']) ? esc_attr($button['class']) : ''; ?>"
 							   href="<?php echo isset($button['url']) ? esc_url($button['url']) : '#'; ?>"
 								<?php if (isset($button['target'])) : ?>
 									target="<?php echo esc_attr($button['target']); ?>"
@@ -239,42 +280,36 @@ class Opportunities {
 										data-<?php echo esc_attr($attr_name); ?>="<?php echo esc_attr($attr_value); ?>"
 									<?php endforeach; ?>
 								<?php endif; ?>
-							>
-								<div class="opportunity-card-bottom-button">
+							   style="text-decoration: none; box-shadow: none;">
+								<div class="button" style="margin: 0;">
 									<?php echo esc_html($button['label']); ?>
 								</div>
 							</a>
 						<?php endforeach; ?>
 					<?php endif; ?>
 
-
 					<?php if (isset($card_data['learn_more_link'])) : ?>
-						<!-- Learn More Link-->
-						<a class="opportunity-card-button-link"
-						   href="<?php echo esc_html($card_data['learn_more_link']); ?>"
+						<!-- Learn More Link -->
+						<a href="<?php echo esc_url($card_data['learn_more_link']); ?>"
 						   target="_blank"
-						>
-							<div class="opportunity-card-bottom-button">
+						   style="text-decoration: none; box-shadow: none;">
+							<div class="button" style="margin: 0;">
 								<?php esc_html_e('Learn more', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 							</div>
 						</a>
 					<?php endif; ?>
 
-					<?php if (empty($card_data['dismissed'])) : ?>
-						<!-- Dismiss Link-->
-						<a class="opportunity-card-button-link"
-						   href="#"
-						>
-							<div class="opportunity-dismiss opportunity-card-bottom-button"
-								 data-opportunity-id="<?php echo esc_html($card_data['id']); ?>">
-								<?php esc_html_e('Dismiss', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-							</div>
-						</a>
+					<?php if (!$is_dismissed) : ?>
+						<!-- Dismiss Link -->
+						<div class="button opportunity-dismiss"
+							 style="margin: 0;"
+							 data-opportunity-id="<?php echo esc_attr($card_data['id']); ?>">
+							<?php esc_html_e('Dismiss', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+						</div>
 					<?php endif; ?>
 				</div>
 			</div>
 		</div>
-
 		<?php
 	}
 

@@ -13,40 +13,40 @@ class ComposerStaticInitab770dc3559fd87d5167f1d33f2baf09
     );
 
     public static $prefixLengthsPsr4 = array (
-        'l' => 
+        'l' =>
         array (
             'libphonenumber\\' => 15,
         ),
-        'S' => 
+        'S' =>
         array (
             'Symfony\\Polyfill\\Mbstring\\' => 26,
             'Symfony\\Polyfill\\Iconv\\' => 23,
             'Swpm\\WoocommercePixelManager\\' => 29,
         ),
-        'G' => 
+        'G' =>
         array (
             'Giggsey\\Locale\\' => 15,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'libphonenumber\\' => 
+        'libphonenumber\\' =>
         array (
             0 => __DIR__ . '/..' . '/giggsey/libphonenumber-for-php/src',
         ),
-        'Symfony\\Polyfill\\Mbstring\\' => 
+        'Symfony\\Polyfill\\Mbstring\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-mbstring',
         ),
-        'Symfony\\Polyfill\\Iconv\\' => 
+        'Symfony\\Polyfill\\Iconv\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-iconv',
         ),
-        'Swpm\\WoocommercePixelManager\\' => 
+        'Swpm\\WoocommercePixelManager\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
-        'Giggsey\\Locale\\' => 
+        'Giggsey\\Locale\\' =>
         array (
             0 => __DIR__ . '/..' . '/giggsey/locale/src',
         ),

@@ -226,6 +226,18 @@ class Pixel_Manager {
             );
             add_action( 'woocommerce_mini_cart_contents', [$this, 'woocommerce_mini_cart_contents'] );
             add_action( 'woocommerce_new_order', [$this, 'pmw_woocommerce_new_order'] );
+            add_action(
+                'woocommerce_order_status_processing',
+                [$this, 'maybe_increase_conversion_count_for_ratings_on_status'],
+                10,
+                1
+            );
+            add_action(
+                'woocommerce_order_status_completed',
+                [$this, 'maybe_increase_conversion_count_for_ratings_on_status'],
+                10,
+                1
+            );
         }
         /**
          * Run background processes
@@ -319,7 +331,16 @@ class Pixel_Manager {
         exit;
     }
 
-    // Extracted the code because the QIT semgrep rule was triggered
+    /**
+     * Permission callback for REST API routes that require the user to have the capability to edit options.
+     *
+     * This function checks if the current user has the 'edit_options' capability, which is typically required
+     * for managing plugin settings. It is used as a permission callback for protected REST API routes.
+     * 
+     * Extracted the code because the QIT semgrep rule was triggered
+     * 
+     * @return bool Returns true if the current user can edit options, false otherwise.
+     */
     public function can_current_user_edit_options() {
         return Environment::can_current_user_edit_options();
     }
@@ -927,16 +948,28 @@ class Pixel_Manager {
         $data['tag_id'] = Google_Helpers::get_google_tag_id_information()['active'];
         $data['tag_id_suppressed'] = Google_Helpers::get_google_tag_id_information()['suppressed'];
         $data['tag_gateway']['measurement_path'] = Options::get_google_tag_gateway_measurement_path();
-        // Always include proxy_url for JavaScript detection to use as fallback
-        // Server-side detection cannot reliably detect Cloudflare because server-to-server
-        // requests bypass CDN/proxy layers. Let JavaScript detect the handler instead,
-        // since only the browser can correctly detect whether Cloudflare is intercepting.
+        // Pass server-detected handler hint to JavaScript for standalone/wordpress cases.
+        // Server-side detection cannot reliably detect Cloudflare (external) because
+        // server-to-server requests bypass CDN/proxy layers. For external detection,
+        // JavaScript must always check via browser request (Priority 1 in detectGtgHandler).
+        // For standalone/wordpress, the server hint prevents JS from hitting the standalone
+        // proxy health check — eliminating 503/4xx errors when the standalone proxy is
+        // unavailable (e.g., on hosts like WP Engine that block direct PHP file access).
         if ( Options::get_google_tag_gateway_measurement_path() ) {
-            $isolated_url = GTG_Proxy::get_isolated_proxy_url();
-            if ( $isolated_url ) {
-                $data['tag_gateway']['proxy_url'] = $isolated_url;
+            $handler = GTG_Config::get_handler();
+            // Only pass handler for standalone/wordpress — never for external
+            if ( in_array( $handler, ['standalone', 'wordpress'], true ) ) {
+                $data['tag_gateway']['handler'] = $handler;
             }
-            // Don't set handler - let JavaScript detect it via browser request
+            // Only include proxy_url when the server detected standalone
+            // When handler is 'wordpress', there's no point sending proxy_url
+            // since JS would just get a 503/403 trying to use it
+            if ( 'standalone' === $handler ) {
+                $isolated_url = GTG_Proxy::get_isolated_proxy_url();
+                if ( $isolated_url ) {
+                    $data['tag_gateway']['proxy_url'] = $isolated_url;
+                }
+            }
         }
         $data['tcf_support'] = Options::is_google_tcf_support_active();
         $data['consent_mode'] = [
@@ -1303,16 +1336,50 @@ class Pixel_Manager {
     }
 
     private function increase_conversion_count_for_ratings( $order ) {
-        if ( Shop::can_order_confirmation_be_processed( $order ) ) {
-            $ratings = get_option( PMW_DB_RATINGS );
-            if ( !isset( $ratings['conversions_count'] ) ) {
-                $ratings['conversions_count'] = 0;
-            }
-            $ratings['conversions_count'] = $ratings['conversions_count'] + 1;
-            update_option( PMW_DB_RATINGS, $ratings );
-        } else {
-            Shop::conversion_pixels_already_fired_html();
+        $this->maybe_increase_conversion_count_for_ratings( $order, true );
+    }
+
+    public function maybe_increase_conversion_count_for_ratings_on_status( $order_id ) {
+        if ( !function_exists( 'wc_get_order' ) ) {
+            return;
         }
+        $order = wc_get_order( $order_id );
+        $this->maybe_increase_conversion_count_for_ratings( $order, false );
+    }
+
+    private function maybe_increase_conversion_count_for_ratings( $order, $show_duplicate_notice ) {
+        if ( !$order ) {
+            return false;
+        }
+        if ( $this->rating_notice_already_counted( $order ) ) {
+            return false;
+        }
+        if ( !Shop::can_order_confirmation_be_processed( $order ) ) {
+            if ( $show_duplicate_notice ) {
+                Shop::conversion_pixels_already_fired_html();
+            }
+            return false;
+        }
+        $ratings = get_option( PMW_DB_RATINGS );
+        if ( !is_array( $ratings ) ) {
+            $ratings = [];
+        }
+        if ( !isset( $ratings['conversions_count'] ) ) {
+            $ratings['conversions_count'] = 0;
+        }
+        $ratings['conversions_count'] = $ratings['conversions_count'] + 1;
+        update_option( PMW_DB_RATINGS, $ratings );
+        $this->mark_rating_notice_counted( $order );
+        return true;
+    }
+
+    private function rating_notice_already_counted( $order ) {
+        return $order->meta_exists( '_pmw_rating_notice_counted' );
+    }
+
+    private function mark_rating_notice_counted( $order ) {
+        $order->update_meta_data( '_pmw_rating_notice_counted', true );
+        $order->save();
     }
 
     public function ajax_pmw_get_cart_items() {
@@ -1589,12 +1656,22 @@ class Pixel_Manager {
             'exclude_domains'            => apply_filters( 'pmw_exclude_domains_from_tracking', [] ),
             'server_2_server'            => [
                 'active'                      => Options::server_2_server_enabled(),
+                'skip_empty_events'           => Options::is_skip_empty_s2s_events_active(),
+                'always_send_s2s'             => Options::is_always_send_s2s_active(),
                 'user_agent_exclude_patterns' => apply_filters( 'pmw_exclude_user_agents_from_server_2_server_events', [] ),
                 'ip_exclude_list'             => apply_filters( 'pmw_exclude_ips_from_server_2_server_events', [] ),
                 'pageview_event_s2s'          => [
                     'is_active' => Options::is_pageview_events_s2s_active() && Options::server_2_server_enabled(),
                     'pixels'    => Options::pixels_that_require_s2s_pageview_events(),
                 ],
+            ],
+            'ssp'                        => [
+                'active'         => Options::is_ssp_active(),
+                'events_url'     => Options::get_ssp_events_url(),
+                'fallback_to_wc' => Options::get_ssp_proxy_failure_behavior() === 'fallback_to_wc',
+                'token'          => Options::get_ssp_verification_key(),
+                'session_id'     => Options::get_ssp_session_id(),
+                'quota_exceeded' => Options::is_ssp_quota_exceeded(),
             ],
             'consent_management'         => [
                 'explicit_consent' => Options::is_consent_management_explicit_consent_active(),

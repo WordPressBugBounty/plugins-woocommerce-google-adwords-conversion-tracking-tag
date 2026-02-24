@@ -104,6 +104,13 @@ class GTG_Proxy {
 	private static $fps_path_placeholder = 'PHP_GTG_REPLACE_PATH';
 
 	/**
+	 * WP-Cron hook name for periodic config refresh
+	 *
+	 * @since 1.57.0
+	 */
+	const CRON_HOOK = 'pmw_gtg_config_refresh';
+
+	/**
 	 * Initialize the proxy - called from Pixel_Manager
 	 *
 	 * @return void
@@ -121,6 +128,44 @@ class GTG_Proxy {
 		
 		// Ensure isolated proxy file exists and is up to date
 		add_action('init', [ __CLASS__, 'ensure_isolated_proxy_file' ], 21);
+
+		// Schedule periodic config refresh via WP-Cron (every 24 hours)
+		// This keeps the standalone proxy config fresh without relying on settings saves or plugin updates
+		self::schedule_config_refresh();
+
+		// Register the cron callback
+		add_action( self::CRON_HOOK, [ __CLASS__, 'update_proxy_config_cache' ] );
+	}
+
+	/**
+	 * Schedule the periodic config refresh cron event
+	 *
+	 * Schedules a daily WP-Cron event to refresh the standalone proxy config.
+	 * The standalone proxy has a 7-day hard TTL as a safety net, but this cron
+	 * keeps the config fresh under normal conditions.
+	 *
+	 * @return void
+	 * @since 1.57.0
+	 */
+	private static function schedule_config_refresh() {
+		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
+			wp_schedule_event( time(), 'daily', self::CRON_HOOK );
+		}
+	}
+
+	/**
+	 * Unschedule the periodic config refresh cron event
+	 *
+	 * Called on plugin deactivation to clean up scheduled events.
+	 *
+	 * @return void
+	 * @since 1.57.0
+	 */
+	public static function unschedule_config_refresh() {
+		$timestamp = wp_next_scheduled( self::CRON_HOOK );
+		if ( $timestamp ) {
+			wp_unschedule_event( $timestamp, self::CRON_HOOK );
+		}
 	}
 
 	/**
@@ -1411,16 +1456,21 @@ class GTG_Proxy {
 	/**
 	 * Get the GTG config directory path in wp-content/uploads
 	 *
+	 * Uses WP_CONTENT_DIR directly instead of wp_upload_dir() to ensure
+	 * a consistent, network-wide path on multisite installations.
+	 * wp_upload_dir() returns site-specific paths on multisite subsites
+	 * (e.g., wp-content/uploads/sites/2/), but the standalone proxy
+	 * only looks in wp-content/uploads/pmw-gtg/.
+	 *
 	 * @return string|false Config directory path or false on failure.
 	 *
 	 * @since 1.56.0
 	 */
 	public static function get_config_directory() {
-		$upload_dir = wp_upload_dir();
-		if ( ! isset( $upload_dir['basedir'] ) ) {
+		if ( ! defined( 'WP_CONTENT_DIR' ) ) {
 			return false;
 		}
-		return $upload_dir['basedir'] . '/pmw-gtg';
+		return WP_CONTENT_DIR . '/uploads/pmw-gtg';
 	}
 
 	/**
@@ -1591,11 +1641,12 @@ class GTG_Proxy {
 	 * @return bool True on success, false on failure.
 	 */
 	public static function update_proxy_config_cache() {
-		// Get upload directory for logging path reference
-		$upload_dir    = wp_upload_dir();
+		// Get log directory path using WP_CONTENT_DIR for multisite consistency
+		// wp_upload_dir() returns site-specific paths on multisite, but we need
+		// a predictable path that the standalone proxy can use
 		$log_directory = '';
-		if ( isset( $upload_dir['basedir'] ) ) {
-			$log_directory = $upload_dir['basedir'] . '/pmw-logs';
+		if ( defined( 'WP_CONTENT_DIR' ) ) {
+			$log_directory = WP_CONTENT_DIR . '/uploads/pmw-logs';
 		}
 
 		// Get config file path (in uploads directory)
@@ -1615,6 +1666,13 @@ class GTG_Proxy {
 				@unlink( $config_file );
 			}
 			self::update_site_map( $site_identifier, $config_filename, true );
+
+			// Also clean up fallback config in plugin directory
+			$fallback_config = __DIR__ . '/pmw-gtg-config/' . $config_filename;
+			if ( file_exists( $fallback_config ) ) {
+				@unlink( $fallback_config );
+			}
+
 			return true;
 		}
 
@@ -1657,6 +1715,7 @@ class GTG_Proxy {
 			'logging_enabled'  => $logging_enabled,
 			'log_level'        => $log_level,
 			'log_directory'    => $log_directory,
+			'wp_content_dir'   => defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : '',
 			'updated'          => time(),
 		];
 
@@ -1706,11 +1765,107 @@ class GTG_Proxy {
 		// Update site map with this site's entry
 		if ( $result ) {
 			self::update_site_map( $site_identifier, $config_filename );
+
+			// Also write a fallback copy to the plugin directory
+			// The standalone proxy can always find __DIR__ reliably, even on hosts
+			// with non-standard directory layouts (symlinks, WP Engine, etc.)
+			// This is a redundant fallback — the uploads directory is the primary location.
+			self::write_fallback_config( $new_config_json, $config_filename, $site_identifier );
 		}
 
 		return $result;
 	}
-	
+
+	/**
+	 * Write a fallback copy of the config to the plugin directory
+	 *
+	 * The standalone proxy (pmw-gtg-proxy.php) lives in the same directory
+	 * and can always locate __DIR__ reliably, unlike wp-content/uploads/
+	 * which requires heuristic path discovery that can fail on non-standard hosts.
+	 *
+	 * This fallback config is deleted during plugin updates but gets recreated
+	 * by update_proxy_config_cache() which runs on upgrader_process_complete.
+	 *
+	 * @param string $config_json     JSON-encoded config.
+	 * @param string $config_filename Config filename (e.g., "config-1.json").
+	 * @param string $site_identifier Site identifier for the site map.
+	 * @return bool True on success, false on failure.
+	 *
+	 * @since 1.57.0
+	 */
+	private static function write_fallback_config( $config_json, $config_filename, $site_identifier ) {
+		$fallback_dir = __DIR__ . '/pmw-gtg-config';
+
+		// Create fallback directory if it doesn't exist
+		if ( ! file_exists( $fallback_dir ) ) {
+			if ( ! wp_mkdir_p( $fallback_dir ) ) {
+				return false;
+			}
+
+			// Security files to prevent direct access to config
+			$htaccess_file = $fallback_dir . '/.htaccess';
+			if ( ! file_exists( $htaccess_file ) ) {
+				file_put_contents( $htaccess_file, "deny from all\n", LOCK_EX );
+			}
+
+			$index_file = $fallback_dir . '/index.php';
+			if ( ! file_exists( $index_file ) ) {
+				file_put_contents( $index_file, "<?php\n// Silence is golden.\n", LOCK_EX );
+			}
+		}
+
+		// Write config file
+		$fallback_config_file = $fallback_dir . '/' . $config_filename;
+		$temp_file            = $fallback_config_file . '.tmp.' . uniqid();
+		$result               = false;
+
+		if ( false !== file_put_contents( $temp_file, $config_json, LOCK_EX ) ) {
+			clearstatcache( true, $temp_file );
+			if ( file_exists( $temp_file ) ) {
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Silencing rename errors to prevent warnings in edge cases
+				$result = @rename( $temp_file, $fallback_config_file );
+			}
+			clearstatcache( true, $temp_file );
+			if ( ! $result && file_exists( $temp_file ) ) {
+				@unlink( $temp_file );
+			}
+		}
+
+		// Write fallback site map
+		if ( $result ) {
+			$site_map_file = $fallback_dir . '/site-map.json';
+			$site_map      = [];
+
+			if ( file_exists( $site_map_file ) ) {
+				$content = file_get_contents( $site_map_file );
+				if ( false !== $content ) {
+					$decoded = json_decode( $content, true );
+					if ( is_array( $decoded ) ) {
+						$site_map = $decoded;
+					}
+				}
+			}
+
+			$site_map[ $site_identifier ] = $config_filename;
+			$site_map_json                = wp_json_encode( $site_map, JSON_PRETTY_PRINT );
+			$temp_file                    = $site_map_file . '.tmp.' . uniqid();
+
+			if ( false !== file_put_contents( $temp_file, $site_map_json, LOCK_EX ) ) {
+				clearstatcache( true, $temp_file );
+				if ( file_exists( $temp_file ) ) {
+					// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+					@rename( $temp_file, $site_map_file );
+				}
+				clearstatcache( true, $temp_file );
+				if ( file_exists( $temp_file ) ) {
+					@unlink( $temp_file );
+				}
+			}
+		}
+
+		return $result;
+	}
+
 	/**
 	 * Check if the isolated proxy file exists
 	 *

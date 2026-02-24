@@ -72,6 +72,7 @@ if ( function_exists( 'wpm_fs' ) ) {
         wpm_fs()->add_filter( 'after_skip_url', 'pmw_fs_settings_url' );
         wpm_fs()->add_filter( 'after_connect_url', 'pmw_fs_settings_url' );
         wpm_fs()->add_filter( 'after_pending_connect_url', 'pmw_fs_settings_url' );
+        wpm_fs()->add_filter( 'show_deactivation_subscription_cancellation', '__return_false' );
     }
     // Run the PMW loader
     require_once 'pmw-loader.php';

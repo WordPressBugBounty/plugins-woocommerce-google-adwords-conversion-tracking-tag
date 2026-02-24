@@ -241,9 +241,10 @@ class GTG_Config {
 
 		// If config file already exists and is not too old, skip
 		if ( file_exists( $config_file ) ) {
-			// Check if it's not expired (24 hours)
+			// Check if it's not expired (7 days — matches standalone proxy TTL)
+			// WP-Cron refreshes every 24h, this is a safety net
 			$file_age = time() - filemtime( $config_file );
-			if ( $file_age < DAY_IN_SECONDS ) {
+			if ( $file_age < 7 * DAY_IN_SECONDS ) {
 				return;
 			}
 		}

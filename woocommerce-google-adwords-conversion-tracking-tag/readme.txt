@@ -4,7 +4,7 @@ Tags: woocommerce, google analytics, conversion tracking, facebook pixel, tiktok
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.56.0
+Stable tag: 1.57.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -326,6 +326,18 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.57.0  =
+*Release date - 24.02.2026*
+
+* New: Implemented account created event tracking
+* New: Added Abilities API integration 
+* Tweak: Implement cross-tab session synchronization for improved data consistency
+* Tweak: Added modern styling and impact indicators to opportunity cards
+* Tweak: Bumped up WC version compatibility to 10.5
+* Tweak: Enhanced GTG Proxy: Improved config resilience, reduced unnecessary health check requests, and added periodic config refresh
+* Tweak: Implemented REST API for saving settings via AJAX; refactored admin tabs and enhance section rendering
+* Tweak: Update styles for impact badges and add Google Automated Discounts and Customer Reviews opportunities
 
 = 1.56.0  =
 *Release date - 02.02.2026*

@@ -187,19 +187,19 @@ class Trial_Promotion_Notification extends Notification {
 				</div>
 
 				<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #e6fffa; border: 1px solid #48bb78; color: #276749;">
+					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
 						<span class="dashicons dashicons-yes-alt" style="font-size: 14px; width: 14px; height: 14px; margin-right: 4px;"></span>
 						<?php esc_html_e('Server-side APIs (CAPI)', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 					</span>
-					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #e6fffa; border: 1px solid #48bb78; color: #276749;">
+					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
 						<span class="dashicons dashicons-yes-alt" style="font-size: 14px; width: 14px; height: 14px; margin-right: 4px;"></span>
 						<?php esc_html_e('Enhanced Conversions', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 					</span>
-					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #e6fffa; border: 1px solid #48bb78; color: #276749;">
+					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
 						<span class="dashicons dashicons-yes-alt" style="font-size: 14px; width: 14px; height: 14px; margin-right: 4px;"></span>
 						<?php esc_html_e('10+ Ad Platforms', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 					</span>
-					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #e6fffa; border: 1px solid #48bb78; color: #276749;">
+					<span style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
 						<span class="dashicons dashicons-yes-alt" style="font-size: 14px; width: 14px; height: 14px; margin-right: 4px;"></span>
 						<?php esc_html_e('Refund Tracking', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 					</span>

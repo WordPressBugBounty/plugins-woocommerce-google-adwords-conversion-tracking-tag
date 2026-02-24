@@ -911,6 +911,7 @@ class Validations {
 					],
 				],
 			],
+			'ssp'        => isset(Options::get_options()['ssp']) ? Options::get_options()['ssp'] : [],
 		];
 
 		// in case the form field input is missing

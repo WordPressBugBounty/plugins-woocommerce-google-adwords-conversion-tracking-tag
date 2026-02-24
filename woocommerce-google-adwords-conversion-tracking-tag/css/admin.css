@@ -319,6 +319,17 @@ a.advanced-section-link {
     box-sizing: content-box;
 }
 
+/* Modern opportunity card styling (matching trial/rating notifications) */
+.pmw .opportunity-card-modern {
+    background-color: #ffffff;
+    border-radius: 0;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.pmw .opportunity-card-modern.dismissed {
+    opacity: 0.6;
+}
+
 .pmw .opportunity-card,
 .pmw .notification-card {
     display: flex;
@@ -394,23 +405,23 @@ a.advanced-section-link {
 
 .pmw .opportunity-card-top-impact-level.impact-high,
 .pmw .notification-card-top-impact-level.impact-high {
-    background: #fde8e8;
-    border-color: #f56565;
-    color: #c53030;
+    background: #f3e8ff;
+    border-color: #8b5cf6;
+    color: #5b21b6;
 }
 
 .pmw .opportunity-card-top-impact-level.impact-medium,
 .pmw .notification-card-top-impact-level.impact-medium {
-    background: #fef3c7;
-    border-color: #f6ad55;
-    color: #c05621;
+    background: #dbeafe;
+    border-color: #3b82f6;
+    color: #1e40af;
 }
 
 .pmw .opportunity-card-top-impact-level.impact-low,
 .pmw .notification-card-top-impact-level.impact-low {
-    background: #e6fffa;
-    border-color: #48bb78;
-    color: #276749;
+    background: #ccfbf1;
+    border-color: #14b8a6;
+    color: #0f766e;
 }
 
 .pmw .opportunity-card-middle,
@@ -532,42 +543,42 @@ a.advanced-section-link {
 }
 
 .pmw .pmw-stat-card.impact-high {
-    background: #fde8e8;
-    border-color: #f56565;
+    background: #f3e8ff;
+    border-color: #8b5cf6;
 }
 
 .pmw .pmw-stat-card.impact-high .pmw-stat-card-count {
-    color: #c53030;
+    color: #5b21b6;
 }
 
 .pmw .pmw-stat-card.impact-high .pmw-stat-card-label {
-    color: #c53030;
+    color: #5b21b6;
 }
 
 .pmw .pmw-stat-card.impact-medium {
-    background: #fef3c7;
-    border-color: #f6ad55;
+    background: #dbeafe;
+    border-color: #3b82f6;
 }
 
 .pmw .pmw-stat-card.impact-medium .pmw-stat-card-count {
-    color: #c05621;
+    color: #1e40af;
 }
 
 .pmw .pmw-stat-card.impact-medium .pmw-stat-card-label {
-    color: #c05621;
+    color: #1e40af;
 }
 
 .pmw .pmw-stat-card.impact-low {
-    background: #e6fffa;
-    border-color: #48bb78;
+    background: #ccfbf1;
+    border-color: #14b8a6;
 }
 
 .pmw .pmw-stat-card.impact-low .pmw-stat-card-count {
-    color: #276749;
+    color: #0f766e;
 }
 
 .pmw .pmw-stat-card.impact-low .pmw-stat-card-label {
-    color: #276749;
+    color: #0f766e;
 }
 
 .pmw .pmw-stat-card.dismissed {
@@ -1186,4 +1197,194 @@ body.pmw-chatbot-open #wpfooter {
     padding: 3px 8px;
     border-radius: 20px;
     font-size: 13px;
+}
+
+/* ─── SSE (Server-Side Events) Tab ──────────────────────── */
+
+.pmw-sse-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    max-width: 800px;
+}
+
+.pmw-sse-card > h3 {
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+
+.pmw-sse-card-description {
+    color: #666;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+.pmw-sse-card .form-table {
+    margin-top: 0;
+}
+
+/* ─── SSP (Server-Side Proxy) Section ─────────────────── */
+
+.pmw-ssp-container > .pmw-section-description {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+/* Setup wizard steps */
+.pmw-ssp-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 0;
+}
+
+.pmw-ssp-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+    position: relative;
+}
+
+.pmw-ssp-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 40px;
+    bottom: -4px;
+    width: 2px;
+    background-color: #ddd;
+}
+
+.pmw-ssp-step.completed:not(:last-child)::after {
+    background-color: #2e7d32;
+}
+
+.pmw-ssp-step-indicator {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    border: 2px solid #ddd;
+    color: #999;
+    background: #fff;
+    position: relative;
+    z-index: 1;
+}
+
+.pmw-ssp-step.completed .pmw-ssp-step-indicator {
+    background: #2e7d32;
+    border-color: #2e7d32;
+    color: #fff;
+}
+
+.pmw-ssp-step.current .pmw-ssp-step-indicator {
+    border-color: #0073aa;
+    color: #0073aa;
+    background: #f0f6fc;
+}
+
+.pmw-ssp-step-content {
+    flex: 1;
+    padding-top: 4px;
+}
+
+.pmw-ssp-step-content strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.pmw-ssp-step-content p {
+    margin: 0;
+    color: #666;
+    font-size: 13px;
+}
+
+.pmw-ssp-step.pending .pmw-ssp-step-content strong,
+.pmw-ssp-step.pending .pmw-ssp-step-content p {
+    color: #bbb;
+}
+
+/* Status badges */
+.pmw-ssp-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.pmw-ssp-badge--active,
+.pmw-ssp-badge--synced {
+    background-color: #e6fffa;
+    border: 1px solid #81c784;
+    color: #2e7d32;
+}
+
+.pmw-ssp-badge--pending_dns,
+.pmw-ssp-badge--waiting_config {
+    background-color: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+}
+
+.pmw-ssp-badge--disabled,
+.pmw-ssp-badge--deleted,
+.pmw-ssp-badge--sync_error,
+.pmw-ssp-badge--inactive {
+    background-color: #fde8e8;
+    border: 1px solid #f56565;
+    color: #c53030;
+}
+
+.pmw-ssp-badge--unknown {
+    background-color: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    color: #626262;
+}
+
+/* Compact status table rows */
+.pmw-ssp-status-section .form-table th,
+.pmw-ssp-status-section .form-table td {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    line-height: 1.6;
+    vertical-align: middle;
+}
+
+.pmw-ssp-error-text {
+    color: #c53030;
+    font-size: 13px;
+}
+
+/* SSP action buttons result messages */
+.pmw-ssp-msg-success {
+    color: #2e7d32;
+    font-weight: 500;
+}
+
+.pmw-ssp-msg-error {
+    color: #c53030;
+    font-weight: 500;
+}
+
+.pmw-ssp-msg-loading {
+    color: #666;
+    font-style: italic;
 }
