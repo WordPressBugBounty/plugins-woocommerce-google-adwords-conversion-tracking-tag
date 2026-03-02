@@ -113,6 +113,7 @@ class Documentation {
 			'restricted_consent_regions'                        => '/docs/pmw/consent-management/overview#explicit-consent-regions',
 			'script_blockers'                                   => '/docs/pmw/setup/script-blockers/',
 			'scroll_tracker_threshold'                          => '/docs/pmw/plugin-configuration/general-settings/#scroll-tracker',
+			'ssp'                                               => '/docs/pmw/plugin-configuration/sweetcode-cloud',
 			'snapchat_advanced_matching'                        => '/docs/pmw/plugin-configuration/snapchat#advanced-matching',
 			'snapchat_capi_token'                               => '/docs/pmw/plugin-configuration/snapchat#conversions-api',
 			'snapchat_pixel_id'                                 => '/docs/pmw/plugin-configuration/snapchat',

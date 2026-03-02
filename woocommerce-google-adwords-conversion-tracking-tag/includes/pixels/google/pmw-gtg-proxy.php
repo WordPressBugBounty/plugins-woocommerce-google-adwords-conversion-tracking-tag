@@ -526,6 +526,24 @@ final class PMW_GTG_Proxy_Standalone {
 				exit( 'Invalid tag ID' );
 			}
 
+			// Detect secondary Google Tag requests (same logic as in handle_direct_access_request)
+			if ( ! empty( $s_path ) && '?' === $s_path[0] ) {
+				parse_str( ltrim( $s_path, '?' ), $s_params );
+				if ( ! empty( $s_params['id'] ) && self::is_valid_google_tag_id( $s_params['id'] ) ) {
+					$secondary_tag_id = self::sanitize_tag_id( $s_params['id'] );
+					self::log(
+						'Detected secondary Google Tag request (measurement path)',
+						[
+							'routing_tag_id'   => $tag_id,
+							'secondary_tag_id' => $secondary_tag_id,
+							's_path'           => $s_path,
+						],
+						'info'
+					);
+					$tag_id = $secondary_tag_id;
+				}
+			}
+
 			// Get request body for POST requests
 			$body = '';
 			if ( 'POST' === $method ) {
@@ -676,6 +694,29 @@ final class PMW_GTG_Proxy_Standalone {
 			self::log( 'Invalid tag ID format in direct access', [ 'tag_id' => $tag_id ], 'warning' );
 			http_response_code( 400 );
 			exit( 'Invalid tag ID' );
+		}
+
+		// Detect secondary Google Tag requests
+		// When gtag.js constructs secondary config URLs, the s parameter contains only a query string
+		// (e.g., s=?id=G-xxx&cx=c) with no path segment. In this case, extract the real tag ID from
+		// the s parameter and use it as the FPS hostname, mirroring the WordPress proxy's
+		// handle_secondary_google_request() behavior.
+		if ( ! empty( $s_path ) && '?' === $s_path[0] ) {
+			parse_str( ltrim( $s_path, '?' ), $s_params );
+			if ( ! empty( $s_params['id'] ) && self::is_valid_google_tag_id( $s_params['id'] ) ) {
+				$secondary_tag_id = self::sanitize_tag_id( $s_params['id'] );
+				self::log(
+					'Detected secondary Google Tag request',
+					[
+						'routing_tag_id'   => $tag_id,
+						'secondary_tag_id' => $secondary_tag_id,
+						's_path'           => $s_path,
+					],
+					'info'
+				);
+				// Use the secondary tag ID for the FPS hostname
+				$tag_id = $secondary_tag_id;
+			}
 		}
 
 		// Build destination path

@@ -69,6 +69,9 @@ class WCPM {
             if ( class_exists( '\\SweetCode\\Pixel_Manager\\Pixels\\Google\\GTG_Proxy' ) ) {
                 \SweetCode\Pixel_Manager\Pixels\Google\GTG_Proxy::unschedule_config_refresh();
             }
+            // Flush rewrite rules once on deactivation to clean up any stale rules
+            // that may have been registered by earlier versions of the GTG proxy code
+            flush_rewrite_rules();
         } );
         Deprecated_Filters::load_deprecated_filters();
         if ( Environment::is_woocommerce_active() ) {
@@ -380,6 +383,9 @@ class WCPM {
         Helpers::declare_woocommerce_compatibility( 'custom_order_tables' );
         // Declare Cart and Checkout Blocks compatibility
         Helpers::declare_woocommerce_compatibility( 'cart_checkout_blocks' );
+        // Declare Product Instance Caching compatibility
+        // https://developer.woocommerce.com/2026/01/19/experimental-product-object-caching-in-woocommerce-10-5/
+        Helpers::declare_woocommerce_compatibility( 'product_instance_caching' );
     }
 
 }

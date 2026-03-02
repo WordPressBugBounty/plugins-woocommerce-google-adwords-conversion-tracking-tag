@@ -377,6 +377,37 @@ class Opportunities {
 	}
 
 	/**
+	 * Check if any available, non-dismissed opportunity has a `since`
+	 * timestamp newer than the given timestamp.
+	 *
+	 * Used by the dashboard notification to re-show when new opportunities
+	 * are added after a user previously dismissed the notification.
+	 *
+	 * @param int $timestamp Unix timestamp to compare against.
+	 *
+	 * @return bool True if at least one qualifying opportunity is newer.
+	 * @since 1.57.1
+	 */
+	public static function has_opportunities_newer_than( $timestamp ) {
+
+		foreach ( self::get_opportunities() as $opportunity ) {
+			if ( class_exists( $opportunity ) ) {
+				if (
+					$opportunity::available()
+					&& $opportunity::is_not_dismissed()
+				) {
+					$card_data = $opportunity::card_data();
+					if ( isset( $card_data['since'] ) && $card_data['since'] > $timestamp ) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Count the number of active (non-dismissed) opportunities.
 	 *
 	 * @return int The count of active opportunities.

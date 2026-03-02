@@ -1656,23 +1656,16 @@ class Pixel_Manager {
             'exclude_domains'            => apply_filters( 'pmw_exclude_domains_from_tracking', [] ),
             'server_2_server'            => [
                 'active'                      => Options::server_2_server_enabled(),
-                'skip_empty_events'           => Options::is_skip_empty_s2s_events_active(),
+                'skip_empty_events'           => true,
                 'always_send_s2s'             => Options::is_always_send_s2s_active(),
                 'user_agent_exclude_patterns' => apply_filters( 'pmw_exclude_user_agents_from_server_2_server_events', [] ),
-                'ip_exclude_list'             => apply_filters( 'pmw_exclude_ips_from_server_2_server_events', [] ),
+                'ip_exclude_list'             => Geolocation::get_ip_exclusion_list(),
                 'pageview_event_s2s'          => [
                     'is_active' => Options::is_pageview_events_s2s_active() && Options::server_2_server_enabled(),
                     'pixels'    => Options::pixels_that_require_s2s_pageview_events(),
                 ],
             ],
-            'ssp'                        => [
-                'active'         => Options::is_ssp_active(),
-                'events_url'     => Options::get_ssp_events_url(),
-                'fallback_to_wc' => Options::get_ssp_proxy_failure_behavior() === 'fallback_to_wc',
-                'token'          => Options::get_ssp_verification_key(),
-                'session_id'     => Options::get_ssp_session_id(),
-                'quota_exceeded' => Options::is_ssp_quota_exceeded(),
-            ],
+            'ssp'                        => self::get_ssp_data_layer_config(),
             'consent_management'         => [
                 'explicit_consent' => Options::is_consent_management_explicit_consent_active(),
             ],
@@ -1684,6 +1677,34 @@ class Pixel_Manager {
             $data['consent_management']['restricted_regions'] = Options::get_restricted_consent_regions();
         }
         return $data;
+    }
+
+    /**
+     * Build the SSP data layer config, accounting for additional domains.
+     *
+     * If the current request is served on an additional SSP domain (registered
+     * via the pmw_ssp_additional_domains filter), the events URL and verification
+     * token are swapped to that domain's values.
+     *
+     * @return array SSP config for the pmwDataLayer.
+     * @since 1.57.1
+     */
+    private static function get_ssp_data_layer_config() {
+        $config = [
+            'active'         => Options::is_ssp_active(),
+            'events_url'     => Options::get_ssp_events_url(),
+            'fallback_to_wc' => Options::get_ssp_proxy_failure_behavior() === 'fallback_to_wc',
+            'token'          => Options::get_ssp_verification_key(),
+            'session_id'     => Options::get_ssp_session_id(),
+            'quota_exceeded' => Options::is_ssp_quota_exceeded(),
+        ];
+        // Check if the current request matches an additional SSP domain
+        $additional_domain = Options::get_matching_ssp_additional_domain();
+        if ( $additional_domain ) {
+            $config['events_url'] = 'https://' . $additional_domain['proxy_hostname'] . '/v1/pmw-events';
+            $config['token'] = Options::get_ssp_additional_domain_verification_key( $additional_domain['proxy_hostname'] );
+        }
+        return $config;
     }
 
     /**

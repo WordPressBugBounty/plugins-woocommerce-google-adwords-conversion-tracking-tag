@@ -269,7 +269,6 @@ class Options {
 					'log_http_requests' => false,
 				],
 				'pageview_events_s2s'        => false,
-				'skip_empty_s2s_events'      => true,
 				'always_send_s2s'            => false,
 				'modules'                    => [
 					'load_deprecated_functions' => true,
@@ -293,6 +292,7 @@ class Options {
 				'monthly_request_limit'   => 0,
 				'billable_this_period'    => 0,
 				'quota_exceeded'          => false,
+				'additional_domain_keys'  => [], // Keyed by proxy_hostname, stores verification_key + resync_callback_token
 			],
 			'db_version' => PMW_DB_VERSION,
 			'timestamp'  => null, // This will be set when the options are saved
@@ -974,21 +974,22 @@ class Options {
 	}
 
 	public static function is_pageview_events_s2s_active() {
-		return (bool) self::get_options_obj()->general->pageview_events_s2s;
+		return (bool) self::get_options_obj()->general->pageview_events_s2s
+			|| self::is_pageview_events_s2s_active_override();
 	}
 
 	/**
-	 * Check if empty S2S events should be skipped.
+	 * Check if pageview S2S is force-enabled by an external condition.
 	 *
-	 * When enabled, server-side events that have no destination platform data
-	 * (e.g., no Facebook, TikTok, etc.) will not be sent to the server,
-	 * reducing unnecessary load.
+	 * Returns true when the SweetCode Server-Side Proxy is active,
+	 * because pageview events can be offloaded to the proxy without
+	 * adding load to the WooCommerce server.
 	 *
 	 * @return bool
-	 * @since 1.57.0
+	 * @since 1.57.1
 	 */
-	public static function is_skip_empty_s2s_events_active() {
-		return (bool) self::get_options_obj()->general->skip_empty_s2s_events;
+	public static function is_pageview_events_s2s_active_override() {
+		return self::is_ssp_active();
 	}
 
 	/**
@@ -1134,6 +1135,41 @@ class Options {
 		}
 
 		if (self::is_reddit_active()) {
+			$pixels[] = 'reddit';
+		}
+
+		return $pixels;
+	}
+
+	/**
+	 * Returns the list of pixels that have active server-to-server (S2S/CAPI) tracking.
+	 *
+	 * Checks Facebook CAPI, TikTok Events API, Pinterest API for Conversions,
+	 * Snapchat CAPI, and Reddit CAPI.
+	 *
+	 * @return string[] Array of pixel slugs with active S2S.
+	 * @since 1.57.1
+	 */
+	public static function pixels_with_active_s2s() {
+		$pixels = [];
+
+		if (self::is_facebook_capi_active()) {
+			$pixels[] = 'facebook';
+		}
+
+		if (self::is_tiktok_eapi_active()) {
+			$pixels[] = 'tiktok';
+		}
+
+		if (self::is_pinterest_apic_active()) {
+			$pixels[] = 'pinterest';
+		}
+
+		if (self::is_snapchat_capi_active()) {
+			$pixels[] = 'snapchat';
+		}
+
+		if (self::is_reddit_capi_active()) {
 			$pixels[] = 'reddit';
 		}
 
@@ -1481,6 +1517,27 @@ class Options {
 	}
 
 	/**
+	 * Check if the SSP is configured (enabled with a sync token) but not
+	 * necessarily fully operational.
+	 *
+	 * Unlike is_ssp_active(), this does NOT require routing_status or
+	 * config_status to have reached their final states. Used by the daily
+	 * sync scheduler so that background syncs can still run while DNS is
+	 * propagating or config is pending — allowing those statuses to
+	 * self-heal.
+	 *
+	 * @return bool
+	 * @since 1.57.1
+	 */
+	public static function is_ssp_configured() {
+		$options = self::get_options();
+
+		return
+			!empty($options['ssp']['enabled'])
+			&& !empty($options['ssp']['sync_token']);
+	}
+
+	/**
 	 * Get the SSP proxy hostname.
 	 *
 	 * @return string The proxy hostname (e.g. "ssp.myshop.com")
@@ -1609,6 +1666,89 @@ class Options {
 		}
 
 		return $session_id;
+	}
+
+	/**
+	 * Get additional SSP domain configurations from filter.
+	 *
+	 * Allows a single WordPress instance serving multiple domains to connect
+	 * each domain to its own SSP proxy. The primary domain uses the standard
+	 * SSP options; additional domains are registered via this filter.
+	 *
+	 * Each entry must contain:
+	 * - 'sync_token'     (string) The domain sync token from the SSP portal.
+	 * - 'proxy_hostname' (string) The SSP proxy hostname (e.g. 'ssp.otherdomain.com').
+	 * - 'shop_origin'    (string) The full origin URL (e.g. 'https://otherdomain.com').
+	 *
+	 * @return array[] Validated array of additional domain configs.
+	 * @since 1.57.1
+	 */
+	public static function get_ssp_additional_domains() {
+
+		/**
+		 * Filter to register additional SSP domains for multi-domain WordPress installs.
+		 *
+		 * @param array[] $domains Array of domain config arrays.
+		 */
+		$domains = apply_filters( 'pmw_ssp_additional_domains', [] );
+
+		if ( empty( $domains ) || ! is_array( $domains ) ) {
+			return [];
+		}
+
+		// Validate each entry
+		$validated = [];
+		foreach ( $domains as $domain ) {
+			if (
+				! empty( $domain['sync_token'] )
+				&& ! empty( $domain['proxy_hostname'] )
+				&& ! empty( $domain['shop_origin'] )
+			) {
+				$validated[] = $domain;
+			}
+		}
+
+		return $validated;
+	}
+
+	/**
+	 * Find an additional SSP domain config matching the current request host.
+	 *
+	 * @return array|null The matching domain config, or null if no match.
+	 * @since 1.57.1
+	 */
+	public static function get_matching_ssp_additional_domain() {
+
+		$additional_domains = self::get_ssp_additional_domains();
+
+		if ( empty( $additional_domains ) ) {
+			return null;
+		}
+
+		$current_host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+
+		foreach ( $additional_domains as $domain ) {
+			$origin_host = wp_parse_url( $domain['shop_origin'], PHP_URL_HOST );
+			if ( $origin_host && strcasecmp( $current_host, $origin_host ) === 0 ) {
+				return $domain;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Get the stored verification key for an additional SSP domain.
+	 *
+	 * @param string $proxy_hostname The proxy hostname to look up.
+	 *
+	 * @return string The verification key, or empty string.
+	 * @since 1.57.1
+	 */
+	public static function get_ssp_additional_domain_verification_key( $proxy_hostname ) {
+		$options = self::get_options();
+		$keys    = isset( $options['ssp']['additional_domain_keys'][ $proxy_hostname ] ) ? $options['ssp']['additional_domain_keys'][ $proxy_hostname ] : [];
+		return isset( $keys['verification_key'] ) ? $keys['verification_key'] : '';
 	}
 
 	/**

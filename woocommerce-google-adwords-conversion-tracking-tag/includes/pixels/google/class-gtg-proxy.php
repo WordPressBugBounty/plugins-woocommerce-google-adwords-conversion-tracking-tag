@@ -119,13 +119,9 @@ class GTG_Proxy {
 		add_action('rest_api_init', [ __CLASS__, 'register_rest_routes' ]);
 		add_filter('do_parse_request', [ __CLASS__, 'maybe_handle_proxy_request' ], 10, 3);
 
-		// Flush rewrite rules when the PMW options change (measurement path might have changed)
-		add_action('update_option_wgact_plugin_options', [ __CLASS__, 'maybe_flush_rewrite_rules' ], 10, 2);
+		// Update proxy config cache when PMW options change (measurement path, logging, etc.)
+		add_action('update_option_wgact_plugin_options', [ __CLASS__, 'on_options_updated' ], 10, 2);
 
-		// Ensure rewrite rules are registered after plugin upgrade
-		// This handles the case where GTG was enabled in an older version before the proxy was available
-		self::maybe_flush_rewrite_rules_on_upgrade();
-		
 		// Ensure isolated proxy file exists and is up to date
 		add_action('init', [ __CLASS__, 'ensure_isolated_proxy_file' ], 21);
 
@@ -169,77 +165,21 @@ class GTG_Proxy {
 	}
 
 	/**
-	 * Check if the Google Tag Gateway rewrite rules are registered in WordPress
+	 * Handle PMW options update for GTG proxy
 	 *
-	 * This checks if the measurement path is present in the WordPress rewrite rules array.
-	 * If not, the rules need to be flushed to register the GTG proxy endpoints.
+	 * Updates the isolated proxy config cache whenever PMW options are saved.
+	 * If the measurement path has changed, also refreshes the GTG handler cache.
 	 *
-	 * @return bool True if rules exist, false if flush is needed.
-	 *
-	 * @since 1.53.0
-	 */
-	public static function gtg_rewrite_rules_exist() {
-
-		$rewrite_rules = get_option( 'rewrite_rules', [] );
-
-		if ( empty( $rewrite_rules ) || ! is_array( $rewrite_rules ) ) {
-			return false;
-		}
-
-		$measurement_path = Options::get_google_tag_gateway_measurement_path();
-
-		if ( ! $measurement_path ) {
-			return true; // No measurement path configured, no rules needed
-		}
-
-		// Remove leading slash for rewrite rule pattern matching
-		$measurement_path_pattern = ltrim( $measurement_path, '/' );
-
-		// Check for the GTG measurement path in the rewrite rules
-		foreach ( $rewrite_rules as $pattern => $rewrite ) {
-			if ( strpos( $pattern, $measurement_path_pattern ) !== false ) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * Flush rewrite rules on plugin upgrade if GTG is enabled but rules don't exist
-	 *
-	 * This handles the scenario where a user upgrades from a version where the
-	 * Google Tag Gateway was enabled but the local proxy wasn't available yet.
-	 * After the upgrade, we need to ensure the rewrite rules are registered.
-	 *
-	 * @return void
-	 *
-	 * @since 1.53.0
-	 */
-	public static function maybe_flush_rewrite_rules_on_upgrade() {
-
-		// Only run in admin context to avoid frontend performance impact
-		if ( ! is_admin() ) {
-			return;
-		}
-
-		// Check if rules already exist
-		if ( self::gtg_rewrite_rules_exist() ) {
-			return;
-		}
-
-		// Rules don't exist but GTG is enabled - flush to register them
-		flush_rewrite_rules();
-	}
-
-	/**
-	 * Flush rewrite rules if the measurement path has changed
+	 * Note: The GTG proxy uses the `do_parse_request` filter for request routing,
+	 * not WordPress rewrite rules — so no rewrite rule flushing is needed.
 	 *
 	 * @param mixed $old_value The old option value.
 	 * @param mixed $new_value The new option value.
 	 * @return void
+	 *
+	 * @since 1.53.0
 	 */
-	public static function maybe_flush_rewrite_rules( $old_value, $new_value ) {
+	public static function on_options_updated( $old_value, $new_value ) {
 
 		$old_path = isset( $old_value['google']['tag_gateway']['measurement_path'] ) ? $old_value['google']['tag_gateway']['measurement_path'] : '';
 		$new_path = isset( $new_value['google']['tag_gateway']['measurement_path'] ) ? $new_value['google']['tag_gateway']['measurement_path'] : '';
@@ -248,11 +188,8 @@ class GTG_Proxy {
 		// This ensures logging settings and other config changes are reflected
 		self::update_proxy_config_cache();
 
-		// If the measurement path has changed, flush rewrite rules
+		// If the measurement path has changed, refresh GTG handler cache
 		if ( $old_path !== $new_path ) {
-			flush_rewrite_rules();
-
-			// Clear and refresh GTG handler cache since path changed
 			GTG_Config::refresh_handler();
 		}
 	}

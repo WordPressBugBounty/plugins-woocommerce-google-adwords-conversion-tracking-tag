@@ -5261,6 +5261,9 @@ class Admin {
         checked( Options::is_pageview_events_s2s_active() );
         ?>
 				<?php 
+        disabled( Options::is_pageview_events_s2s_active_override() );
+        ?>
+				<?php 
         echo esc_html( self::disable_if_demo() );
         ?>
 			/>
@@ -5273,6 +5276,15 @@ class Admin {
         self::display_status_icon( Options::is_pageview_events_s2s_active(), Options::server_2_server_enabled(), true );
         ?>
 		<?php 
+        if ( Options::is_pageview_events_s2s_active_override() ) {
+            ?>
+			<?php 
+            self::html_status_icon_override();
+            ?>
+		<?php 
+        }
+        ?>
+		<?php 
         self::get_documentation_html_by_key( 'pageview_events_s2s' );
         ?>
 		<?php 
@@ -5280,7 +5292,16 @@ class Admin {
         ?>
 
 		<?php 
-        if ( Options::is_pageview_events_s2s_active() && !Options::server_2_server_enabled() ) {
+        if ( Options::is_pageview_events_s2s_active_override() ) {
+            ?>
+			<p style="margin-top: 10px">
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'Automatically enabled because the SweetCode Server-Side Proxy is active. PageView events are sent through the proxy without adding load to your WooCommerce server.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        } elseif ( Options::is_pageview_events_s2s_active() && !Options::server_2_server_enabled() ) {
             ?>
 			<p>
 				<span class="dashicons dashicons-info"></span>
@@ -5291,59 +5312,18 @@ class Admin {
 		<?php 
         }
         ?>
-		<p style="margin-top: 10px">
-			<span class="dashicons dashicons-info"></span>
-			<?php 
-        esc_html_e( 'Enabling this feature is encouraged by some platforms like Meta (Facebook). But, it will add a lot of stress to your server, because it will have to run on every PageView.', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>
-		</p>
 		<?php 
-    }
-
-    /**
-     * HTML output for the skip empty S2S events toggle.
-     *
-     * When enabled, server-side events that contain no destination platform data
-     * (e.g., no Facebook, TikTok, Snapchat, etc.) will not be sent to the server.
-     *
-     * @since 1.57.0
-     */
-    public static function html_skip_empty_s2s_events() {
-        // adding the hidden input is a hack to make WordPress save the option with the value zero,
-        // instead of not saving it and remove that array key entirely
-        // https://stackoverflow.com/a/1992745/4688612
-        ?>
-		<label>
-			<input type="hidden" value="0" name="wgact_plugin_options[general][skip_empty_s2s_events]">
-			<input type="checkbox"
-				   id="pmw_setting_skip_empty_s2s_events"
-				   name="wgact_plugin_options[general][skip_empty_s2s_events]"
-				   value="1"
+        if ( !Options::is_pageview_events_s2s_active_override() ) {
+            ?>
+			<p style="margin-top: 10px">
+				<span class="dashicons dashicons-info"></span>
 				<?php 
-        checked( Options::is_skip_empty_s2s_events_active() );
-        ?>
-				<?php 
-        echo esc_html( self::disable_if_demo() );
-        ?>
-			/>
-
-			<?php 
-        esc_html_e( 'Skip server-side events with no destination platforms', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>
-		</label>
+            esc_html_e( 'Enabling this feature is encouraged by some platforms like Meta (Facebook). But, it will add a lot of stress to your server, because it will have to run on every PageView.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
 		<?php 
-        self::display_status_icon( Options::is_skip_empty_s2s_events_active(), true, true );
+        }
         ?>
-		<?php 
-        self::html_pro_feature();
-        ?>
-
-		<p style="margin-top: 10px">
-			<span class="dashicons dashicons-info"></span>
-			<?php 
-        esc_html_e( 'When enabled, events that have no destination platform (e.g., Facebook, TikTok) in their payload will not be sent to the server. This reduces unnecessary load on your WooCommerce server and the Server-Side Proxy. Disable this if you want all events to be sent regardless of whether a platform processes them.', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>
-		</p>
 		<?php 
     }
 

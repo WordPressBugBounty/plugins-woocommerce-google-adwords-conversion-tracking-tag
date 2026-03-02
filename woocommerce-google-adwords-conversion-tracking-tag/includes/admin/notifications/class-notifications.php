@@ -155,13 +155,43 @@ class Notifications {
 
     private static function can_show_dashboard_opportunities_message() {
         $saved_notifications = get_option( PMW_DB_NOTIFICATIONS_NAME );
-        if ( isset( $saved_notifications['dashboard-opportunities-message-dismissed'] ) && $saved_notifications['dashboard-opportunities-message-dismissed'] > time() - MONTH_IN_SECONDS * 3 ) {
+        $dismissed_time = self::get_opportunities_notification_dismissed_time( $saved_notifications );
+        // If dismissed within the cooldown period, only re-show if new opportunities
+        // have been added since the dismissal.
+        if ( $dismissed_time && $dismissed_time > time() - MONTH_IN_SECONDS * 3 && !Opportunities::has_opportunities_newer_than( $dismissed_time ) ) {
             return false;
         }
         if ( !Opportunities::active_opportunities_available() ) {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Get the timestamp when the dashboard opportunities notification was dismissed.
+     *
+     * Handles both the current storage format (array with 'dismissed' key)
+     * and any legacy format (direct timestamp).
+     *
+     * @param mixed $saved_notifications The saved notifications option value.
+     *
+     * @return int|false The dismissed timestamp, or false if never dismissed.
+     * @since 1.57.1
+     */
+    private static function get_opportunities_notification_dismissed_time( $saved_notifications ) {
+        if ( empty( $saved_notifications ) || !isset( $saved_notifications['dashboard-opportunities-message-dismissed'] ) ) {
+            return false;
+        }
+        $value = $saved_notifications['dashboard-opportunities-message-dismissed'];
+        // Current format: ['dismissed' => timestamp]
+        if ( is_array( $value ) && isset( $value['dismissed'] ) ) {
+            return (int) $value['dismissed'];
+        }
+        // Legacy format: direct timestamp
+        if ( is_numeric( $value ) ) {
+            return (int) $value;
+        }
+        return false;
     }
 
     public static function notification_html( $notification_data ) {
@@ -400,7 +430,7 @@ class Notifications {
         if ( $counts_by_impact['high'] > 0 ) {
             ?>
 						<span class="pmw-opportunity-badge pmw-opportunity-badge-high" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #f3e8ff; border: 1px solid #8b5cf6; color: #5b21b6;">
-							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #8b5cf6; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; font-weight: 600; border: 1px solid #8b5cf6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 0 3px;"><?php 
             echo esc_html( $counts_by_impact['high'] );
             ?></span>
 							<?php 
@@ -415,7 +445,7 @@ class Notifications {
         if ( $counts_by_impact['medium'] > 0 ) {
             ?>
 						<span class="pmw-opportunity-badge pmw-opportunity-badge-medium" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #dbeafe; border: 1px solid #3b82f6; color: #1e40af;">
-							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #3b82f6; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; font-weight: 600; border: 1px solid #3b82f6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 0 3px;"><?php 
             echo esc_html( $counts_by_impact['medium'] );
             ?></span>
 							<?php 
@@ -430,7 +460,7 @@ class Notifications {
         if ( $counts_by_impact['low'] > 0 ) {
             ?>
 						<span class="pmw-opportunity-badge pmw-opportunity-badge-low" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
-							<span style="background: #fff; padding: 0 6px; border-radius: 3px; margin-right: 6px; font-size: 12px; font-family: 'Courier New', Courier, monospace; border: 1px solid #14b8a6; min-width: 12px; height: 18px; display: inline-flex; align-items: center; justify-content: center;"><?php 
+							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; font-weight: 600; border: 1px solid #14b8a6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 0 3px;"><?php 
             echo esc_html( $counts_by_impact['low'] );
             ?></span>
 							<?php 

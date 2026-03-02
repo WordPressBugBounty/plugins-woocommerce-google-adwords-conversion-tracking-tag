@@ -338,6 +338,159 @@ class Geolocation {
 	}
 
 	/**
+	 * Check if an IP address is on the exclusion list.
+	 *
+	 * Supports both exact IP matching and CIDR range matching (IPv4 and IPv6).
+	 *
+	 * @param string $ip             The IP address to check.
+	 * @param array  $exclusion_list Array of IPs and/or CIDR ranges.
+	 *
+	 * @return bool True if the IP is on the exclusion list.
+	 * @since 1.57.1
+	 */
+	public static function is_ip_excluded( $ip, $exclusion_list ) {
+
+		if ( empty( $ip ) || empty( $exclusion_list ) || ! is_array( $exclusion_list ) ) {
+			return false;
+		}
+
+		// Validate that the input is a valid IP address
+		if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+			return false;
+		}
+
+		foreach ( $exclusion_list as $entry ) {
+
+			$entry = trim( $entry );
+
+			if ( empty( $entry ) ) {
+				continue;
+			}
+
+			// CIDR range check
+			if ( false !== strpos( $entry, '/' ) ) {
+				if ( self::is_ip_in_cidr( $ip, $entry ) ) {
+					return true;
+				}
+			} elseif ( $ip === $entry ) {
+				// Exact IP match
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Check if an IP address is within a CIDR range.
+	 *
+	 * Supports both IPv4 and IPv6 CIDR notation.
+	 *
+	 * @param string $ip   The IP address to check.
+	 * @param string $cidr The CIDR range (e.g. '192.168.1.0/24' or '2001:db8::/32').
+	 *
+	 * @return bool True if the IP is within the CIDR range.
+	 * @since 1.57.1
+	 */
+	public static function is_ip_in_cidr( $ip, $cidr ) {
+
+		$parts = explode( '/', $cidr, 2 );
+
+		if ( 2 !== count( $parts ) ) {
+			return false;
+		}
+
+		$subnet = $parts[0];
+		$mask   = (int) $parts[1];
+
+		$ip_bin     = @inet_pton( $ip );
+		$subnet_bin = @inet_pton( $subnet );
+
+		// If either IP is invalid, return false
+		if ( false === $ip_bin || false === $subnet_bin ) {
+			return false;
+		}
+
+		// Both must be the same IP version (same byte length)
+		if ( strlen( $ip_bin ) !== strlen( $subnet_bin ) ) {
+			return false;
+		}
+
+		$ip_bits = strlen( $ip_bin ) * 8; // 32 for IPv4, 128 for IPv6
+
+		// Validate mask range
+		if ( $mask < 0 || $mask > $ip_bits ) {
+			return false;
+		}
+
+		// Build the bitmask
+		// Create a string of $mask '1' bits followed by ($ip_bits - $mask) '0' bits
+		$mask_str = str_repeat( "\xff", (int) floor( $mask / 8 ) );
+
+		$remaining_bits = $mask % 8;
+		if ( $remaining_bits > 0 ) {
+			$mask_str .= chr( ( 0xff << ( 8 - $remaining_bits ) ) & 0xff );
+		}
+
+		// Pad with zero bytes to fill the address length
+		$mask_str = str_pad( $mask_str, strlen( $ip_bin ), "\x00" );
+
+		// Check if the masked IP matches the masked subnet
+		return ( $ip_bin & $mask_str ) === ( $subnet_bin & $mask_str );
+	}
+
+	/**
+	 * Get the IP exclusion list from the filter.
+	 *
+	 * Merges the new pmw_ip_exclusion_list filter with the deprecated
+	 * pmw_exclude_ips_from_server_2_server_events filter for backward compatibility.
+	 *
+	 * @return array Array of IPs and/or CIDR ranges to exclude.
+	 * @since 1.57.1
+	 */
+	public static function get_ip_exclusion_list() {
+
+		$exclusion_list = apply_filters( 'pmw_ip_exclusion_list', [] );
+
+		// Backward compatibility: merge the deprecated filter
+		$deprecated_list = apply_filters_deprecated(
+			'pmw_exclude_ips_from_server_2_server_events',
+			[ [] ],
+			'1.57.1',
+			'pmw_ip_exclusion_list'
+		);
+
+		if ( ! empty( $deprecated_list ) ) {
+			$exclusion_list = array_merge( $exclusion_list, $deprecated_list );
+		}
+
+		return array_unique( array_filter( $exclusion_list ) );
+	}
+
+	/**
+	 * Check if the current visitor's IP is on the exclusion list.
+	 *
+	 * @return bool True if the current visitor should be excluded.
+	 * @since 1.57.1
+	 */
+	public static function is_current_ip_excluded() {
+
+		$exclusion_list = self::get_ip_exclusion_list();
+
+		if ( empty( $exclusion_list ) ) {
+			return false;
+		}
+
+		$ip = self::get_user_ip();
+
+		if ( empty( $ip ) ) {
+			return false;
+		}
+
+		return self::is_ip_excluded( $ip, $exclusion_list );
+	}
+
+	/**
 	 * Use APIs to Geolocate the user.
 	 *
 	 * Geolocation APIs can be added through the use of the pmw_geolocation_geoip_apis filter.
