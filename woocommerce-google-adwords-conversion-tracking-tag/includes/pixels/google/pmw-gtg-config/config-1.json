@@ -1,11 +1,11 @@
 {
     "enabled": true,
-    "measurement_path": "\/mtc",
+    "measurement_path": "\/metrics",
     "proxy_url": "https:\/\/wordpress.test\/wp-content\/plugins\/woocommerce-google-adwords-conversion-tracking-tag\/includes\/pixels\/google\/pmw-gtg-proxy.php",
     "site_url": "https:\/\/wordpress.test",
     "logging_enabled": false,
     "log_level": "warning",
     "log_directory": "\/Users\/aleksandarvucenovic\/dev\/apps\/wordpress\/wp-content\/uploads\/pmw-logs",
     "wp_content_dir": "\/Users\/aleksandarvucenovic\/dev\/apps\/wordpress\/wp-content",
-    "updated": 1772431723
+    "updated": 1773120365
 }

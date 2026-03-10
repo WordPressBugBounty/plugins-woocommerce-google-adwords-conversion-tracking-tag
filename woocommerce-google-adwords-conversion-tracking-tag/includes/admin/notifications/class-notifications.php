@@ -430,7 +430,7 @@ class Notifications {
         if ( $counts_by_impact['high'] > 0 ) {
             ?>
 						<span class="pmw-opportunity-badge pmw-opportunity-badge-high" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #f3e8ff; border: 1px solid #8b5cf6; color: #5b21b6;">
-							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; font-weight: 600; border: 1px solid #8b5cf6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 0 3px;"><?php 
+							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; line-height: 1; font-weight: 600; border: 1px solid #8b5cf6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; padding: 0 4px;"><?php 
             echo esc_html( $counts_by_impact['high'] );
             ?></span>
 							<?php 
@@ -445,7 +445,7 @@ class Notifications {
         if ( $counts_by_impact['medium'] > 0 ) {
             ?>
 						<span class="pmw-opportunity-badge pmw-opportunity-badge-medium" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #dbeafe; border: 1px solid #3b82f6; color: #1e40af;">
-							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; font-weight: 600; border: 1px solid #3b82f6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 0 3px;"><?php 
+							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; line-height: 1; font-weight: 600; border: 1px solid #3b82f6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; padding: 0 4px;"><?php 
             echo esc_html( $counts_by_impact['medium'] );
             ?></span>
 							<?php 
@@ -460,7 +460,7 @@ class Notifications {
         if ( $counts_by_impact['low'] > 0 ) {
             ?>
 						<span class="pmw-opportunity-badge pmw-opportunity-badge-low" style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500; background: #ccfbf1; border: 1px solid #14b8a6; color: #0f766e;">
-							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; font-weight: 600; border: 1px solid #14b8a6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; padding: 0 3px;"><?php 
+							<span style="background: #fff; border-radius: 3px; margin-right: 6px; font-size: 11px; line-height: 1; font-weight: 600; border: 1px solid #14b8a6; min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; padding: 0 4px;"><?php 
             echo esc_html( $counts_by_impact['low'] );
             ?></span>
 							<?php 

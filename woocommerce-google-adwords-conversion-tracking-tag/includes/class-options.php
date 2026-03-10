@@ -292,6 +292,7 @@ class Options {
 				'monthly_request_limit'   => 0,
 				'billable_this_period'    => 0,
 				'quota_exceeded'          => false,
+				'activation_retry_start'  => 0,
 				'additional_domain_keys'  => [], // Keyed by proxy_hostname, stores verification_key + resync_callback_token
 			],
 			'db_version' => PMW_DB_VERSION,

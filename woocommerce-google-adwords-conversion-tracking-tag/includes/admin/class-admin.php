@@ -3733,7 +3733,7 @@ class Admin {
 			<div style="margin-top: 10px">
 				<span class="dashicons dashicons-info"></span>
 				<?php 
-            esc_html_e( 'To use the Profit Margin setting you will need to install one of the following two Cost of Goods plugins:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            esc_html_e( 'To use the Profit Margin setting, enable the Cost of Goods Sold feature in WooCommerce → Settings → Advanced → Features, or install a Cost of Goods plugin:', 'woocommerce-google-adwords-conversion-tracking-tag' );
             ?>
 				<a href="https://woocommerce.com/products/woocommerce-cost-of-goods/" target="_blank">WooCommerce Cost
 					of Goods (SkyVerge)</a>
@@ -5858,6 +5858,11 @@ class Admin {
         esc_html_e( 'health check failed', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
 		</span>
+		<span id="pmw-health-check-cloudflare-blocked" class="pmw-status-icon inactive invisible" style="color: #d63638;">
+			<?php 
+        esc_html_e( 'blocked by Cloudflare bot challenge - adjust your Cloudflare security settings', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</span>
 
 		<?php 
         self::get_documentation_html_by_key( 'google_tag_gateway_measurement_path' );
@@ -5883,31 +5888,40 @@ class Admin {
             ?>';
 
 					// Get the status icon elements
-					const inactiveIcon        = document.getElementById("pmw-status-icon-inactive");
-					const activeIcon          = document.getElementById("pmw-status-icon-active");
-					const partiallyActiveIcon = document.getElementById("pmw-status-icon-partially-active");
-					const healthCheckPassed   = document.getElementById("pmw-health-check-passed");
-					const healthCheckFailed   = document.getElementById("pmw-health-check-failed");
+					const inactiveIcon              = document.getElementById("pmw-status-icon-inactive");
+					const activeIcon                = document.getElementById("pmw-status-icon-active");
+					const partiallyActiveIcon       = document.getElementById("pmw-status-icon-partially-active");
+					const healthCheckPassed         = document.getElementById("pmw-health-check-passed");
+					const healthCheckFailed         = document.getElementById("pmw-health-check-failed");
+					const healthCheckCloudflareBlock = document.getElementById("pmw-health-check-cloudflare-blocked");
 
 					// Function to show the appropriate icons based on health check result
-					function updateStatusIcons(isHealthy) {
+					function updateStatusIcons(isHealthy, isCloudflareBlocked = false) {
 						// Hide all icons first
 						inactiveIcon.classList.add("invisible");
 						activeIcon.classList.add("invisible");
 						partiallyActiveIcon.classList.add("invisible");
 						healthCheckPassed.classList.add("invisible");
 						healthCheckFailed.classList.add("invisible");
+						healthCheckCloudflareBlock.classList.add("invisible");
 
 						if (isHealthy) {
 							// If health check passes, show active icon and health check passed
 							activeIcon.classList.remove("invisible");
 							healthCheckPassed.classList.remove("invisible");
+						} else if (isCloudflareBlocked) {
+							// If blocked by Cloudflare, show specific error
+							partiallyActiveIcon.classList.remove("invisible");
+							healthCheckCloudflareBlock.classList.remove("invisible");
 						} else {
-							// If health check fails, show partially active icon and health check failed
+							// If health check fails for other reasons
 							partiallyActiveIcon.classList.remove("invisible");
 							healthCheckFailed.classList.remove("invisible");
 						}
 					}
+
+					// Log debug information
+					console.log("[PMW Gateway Health Check] Starting health check for:", gatewayUrlHealthy);
 
 					// Fetch the health status from the gateway URL
 					fetch(gatewayUrlHealthy, {
@@ -5918,22 +5932,51 @@ class Admin {
 						cache  : "no-store",
 					})
 						.then(response => {
-							if (response.ok) {
-								return response.text().then(text => {
-									// Check if the response contains "ok"
-									const isHealthy = text.includes("ok");
-									updateStatusIcons(isHealthy);
-								});
-							} else {
-								// If response is not OK, health check failed
-								updateStatusIcons(false);
-								return Promise.reject("Health check failed with status: " + response.status);
-							}
+							// Get the response body for both success and failure cases
+							return response.text().then(text => {
+								// Log response details
+								console.log("[PMW Gateway Health Check] Response received:");
+								console.log("  Status Code:", response.status, response.statusText);
+								console.log("  Content-Type:", response.headers.get("content-type"));
+								console.log("  Content-Length:", response.headers.get("content-length"));
+								console.log("  Cache-Control:", response.headers.get("cache-control"));
+								console.log("  Server:", response.headers.get("server"));
+								console.log("  Response Body (first 500 chars):", text.substring(0, 500));
+								
+								// Check for Cloudflare challenge indicators
+								const isCloudflareBlocked = text.includes("challenge") || 
+								                           text.includes("cf-chl") || 
+								                           text.includes("cf_captcha_kind") ||
+								                           text.includes("ray_id") ||
+								                           text.includes("Checking your browser");
+
+								if (isCloudflareBlocked) {
+									console.warn("[PMW Gateway Health Check] Cloudflare challenge detected in response body");
+								}
+
+								if (response.ok) {
+									// Check if the response contains "ok" (case-insensitive)
+									const isHealthy = text.toLowerCase().includes("ok");
+									console.log("[PMW Gateway Health Check] Response OK. Gateway is", isHealthy ? "HEALTHY" : "UNHEALTHY");
+									console.log("  Contains 'ok':", isHealthy);
+									updateStatusIcons(isHealthy, isCloudflareBlocked && !isHealthy);
+								} else {
+									// If response is not OK, check if it's Cloudflare blocking
+									console.warn("[PMW Gateway Health Check] Response status is not OK (2xx)");
+									console.warn("  Cloudflare blocked:", isCloudflareBlocked);
+									updateStatusIcons(false, isCloudflareBlocked);
+									return Promise.reject("Health check failed with status: " + response.status);
+								}
+							});
 						})
 						.catch(error => {
 							// If there's an error with the fetch, health check failed
-							console.error("Error fetching health status:", error);
-							updateStatusIcons(false);
+							console.error("[PMW Gateway Health Check] Fetch error occurred:");
+							console.error("  Error:", error);
+							const errorMessage = (error && typeof error.message === "string") ? error.message : "";
+							const isNetworkOrCorsError = errorMessage.toLowerCase().includes("failed to fetch") || errorMessage.toLowerCase().includes("networkerror");
+							console.error("  Error type:", isNetworkOrCorsError ? "Network/CORS error" : "Other error");
+							updateStatusIcons(false, false);
 						});
 				});
 			</script>

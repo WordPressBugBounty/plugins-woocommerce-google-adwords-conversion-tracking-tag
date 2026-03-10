@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.58.0
+Stable tag: 1.58.1
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -297,6 +297,12 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.58.1  =
+*Release date - 10.03.2026*
+
+* New: Added support for WooCommerce's built-in Cost of Goods Sold feature for profit margin calculations (available since WooCommerce 9.5)
+* Tweak: Improved COGS retrieval to only check active sources, preventing stale data from deactivated plugins
 
 = 1.58.0  =
 *Release date - 02.03.2026*

@@ -2,7 +2,6 @@
 
 namespace SweetCode\Pixel_Manager\Pixels\Google;
 
-use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
@@ -607,7 +606,7 @@ class Google_Helpers {
                 'body'   => $body,
             ];
         }
-        if ( strpos( $body, 'ok' ) !== false ) {
+        if ( stripos( $body, 'ok' ) !== false ) {
             return [
                 'status'  => true,
                 'message' => 'Gateway is healthy.',

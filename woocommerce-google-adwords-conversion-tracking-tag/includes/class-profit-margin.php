@@ -8,6 +8,7 @@
 
 namespace SweetCode\Pixel_Manager;
 
+use SweetCode\Pixel_Manager\Admin\Environment;
 use WC_Order;
 use WC_Product;
 
@@ -127,11 +128,7 @@ class Profit_Margin {
 	 */
 	private static function get_cog_from_order_item( $order_item ) {
 
-		$meta_keys = [
-			self::get_custom_cog_product_meta_key(),
-			'_wc_cog_item_cost',
-			'_alg_wc_cog_item_cost',
-		];
+		$meta_keys = self::get_active_order_item_cog_meta_keys();
 
 		foreach ($meta_keys as $meta_key) {
 			$item_cog = $order_item->get_meta($meta_key);
@@ -141,6 +138,44 @@ class Profit_Margin {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Build the list of order item meta keys to check for COGS, based on which sources are currently active.
+	 *
+	 * Only includes meta keys for active COGS sources to prevent stale data from deactivated plugins
+	 * being used in calculations.
+	 *
+	 * @return array List of active order item meta keys to check.
+	 *
+	 * @since 1.58.1
+	 */
+	private static function get_active_order_item_cog_meta_keys() {
+
+		$meta_keys = [];
+
+		// Custom COG meta key (always checked if the filter is set)
+		$custom_key = self::get_custom_cog_product_meta_key();
+		if ($custom_key) {
+			$meta_keys[] = $custom_key;
+		}
+
+		// WooCommerce native COGS
+		if (Environment::is_woocommerce_native_cogs_active()) {
+			$meta_keys[] = '_cogs_value';
+		}
+
+		// WooCommerce Cost of Goods (SkyVerge)
+		if (Environment::is_woocommerce_cog_active()) {
+			$meta_keys[] = '_wc_cog_item_cost';
+		}
+
+		// Cost of Goods for WooCommerce (WPFactory)
+		if (Environment::is_cog_for_woocommerce_active()) {
+			$meta_keys[] = '_alg_wc_cog_item_cost';
+		}
+
+		return $meta_keys;
 	}
 
 	/**
@@ -157,28 +192,32 @@ class Profit_Margin {
 	private static function get_cog_from_product( $product ) {
 
 		/**
-		 * Try to get COG from one of the COG plugins
+		 * Try to get COG from one of the active COG sources (API methods first)
 		 */
 
+		// WooCommerce native COGS (since WooCommerce 9.5)
+		if (Environment::is_woocommerce_native_cogs_active() && method_exists($product, 'get_cogs_value')) {
+			$cogs_value = $product->get_cogs_value();
+			if (!is_null($cogs_value)) {
+				return floatval($cogs_value);
+			}
+		}
+
 		// WooCommerce Cost of Goods (SkyVerge)
-		if (class_exists('WC_COG_Product') && method_exists('WC_COG_Product', 'get_cost')) {
+		if (Environment::is_woocommerce_cog_active() && self::is_skyverge_cog_method_get_cost_available()) {
 			return floatval(\WC_COG_Product::get_cost($product));
 		}
 
 		// Cost of Goods for WooCommerce (WPFactory)
-		if (class_exists('Alg_WC_Cost_of_Goods_Products') && method_exists('Alg_WC_Cost_of_Goods_Products', 'get_product_cost')) {
+		if (Environment::is_cog_for_woocommerce_active() && self::is_wpfactory_cog_method_get_product_cost_available()) {
 			return floatval(( new \Alg_WC_Cost_of_Goods_Products() )->get_product_cost($product->get_id()));
 		}
 
 		/**
-		 * Fallback to retrieving directly from postmeta if the COG plugin gets deactivated for some reason
+		 * Fallback to retrieving directly from postmeta for active sources
 		 */
 
-		$meta_keys = [
-			self::get_custom_cog_product_meta_key(),    // Custom COG meta key
-			'_wc_cog_cost',                     // WooCommerce Cost of Goods (SkyVerge)
-			'_alg_wc_cog_cost',                 // Cost of Goods for WooCommerce (WPFactory)
-		];
+		$meta_keys = self::get_active_product_cog_meta_keys();
 
 		foreach ($meta_keys as $meta_key) {
 			$product_cog = self::get_cog_for_product_from_meta($product, $meta_key);
@@ -188,6 +227,44 @@ class Profit_Margin {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Build the list of product meta keys to check for COGS, based on which sources are currently active.
+	 *
+	 * Only includes meta keys for active COGS sources to prevent stale data from deactivated plugins
+	 * being used in calculations.
+	 *
+	 * @return array List of active product meta keys to check.
+	 *
+	 * @since 1.58.1
+	 */
+	private static function get_active_product_cog_meta_keys() {
+
+		$meta_keys = [];
+
+		// Custom COG meta key (always checked if the filter is set)
+		$custom_key = self::get_custom_cog_product_meta_key();
+		if ($custom_key) {
+			$meta_keys[] = $custom_key;
+		}
+
+		// WooCommerce native COGS
+		if (Environment::is_woocommerce_native_cogs_active()) {
+			$meta_keys[] = '_cogs_value';
+		}
+
+		// WooCommerce Cost of Goods (SkyVerge)
+		if (Environment::is_woocommerce_cog_active()) {
+			$meta_keys[] = '_wc_cog_cost';
+		}
+
+		// Cost of Goods for WooCommerce (WPFactory)
+		if (Environment::is_cog_for_woocommerce_active()) {
+			$meta_keys[] = '_alg_wc_cog_cost';
+		}
+
+		return $meta_keys;
 	}
 
 	/**

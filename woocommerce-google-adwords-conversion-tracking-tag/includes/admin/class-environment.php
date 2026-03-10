@@ -713,8 +713,29 @@ class Environment {
 		return class_exists('Alg_WC_Cost_of_Goods') || is_plugin_active('cost-of-goods-for-woocommerce/cost-of-goods-for-woocommerce.php');
 	}
 
+	/**
+	 * Check if the WooCommerce native Cost of Goods Sold feature is enabled.
+	 *
+	 * This feature was introduced in WooCommerce 9.5 and is hidden behind a feature flag
+	 * in WooCommerce → Settings → Advanced → Features.
+	 *
+	 * @return bool True if the WooCommerce native COGS feature is enabled.
+	 *
+	 * @since 1.58.1
+	 */
+	public static function is_woocommerce_native_cogs_active() {
+		if (!class_exists('\\Automattic\\WooCommerce\\Utilities\\FeaturesUtil')) {
+			return false;
+		}
+
+		return \Automattic\WooCommerce\Utilities\FeaturesUtil::feature_is_enabled('cost_of_goods_sold');
+	}
+
 	public static function is_a_cog_plugin_active() {
-		return self::is_woocommerce_cog_active() || self::is_cog_for_woocommerce_active() || Profit_Margin::get_custom_cog_product_meta_key();
+		return self::is_woocommerce_native_cogs_active()
+			|| self::is_woocommerce_cog_active()
+			|| self::is_cog_for_woocommerce_active()
+			|| Profit_Margin::get_custom_cog_product_meta_key();
 	}
 
 	public static function is_some_cmp_active() {
