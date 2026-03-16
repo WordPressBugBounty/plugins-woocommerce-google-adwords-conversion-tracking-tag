@@ -606,6 +606,7 @@ class Pixel_Manager {
 
     public function run_background_processes() {
         if ( wpm_fs()->can_use_premium_code__premium_only() && Environment::is_woocommerce_active() ) {
+            // @since 1.58.4 Added Reddit_CAPI
             if ( is_cart() || is_checkout() ) {
                 if ( Options::is_ga4_mp_active() ) {
                     Google_MP_GA4::set_identifiers_on_session();
@@ -621,6 +622,9 @@ class Pixel_Manager {
                 }
                 if ( Options::is_snapchat_capi_active() ) {
                     Snapchat_CAPI::set_identifiers_on_session();
+                }
+                if ( Options::is_reddit_capi_active() ) {
+                    Reddit_CAPI::set_identifiers_on_session();
                 }
             }
             // TODO: That function should probably not go into the Google_MP_GA4 class

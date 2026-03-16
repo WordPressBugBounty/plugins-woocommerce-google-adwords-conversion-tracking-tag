@@ -23,6 +23,11 @@ if ( ! defined( 'PMW_GTG_STANDALONE' ) ) {
 	define( 'PMW_GTG_STANDALONE', true );
 }
 
+// This file serves JavaScript to browsers. Any PHP warnings/notices in the response body
+// break the script. Suppress display_errors so deprecation warnings go to the error log only.
+// phpcs:ignore WordPress.PHP.IniSet.display_errors_Disallowed -- Standalone proxy, no WordPress loaded.
+@ini_set( 'display_errors', '0' );
+
 /**
  * Sanitize a file system path.
  *
@@ -1337,8 +1342,8 @@ final class PMW_GTG_Proxy_Standalone {
 				CURLOPT_TIMEOUT        => self::REQUEST_TIMEOUT,
 				CURLOPT_CONNECTTIMEOUT => self::REQUEST_TIMEOUT,
 				CURLOPT_HTTPHEADER     => $headers,
-				CURLOPT_FOLLOWLOCATION => false,
-				CURLOPT_MAXREDIRS      => 0,
+				CURLOPT_FOLLOWLOCATION => true,
+				CURLOPT_MAXREDIRS      => 5,
 				CURLOPT_SSL_VERIFYPEER => true,
 				CURLOPT_SSL_VERIFYHOST => 2,
 				CURLOPT_USERAGENT      => 'PMW-GTG-Proxy/1.0',
@@ -1357,7 +1362,10 @@ final class PMW_GTG_Proxy_Standalone {
 		$header_size = curl_getinfo( $ch, CURLINFO_HEADER_SIZE );
 		$error       = curl_error( $ch );
 
-		curl_close( $ch );
+		// curl_close() is a no-op since PHP 8.0 and emits a deprecation warning since PHP 8.5.
+		if ( PHP_VERSION_ID < 80000 ) {
+			curl_close( $ch );
+		}
 
 		if ( false === $response ) {
 			self::log( 'cURL request failed', [ 'error' => $error, 'url' => $url ], 'error' );
@@ -1397,7 +1405,8 @@ final class PMW_GTG_Proxy_Standalone {
 				'method'          => $method,
 				'header'          => $header_string,
 				'timeout'         => self::REQUEST_TIMEOUT,
-				'follow_location' => 0,
+				'follow_location' => 1,
+				'max_redirects'   => 5,
 				'ignore_errors'   => true,
 				'user_agent'      => 'PMW-GTG-Proxy/1.0',
 			],
@@ -1419,12 +1428,22 @@ final class PMW_GTG_Proxy_Standalone {
 			return false;
 		}
 
-		// Parse response headers from $http_response_header
+		// Parse response headers.
+		// PHP 8.4+ provides http_get_last_response_headers(); older versions use the
+		// $http_response_header superglobal (deprecated in PHP 8.5).
 		$response_headers = [];
 		$status_code      = 200;
 
-		if ( isset( $http_response_header ) && is_array( $http_response_header ) ) {
-			foreach ( $http_response_header as $header ) {
+		if ( function_exists( 'http_get_last_response_headers' ) ) {
+			$raw_headers = http_get_last_response_headers();
+		} else {
+			$raw_headers = isset( $http_response_header ) && is_array( $http_response_header )
+				? $http_response_header
+				: [];
+		}
+
+		if ( ! empty( $raw_headers ) ) {
+			foreach ( $raw_headers as $header ) {
 				if ( preg_match( '/^HTTP\/\d\.\d\s+(\d+)/', $header, $matches ) ) {
 					$status_code = (int) $matches[1];
 				} else {
@@ -1579,11 +1598,13 @@ final class PMW_GTG_Proxy_Standalone {
 				self::log( 'Rewrite CCM paths', [ 'count' => $ccm_count ], 'debug' );
 			}
 		} elseif ( self::is_redirect_response( $status_code ) && ! empty( $response['headers'] ) ) {
-			// Handle redirect responses (3xx) - rewrite Location header
+			// Handle redirect responses (3xx) - rewrite Location header with absolute URL
+			// Must be absolute to prevent Apache from treating it as an internal redirect (AH00124)
 			if ( isset( $response['headers']['location'] ) ) {
+				$site_url = isset( $config['site_url'] ) ? rtrim( $config['site_url'], '/' ) : '';
 				$response['headers']['location'] = str_replace(
 					'/' . self::FPS_PATH_PLACEHOLDER,
-					$replacement,
+					$site_url . $replacement,
 					$response['headers']['location']
 				);
 				self::log( 'Rewrite redirect location', [ 'location' => $response['headers']['location'] ], 'debug' );
@@ -1691,5 +1712,7 @@ final class PMW_GTG_Proxy_Standalone {
 	}
 }
 
-// Run the proxy
-PMW_GTG_Proxy_Standalone::run();
+// Run the proxy (skip when loaded for testing)
+if ( ! defined( 'PMW_GTG_TESTING' ) ) {
+	PMW_GTG_Proxy_Standalone::run();
+}

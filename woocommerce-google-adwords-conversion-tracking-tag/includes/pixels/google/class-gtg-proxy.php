@@ -1192,7 +1192,7 @@ class GTG_Proxy {
 			'headers'      => $headers,
 			'body'         => $body,
 			'timeout'      => absint( $timeout ),
-			'redirection'  => 0, // Don't follow redirects automatically
+			'redirection'  => 5, // Follow up to 5 redirects (prevents Apache AH00124 internal redirect loops)
 			'sslverify'    => true,
 			'decompress'   => true, // Decompress the response
 		];
@@ -1274,11 +1274,12 @@ class GTG_Proxy {
 				$response['body'] = str_replace( $ccm_path, $ccm_replacement, $response['body'] );
 			}
 		} elseif ( self::is_redirect_response( $response['status_code'] ) && ! empty( $response['headers'] ) ) {
-			// Handle redirect responses (3xx) - rewrite Location header
+			// Handle redirect responses (3xx) - rewrite Location header with absolute URL
+			// Must be absolute to prevent Apache from treating it as an internal redirect (AH00124)
 			if ( isset( $response['headers']['location'] ) ) {
 				$response['headers']['location'] = str_replace(
 					'/' . self::$fps_path_placeholder,
-					$substitution_path,
+					get_site_url() . $substitution_path,
 					$response['headers']['location']
 				);
 			}

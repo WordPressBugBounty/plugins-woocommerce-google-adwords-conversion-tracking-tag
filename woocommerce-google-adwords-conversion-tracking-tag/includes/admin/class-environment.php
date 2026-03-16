@@ -1112,9 +1112,11 @@ class Environment {
 		/**
 		 * Google Listing and Ads
 		 *
-		 * Disable gtag if Google Ads is active in PMW
-		 *
-		 * Must be hooked into plugins_loaded
+		 * Disable GLA's gtag tracking when Google Ads is active in PMW.
+		 * GLA's tracking is specifically for Google Ads (remarketing, conversions).
+		 * When PMW handles Google Ads, GLA's tracking must be disabled to prevent
+		 * duplicate event tracking. If only GA4 is active in PMW, GLA's Google Ads
+		 * tracking is left intact since PMW isn't handling Google Ads in that case.
 		 */
 		if (Options::is_google_ads_active()) {
 			add_filter('woocommerce_gla_disable_gtag_tracking', '__return_true');
@@ -1332,17 +1334,18 @@ class Environment {
 		}
 
 		/**
-		 * Disable WP Rocket lazy load for the PMW lazy load script
+		 * Disable WP Rocket JS optimization for all PMW scripts when PMW lazy loading is active.
+		 *
+		 * PMW's lazy loading skips cart, checkout, and order_received pages (scripts must run immediately there).
+		 * WP Rocket's Delay JS would still delay those un-lazy-loaded scripts, breaking purchase tracking
+		 * on the order confirmation page where users rarely interact before leaving.
+		 *
+		 * On all other pages PMW already applies type="text/pmw-lazy" which WP Rocket can't delay anyway,
+		 * so the full exclusion is either necessary or harmless — never redundant.
 		 */
 
 		if (self::is_wp_rocket_active() && Options::is_lazy_load_pmw_active()) {
-
-			add_filter('rocket_delay_js_exclusions', [ __CLASS__, 'exclude_pmw_lazy_from_wp_rocket' ]);
-			add_filter('rocket_defer_inline_exclusions', [ __CLASS__, 'exclude_pmw_lazy_from_wp_rocket' ]);
-			add_filter('rocket_exclude_defer_js', [ __CLASS__, 'exclude_pmw_lazy_from_wp_rocket' ]);
-			add_filter('rocket_exclude_js', [ __CLASS__, 'exclude_pmw_lazy_from_wp_rocket' ]);
-			add_filter('rocket_minify_excluded_external_js', [ __CLASS__, 'exclude_pmw_lazy_from_wp_rocket' ]);
-			add_filter('rocket_excluded_inline_js_content', [ __CLASS__, 'exclude_pmw_lazy_from_wp_rocket' ]);
+			self::disable_wp_rocket_js_optimization();
 		}
 
 		/**
@@ -1460,11 +1463,7 @@ class Environment {
 		}
 	}
 
-	public static function exclude_pmw_lazy_from_wp_rocket( $excluded_attributes ) {
-		$excluded_attributes[] = 'pmw-lazy__premium_only';
-		$excluded_attributes[] = 'pmwDataLayer';
-		return $excluded_attributes;
-	}
+
 
 	private static function disable_woocommerce_google_ads_dynamic_remarketing() {
 		// make sure to disable the WGDR plugin in case we use dynamic remarketing in this plugin

@@ -4254,8 +4254,8 @@ class Admin {
 		</label>
 		<?php 
         self::display_status_icon( Options::is_google_user_id_active(), Options::is_google_active(), true );
+        self::get_documentation_html_by_key( 'google_user_id' );
         self::html_pro_feature();
-        //        echo self::get_documentation_html('/wgact/?utm_source=woocommerce-plugin&utm_medium=documentation-link&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=google-consent-mode#/consent-mgmt/google-consent-mode');
         ?>
 		<?php 
         if ( !Options::is_google_active() ) {

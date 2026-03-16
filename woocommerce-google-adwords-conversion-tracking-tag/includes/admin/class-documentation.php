@@ -66,6 +66,7 @@ class Documentation {
 			'google_consent_mode'                               => '/docs/pmw/consent-management/google#google-consent-mode',
 			'google_enhanced_conversions'                       => '/docs/pmw/plugin-configuration/google-ads#enhanced-conversions',
 			'google_gtag_deactivation'                          => '/docs/pmw/faq/#google-tag-assistant-reports-multiple-installations-of-global-site-tag-gtagjs-detected-what-shall-i-do',
+			'google_user_id'                                    => '/docs/pmw/plugin-configuration/google#google-user-id',
 			'google_optimize_anti_flicker'                      => '/docs/pmw/plugin-configuration/google-optimize#anti-flicker-snippet',
 			'google_optimize_anti_flicker_timeout'              => '/docs/pmw/plugin-configuration/google-optimize#adjusting-the-anti-flicker-snippet-timeout',
 			'google_optimize_container_id'                      => '/docs/pmw/plugin-configuration/google-optimize',

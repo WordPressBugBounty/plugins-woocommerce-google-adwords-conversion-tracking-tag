@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.58.1
+Stable tag: 1.58.4
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -297,6 +297,21 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.58.4  =
+*Release date - 16.03.2026*
+
+* Tweak: Fixed Google Tag Gateway proxy causing Apache AH00124 internal redirect loops on some hosting configurations — proxy now follows Google FPS redirects server-side and uses absolute URLs in Location headers to prevent Apache from misinterpreting relative paths as internal redirects
+* Fix: Fixed PHP 8.5 deprecation warnings in the standalone Google Tag Gateway proxy breaking GA4 tracking — replaced deprecated $http_response_header with http_get_last_response_headers() (PHP 8.4+) with backward-compatible fallback, and conditionally skipped no-op curl_close() on PHP 8.0+
+
+= 1.58.3  =
+*Release date - 10.03.2026*
+
+
+= 1.58.2  =
+*Release date - 10.03.2026*
+
+* Tweak: Improved WP Rocket's Delay JavaScript breaking purchase tracking when PMW lazy loading is active — now excludes all PMW scripts from WP Rocket optimization instead of only the lazy loader
 
 = 1.58.1  =
 *Release date - 10.03.2026*
