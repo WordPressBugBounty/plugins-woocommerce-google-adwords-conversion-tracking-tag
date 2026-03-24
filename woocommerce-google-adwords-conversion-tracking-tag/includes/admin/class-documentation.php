@@ -91,7 +91,6 @@ class Documentation {
 			'marketing_value_profit_margin'                     => '/docs/pmw/plugin-configuration/shop-settings#profit-margin',
 			'marketing_value_subtotal'                          => '/docs/pmw/plugin-configuration/shop-settings#order-subtotal-default',
 			'marketing_value_total'                             => '/docs/pmw/plugin-configuration/shop-settings#order-total',
-			'maximum_compatibility_mode'                        => '/docs/pmw/plugin-configuration/general-settings/#maximum-compatibility-mode',
 			'microsoft_ads_consent_mode'                        => '/docs/pmw/consent-management/microsoft#microsoft-ads-consent-mode',
 			'opportunity_google_ads_conversion_adjustments'     => '/docs/pmw/opportunities#google-ads-conversion-adjustments',
 			'opportunity_google_enhanced_conversions'           => '/docs/pmw/opportunities#google-ads-enhanced-conversions',

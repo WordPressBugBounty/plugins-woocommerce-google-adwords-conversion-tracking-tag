@@ -7,8 +7,8 @@ use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Helpers;
+use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 use WC_Payment_Gateways;
-use WP_Query;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
 class Debug_Info {
@@ -36,7 +36,7 @@ class Debug_Info {
             $html .= PHP_EOL;
             $html .= 'Server max execution time: ' . ini_get( 'max_execution_time' ) . ' seconds' . PHP_EOL;
             // show the php.ini file that is being used with full path location
-            //			$html .= 'php.ini file: ' . php_ini_loaded_file() . PHP_EOL;
+            //          $html .= 'php.ini file: ' . php_ini_loaded_file() . PHP_EOL;
             $html .= 'WordPress memory limit:    ' . Environment::get_wp_memory_limit() . PHP_EOL;
             $curl_available = ( Environment::is_curl_active() ? 'yes' : 'no' );
             $html .= 'curl available:                            ' . $curl_available . PHP_EOL;
@@ -47,7 +47,7 @@ class Debug_Info {
             $html .= 'External object cache (Redis/Memcached):   ' . $external_object_cache . PHP_EOL;
             $html .= PHP_EOL;
             $html .= 'wp_remote_get to Cloudflare:           ' . self::pmw_remote_get_response( 'https://www.cloudflare.com/cdn-cgi/trace' ) . PHP_EOL;
-            //			$html .= 'wp_remote_get to Google Analytics API: ' . self::pmw_remote_get_response('https://www.google-analytics.com/debug/collect') . PHP_EOL;
+            //          $html .= 'wp_remote_get to Google Analytics API: ' . self::pmw_remote_get_response('https://www.google-analytics.com/debug/collect') . PHP_EOL;
             $html .= 'wp_remote_post to GA4 Measurement Protocol API: ' . self::pmw_remote_post_response( 'https://www.google-analytics.com/mp/collect' ) . PHP_EOL;
             $html .= 'wp_remote_get to Facebook Graph API:   ' . self::pmw_remote_get_response( 'https://graph.facebook.com/facebook/picture?redirect=false' ) . PHP_EOL;
             //        $html           .= 'wp_remote_post to Facebook Graph API: ' . self::wp_remote_get_response('https://graph.facebook.com/') . PHP_EOL;
@@ -212,21 +212,27 @@ class Debug_Info {
     }
 
     public static function run_tracking_accuracy_analysis() {
+        // Skip the nightly batch when the event-driven DB table has data
+        if ( Tracking_Accuracy_DB::has_data() ) {
+            return;
+        }
         // Start measuring time
         $start_time = microtime( true );
         $maximum_orders_to_analyze = self::get_maximum_orders_to_analyze();
         // We want to at least analyze the count of active gateways * 100, or at least all orders in the past 30 days, whichever is larger.
         // And we don't want to exceed the maximum orders to analyze (default 6000).
         $amount_of_orders_to_analyze = min( $maximum_orders_to_analyze, max( count( self::get_enabled_payment_gateways() ) * 100, self::get_count_of_pmw_tracked_orders_for_one_month() ) );
-        self::generate_pmw_tracked_payment_methods();
-        self::generate_gateway_analysis_array();
-        self::generate_gateway_analysis_weighted_array( $amount_of_orders_to_analyze );
+        $analysis_stored = self::generate_gateway_analysis( $amount_of_orders_to_analyze );
         // set transient with date
         set_transient( 'pmw_tracking_accuracy_analysis_date', gmdate( 'Y-m-d H:i:s' ), MONTH_IN_SECONDS );
         // End measuring time
         $end_time = microtime( true );
         set_transient( 'pmw_tracking_accuracy_analysis_time', $end_time - $start_time, MONTH_IN_SECONDS );
-        delete_transient( 'pmw_tracking_accuracy_analysis_running' );
+        // Only clear the running guard if the analysis results were persisted successfully.
+        // If transient storage failed, keep the guard set so the next run retries with a reduced cap.
+        if ( $analysis_stored ) {
+            delete_transient( 'pmw_tracking_accuracy_analysis_running' );
+        }
     }
 
     // If the analysis runs into a timout we lower the amount of orders to analyze.
@@ -234,7 +240,7 @@ class Debug_Info {
         if ( get_transient( 'pmw_tracking_accuracy_analysis_running' ) ) {
             // If available means that last run failed or timed out.
             $last_maximum_orders_to_analyze = ( get_transient( 'pmw_tracking_accuracy_analysis_max_orders' ) ? get_transient( 'pmw_tracking_accuracy_analysis_max_orders' ) : self::get_default_maximum_orders_to_analyse() );
-            $maximum_orders_to_analyze = intval( $last_maximum_orders_to_analyze * 0.8 );
+            $maximum_orders_to_analyze = max( intval( $last_maximum_orders_to_analyze * 0.8 ), 100 );
         } elseif ( get_transient( 'pmw_tracking_accuracy_analysis_max_orders' ) ) {
             /**
              * We are increasing the max amount with every run a little
@@ -248,28 +254,25 @@ class Debug_Info {
             $maximum_orders_to_analyze = self::get_default_maximum_orders_to_analyse();
         }
         $maximum_orders_to_analyze = min( 
-            // Use the smaller of the two values. Either the user override or the calculated value.
+            /**
+             * Use the smaller of the two values. Either the user override or the calculated value.
+             *
+             * @since 1.58.5
+             */
             apply_filters( 'pmw_tracking_accuracy_analysis_max_order_amount', $maximum_orders_to_analyze ),
             $maximum_orders_to_analyze
          );
-        // Set the running lock with a 30-minute expiration to prevent permanent locks
-        // if the analysis crashes or times out. This is especially important with
-        // external object caches (Redis/Memcached) where transients without expiration
-        // can behave unexpectedly.
-        set_transient( 'pmw_tracking_accuracy_analysis_running', true, 30 * MINUTE_IN_SECONDS );
+        // Set the running lock with 60-minute expiration to prevent permanent locks
+        // if the analysis crashes or times out, while giving enough headroom for
+        // large shops with slow databases.
+        set_transient( 'pmw_tracking_accuracy_analysis_running', true, HOUR_IN_SECONDS );
         // Store max orders with expiration to match the analysis data lifecycle
         set_transient( 'pmw_tracking_accuracy_analysis_max_orders', $maximum_orders_to_analyze, MONTH_IN_SECONDS );
         return $maximum_orders_to_analyze;
     }
 
     protected static function get_default_maximum_orders_to_analyse() {
-        /**
-         * Make the maximum orders to analyze dependent on the max_execution_time.
-         * The smaller it is the less maximum orders we want to analyze to avoid timeouts.
-         * And we want to analyze at least 300 orders.
-         * */
-        $max_execution_time = ( ini_get( 'max_execution_time' ) ? ini_get( 'max_execution_time' ) : 30 );
-        return max( $max_execution_time * 100, 300 );
+        return 3000;
     }
 
     public static function get_gateway_analysis_for_debug_info() {
@@ -324,6 +327,24 @@ class Debug_Info {
     }
 
     public static function get_gateway_analysis_array() {
+        // Prefer the custom DB table when it has data
+        if ( Tracking_Accuracy_DB::has_data() ) {
+            $rows = Tracking_Accuracy_DB::get_accuracy_data( 30 );
+            if ( !empty( $rows ) ) {
+                $result = [];
+                foreach ( $rows as $row ) {
+                    $measured = $row['orders_measured'] + $row['orders_acr'];
+                    $result[] = [
+                        'gateway_id'           => $row['gateway_id'],
+                        'order_count_total'    => $row['orders_total'],
+                        'order_count_measured' => $measured,
+                        'percentage'           => floor( Helpers::get_percentage( $measured, $row['orders_total'] ) ),
+                    ];
+                }
+                return $result;
+            }
+        }
+        // Fall back to transient during transition period
         if ( get_transient( 'pmw_tracking_accuracy_analysis' ) ) {
             return get_transient( 'pmw_tracking_accuracy_analysis' );
         }
@@ -331,87 +352,142 @@ class Debug_Info {
     }
 
     public static function generate_gateway_analysis_array() {
-        $analysis = [];
-        if ( empty( self::get_pmw_tracked_payment_methods() ) ) {
-            self::generate_pmw_tracked_payment_methods();
-        }
-        foreach ( self::get_pmw_tracked_payment_methods() as $gateway ) {
-            $gateway_orders = self::get_last_orders_by_gateway_id( $gateway, 100 );
-            //			$gateway_orders = self::get_last_orders_by_gateway_id_wp_query_new($gateway, 100);
-            //			$gateway_orders = self::get_last_orders_by_gateway_id_wp_query($gateway, 100);
-            $analysis[] = [
-                'gateway_id'           => $gateway,
-                'order_count_total'    => count( $gateway_orders ),
-                'order_count_measured' => self::get_count_of_measured_orders( $gateway_orders ),
-                'percentage'           => floor( Helpers::get_percentage( self::get_count_of_measured_orders( $gateway_orders ), count( $gateway_orders ) ) ),
-            ];
-        }
-        self::set_transient_with_verification( 'pmw_tracking_accuracy_analysis', $analysis, MONTH_IN_SECONDS );
+        // Legacy method — now handled by generate_gateway_analysis()
+        // Kept as no-op for backward compatibility if called externally
     }
 
     public static function get_gateway_analysis_weighted_array() {
+        // Prefer the custom DB table when it has data
+        if ( Tracking_Accuracy_DB::has_data() ) {
+            $enabled_gateways = self::get_enabled_payment_gateways();
+            $enabled_ids = array_map( function ( $gateway ) {
+                return $gateway->id;
+            }, $enabled_gateways );
+            if ( !empty( $enabled_ids ) ) {
+                $rows = Tracking_Accuracy_DB::get_accuracy_data( 30, $enabled_ids );
+                if ( !empty( $rows ) ) {
+                    $result = [];
+                    foreach ( $rows as $row ) {
+                        $entry = [
+                            'gateway_id'           => $row['gateway_id'],
+                            'order_count_total'    => $row['orders_total'],
+                            'order_count_measured' => $row['orders_measured'],
+                            'percentage'           => floor( Helpers::get_percentage( $row['orders_measured'], $row['orders_total'] ) ),
+                        ];
+                        $result[] = $entry;
+                    }
+                    return $result;
+                }
+            }
+        }
+        // Fall back to transient during transition period
         if ( get_transient( 'pmw_tracking_accuracy_analysis_weighted' ) ) {
             return get_transient( 'pmw_tracking_accuracy_analysis_weighted' );
         }
         return false;
     }
 
-    public static function generate_gateway_analysis_weighted_array( $limit ) {
-        $analysis = [];
+    /**
+     * Generate both unweighted and weighted gateway analysis in a single pass.
+     *
+     * Fetches order IDs (not full objects) and bulk-loads only the meta fields
+     * needed for the analysis. Computes per-gateway stats for:
+     * - Unweighted: all gateways (active + inactive) with up to 100 orders each
+     * - Weighted: only currently enabled gateways, all orders
+     *
+     * @param int $limit Maximum number of orders to analyze.
+     * @return void
+     * @since 1.58.5
+     */
+    public static function generate_gateway_analysis( $limit ) {
         $enabled_gateways = self::get_enabled_payment_gateways();
-        // Prep array with all gateway IDs
-        $gateway_ids = array_map( function ( $gateway ) {
+        $enabled_ids = array_map( function ( $gateway ) {
             return $gateway->id;
         }, $enabled_gateways );
-        // Prep analysis array with all gateways
-        //		foreach ($gateway_ids as $gateway_id) {
-        //			$analysis[$gateway_id] = [
-        //				'gateway_id'           => $gateway_id,
-        //				'order_count_total'    => count($this->get_last_orders_by_gateway_id($gateway_id, $limit)),
-        //				'order_count_measured' => count($this->get_last_orders_by_gateway_id_pmw_measured_wp_query($gateway_id, $limit)),
-        //				'percentage'           => 0,
-        //			];
-        //		}
-        foreach ( $gateway_ids as $gateway_id ) {
-            $analysis[$gateway_id] = [
+        // Initialize weighted analysis for enabled gateways
+        $weighted = [];
+        foreach ( $enabled_ids as $gateway_id ) {
+            $weighted[$gateway_id] = [
                 'gateway_id'           => $gateway_id,
                 'order_count_measured' => 0,
                 'order_count_total'    => 0,
                 'percentage'           => 0,
             ];
         }
-        $orders = self::get_pmw_tracked_orders( $limit );
-        // Analyse all orders
-        foreach ( $orders as $order ) {
-            // Only analyse orders that were paid with one of the active payment gateways
-            if ( in_array( $order->get_payment_method(), $gateway_ids ) ) {
-                $analysis[$order->get_payment_method()]['order_count_total']++;
-                if ( $order->meta_exists( '_wpm_conversion_pixel_fired' ) ) {
-                    $analysis[$order->get_payment_method()]['order_count_measured']++;
+        // Initialize unweighted analysis — tracks per-gateway counts capped at 100
+        $unweighted = [];
+        $unweighted_counts = [];
+        // tracks how many orders counted per gateway for the 100-cap
+        // Get order IDs (not full objects)
+        $order_ids = self::get_pmw_tracked_orders( $limit );
+        // Bulk-fetch all required meta in one query
+        $orders_meta = self::get_bulk_order_meta( $order_ids );
+        // Single pass over all orders
+        foreach ( $order_ids as $order_id ) {
+            if ( !isset( $orders_meta[$order_id] ) ) {
+                continue;
+            }
+            $meta = $orders_meta[$order_id];
+            $payment_method = $meta['payment_method'];
+            if ( empty( $payment_method ) ) {
+                continue;
+            }
+            // --- Weighted analysis (enabled gateways only) ---
+            if ( in_array( $payment_method, $enabled_ids, true ) ) {
+                ++$weighted[$payment_method]['order_count_total'];
+                if ( $meta['conversion_pixel_fired'] ) {
+                    ++$weighted[$payment_method]['order_count_measured'];
+                }
+            }
+            // --- Unweighted analysis (all gateways, capped at 100 per gateway) ---
+            if ( !isset( $unweighted_counts[$payment_method] ) ) {
+                $unweighted_counts[$payment_method] = 0;
+                $unweighted[$payment_method] = [
+                    'gateway_id'           => $payment_method,
+                    'order_count_total'    => 0,
+                    'order_count_measured' => 0,
+                    'percentage'           => 0,
+                ];
+            }
+            if ( $unweighted_counts[$payment_method] < 100 ) {
+                ++$unweighted[$payment_method]['order_count_total'];
+                ++$unweighted_counts[$payment_method];
+                if ( $meta['conversion_pixel_fired'] ) {
+                    ++$unweighted[$payment_method]['order_count_measured'];
                 }
             }
         }
-        // Calculate percentage for each gateway
-        foreach ( $analysis as $gateway_id => $gateway_analysis ) {
-            $analysis[$gateway_id]['percentage'] = floor( Helpers::get_percentage( $gateway_analysis['order_count_measured'], $gateway_analysis['order_count_total'] ) );
+        // Calculate percentages for weighted
+        foreach ( $weighted as $gateway_id => $data ) {
+            $weighted[$gateway_id]['percentage'] = floor( Helpers::get_percentage( $data['order_count_measured'], $data['order_count_total'] ) );
         }
-        // Sort analysis by order_count_total descending
-        usort( $analysis, function ( $a, $b ) {
+        // Sort weighted by order_count_total descending
+        usort( $weighted, function ( $a, $b ) {
             return $b['order_count_total'] - $a['order_count_total'];
         } );
-        self::set_transient_with_verification( 'pmw_tracking_accuracy_analysis_weighted', $analysis, MONTH_IN_SECONDS );
+        // Calculate percentages for unweighted
+        foreach ( $unweighted as $gateway_id => $data ) {
+            $unweighted[$gateway_id]['percentage'] = floor( Helpers::get_percentage( $data['order_count_measured'], $data['order_count_total'] ) );
+        }
+        // Convert unweighted to indexed array
+        $unweighted = array_values( $unweighted );
+        $result_unweighted = self::set_transient_with_verification( 'pmw_tracking_accuracy_analysis', $unweighted, MONTH_IN_SECONDS );
+        $result_weighted = self::set_transient_with_verification( 'pmw_tracking_accuracy_analysis_weighted', $weighted, MONTH_IN_SECONDS );
+        // If either transient failed to persist, keep the running guard set so the
+        // next scheduled run treats this as a failure and retries.
+        if ( !$result_unweighted || !$result_weighted ) {
+            return false;
+        }
+        return true;
     }
 
-    private static function get_count_of_measured_orders( $orders ) {
-        $count = 0;
-        foreach ( $orders as $order_id ) {
-            $order = wc_get_order( $order_id );
-            // Get meta data for post id and meta key _wpm_conversion_pixel_fired
-            if ( $order->meta_exists( '_wpm_conversion_pixel_fired' ) ) {
-                $count++;
-            }
-        }
-        return $count;
+    /**
+     * Generate gateway analysis weighted array.
+     *
+     * @deprecated 1.58.5 Use generate_gateway_analysis() instead. Kept for backward compatibility.
+     */
+    public static function generate_gateway_analysis_weighted_array( $limit ) {
+        self::generate_gateway_analysis( $limit );
     }
 
     /**
@@ -494,14 +570,14 @@ class Debug_Info {
         }
     }
 
-    //	private static function try_connect_to_server( $server ) {
-    //		if ($socket = @ fsockopen($server, 80)) {
-    //			@fclose($socket);
-    //			return 'online';
-    //		} else {
-    //			return 'offline';
-    //		}
-    //	}
+    //  private static function try_connect_to_server( $server ) {
+    //      if ($socket = @ fsockopen($server, 80)) {
+    //          @fclose($socket);
+    //          return 'online';
+    //      } else {
+    //          return 'offline';
+    //      }
+    //  }
     /**
      * Test if a server is reachable, no matter what response code, using wp_remote_get
      *
@@ -554,67 +630,6 @@ class Debug_Info {
         return ( is_array( $gateways ) ? $gateways : [] );
     }
 
-    private static function get_last_orders_by_gateway_id( $gateway_id, $limit ) {
-        // Get most recent order IDs in date descending order, filtered by gateway_id.
-        //		error_log('get_last_orders_by_gateway_id');
-        // TODO include custom order statutes that have been added with a pmw filter
-        return wc_get_orders( [
-            'payment_method' => $gateway_id,
-            'limit'          => $limit,
-            'type'           => 'shop_order',
-            'orderby'        => 'date',
-            'order'          => 'DESC',
-            'status'         => [
-                'completed',
-                'processing',
-                'on-hold',
-                'pending'
-            ],
-            'created_via'    => 'checkout',
-            'meta_key'       => '_wpm_process_through_wpm',
-            'meta_compare'   => '=',
-            'meta_value'     => true,
-            'return'         => 'ids',
-        ] );
-    }
-
-    private static function get_last_orders_by_gateway_id_pmw_measured_wp_query( $gateway_id, $limit ) {
-        // Get most recent order IDs in date descending order, filtered by gateway_id.
-        // TODO include custom order statutes that have been added with a pmw filter
-        $query = new WP_Query([
-            'fields'         => 'ids',
-            'post_type'      => 'shop_order',
-            'posts_per_page' => $limit,
-            'post_status'    => [
-                'wc-completed',
-                'wc-processing',
-                'wc-on-hold',
-                'wc-pending'
-            ],
-            'orderby'        => 'ID',
-            'order'          => 'DESC',
-            'meta_query'     => [[
-                'relation' => 'AND',
-                [
-                    'key'     => '_payment_method',
-                    'compare' => '=',
-                    'value'   => $gateway_id,
-                ],
-                [
-                    'key'     => '_wpm_process_through_wpm',
-                    'compare' => '=',
-                    'value'   => true,
-                ],
-                [
-                    'key'     => '_wpm_conversion_pixel_fired',
-                    'compare' => '=',
-                    'value'   => true,
-                ],
-            ]],
-        ]);
-        return $query->get_posts();
-    }
-
     private static function get_pmw_tracked_orders( $limit ) {
         // Get most recent order IDs in date descending order.
         // TODO include custom order statutes that have been added with a pmw filter
@@ -633,14 +648,14 @@ class Debug_Info {
             'meta_key'     => '_wpm_process_through_wpm',
             'meta_value'   => true,
             'meta_compare' => '=',
-            'return'       => 'objects',
+            'return'       => 'ids',
         ] );
     }
 
     private static function get_count_of_pmw_tracked_orders_for_one_month() {
-        return count( wc_get_orders( [
+        $result = wc_get_orders( [
             'type'         => 'shop_order',
-            'limit'        => -1,
+            'limit'        => 1,
             'date_created' => '>' . (time() - MONTH_IN_SECONDS),
             'status'       => [
                 'completed',
@@ -653,27 +668,57 @@ class Debug_Info {
             'meta_value'   => true,
             'meta_compare' => '=',
             'return'       => 'ids',
-        ] ) );
+            'paginate'     => true,
+        ] );
+        return $result->total;
     }
 
-    // Get payment methods that have been used on all orders directly from database
-    private static function get_pmw_tracked_payment_methods() {
-        if ( get_transient( 'pmw_tracked_payment_methods' ) ) {
-            return get_transient( 'pmw_tracked_payment_methods' );
-        }
-        return [];
-    }
-
-    private static function generate_pmw_tracked_payment_methods() {
+    /**
+     * Fetch payment method and tracking meta for a batch of order IDs in bulk.
+     *
+     * Returns an associative array keyed by order ID:
+     * [
+     *   order_id => [
+     *     'payment_method'              => string,
+     *     'conversion_pixel_fired'      => bool,
+     *     'conversion_pixel_trigger'    => string|null,
+     *   ],
+     * ]
+     *
+     * @param int[] $order_ids Array of order IDs.
+     * @return array
+     * @since 1.58.5
+     */
+    private static function get_bulk_order_meta( $order_ids ) {
         global $wpdb;
-        if ( Helpers::is_wc_hpos_enabled() ) {
-            // HPOS tables in use
-            $tracked_payment_methods = $wpdb->get_col( "SELECT DISTINCT payment_method FROM {$wpdb->prefix}wc_orders WHERE payment_method <> ''" );
-        } else {
-            // Traditional post tables are in use.
-            $tracked_payment_methods = $wpdb->get_col( "SELECT DISTINCT meta_value FROM {$wpdb->prefix}postmeta WHERE `meta_key` = '_payment_method' AND meta_value != ''" );
+        if ( empty( $order_ids ) ) {
+            return [];
         }
-        self::set_transient_with_verification( 'pmw_tracked_payment_methods', $tracked_payment_methods, MONTH_IN_SECONDS );
+        $result = [];
+        // Process in chunks to avoid excessively long IN clauses
+        $chunks = array_chunk( $order_ids, 500 );
+        foreach ( $chunks as $chunk ) {
+            $placeholders = implode( ',', array_fill( 0, count( $chunk ), '%d' ) );
+            if ( Helpers::is_wc_hpos_enabled() ) {
+                // HPOS: payment_method is a column on wc_orders, meta is in wc_orders_meta
+                // phpcs:disable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                $rows = $wpdb->get_results( $wpdb->prepare( "SELECT o.id AS order_id,\n\t\t\t\t\t\t\t\to.payment_method,\n\t\t\t\t\t\t\t\tMAX(CASE WHEN om.meta_key = '_wpm_conversion_pixel_fired' THEN om.meta_value END) AS pixel_fired,\n\t\t\t\t\t\t\t\tMAX(CASE WHEN om.meta_key = '_wpm_conversion_pixel_trigger' THEN om.meta_value END) AS pixel_trigger\n\t\t\t\t\t\tFROM {$wpdb->prefix}wc_orders o\n\t\t\t\t\t\tLEFT JOIN {$wpdb->prefix}wc_orders_meta om\n\t\t\t\t\t\t\tON o.id = om.order_id\n\t\t\t\t\t\t\tAND om.meta_key IN ('_wpm_conversion_pixel_fired', '_wpm_conversion_pixel_trigger')\n\t\t\t\t\t\tWHERE o.id IN ({$placeholders})\n\t\t\t\t\t\tGROUP BY o.id, o.payment_method", ...$chunk ) );
+                // phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } else {
+                // Legacy postmeta
+                // phpcs:disable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                $rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.ID AS order_id,\n\t\t\t\t\t\t\t\tMAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) AS payment_method,\n\t\t\t\t\t\t\t\tMAX(CASE WHEN pm.meta_key = '_wpm_conversion_pixel_fired' THEN pm.meta_value END) AS pixel_fired,\n\t\t\t\t\t\t\t\tMAX(CASE WHEN pm.meta_key = '_wpm_conversion_pixel_trigger' THEN pm.meta_value END) AS pixel_trigger\n\t\t\t\t\t\tFROM {$wpdb->posts} p\n\t\t\t\t\t\tINNER JOIN {$wpdb->postmeta} pm\n\t\t\t\t\t\t\tON p.ID = pm.post_id\n\t\t\t\t\t\t\tAND pm.meta_key IN ('_payment_method', '_wpm_conversion_pixel_fired', '_wpm_conversion_pixel_trigger')\n\t\t\t\t\t\tWHERE p.ID IN ({$placeholders})\n\t\t\t\t\t\tGROUP BY p.ID", ...$chunk ) );
+                // phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            }
+            foreach ( $rows as $row ) {
+                $result[$row->order_id] = [
+                    'payment_method'           => ( isset( $row->payment_method ) ? $row->payment_method : '' ),
+                    'conversion_pixel_fired'   => !empty( $row->pixel_fired ),
+                    'conversion_pixel_trigger' => ( isset( $row->pixel_trigger ) ? $row->pixel_trigger : null ),
+                ];
+            }
+        }
+        return $result;
     }
 
     public static function tracking_accuracy_loading_message() {

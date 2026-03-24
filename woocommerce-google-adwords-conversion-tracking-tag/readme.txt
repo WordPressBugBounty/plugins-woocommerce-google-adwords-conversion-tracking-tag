@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.58.4
+Stable tag: 1.58.5
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -297,6 +297,19 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.58.5  =
+*Release date - 24.03.2026*
+
+* Tweak: Updated PHPCS tooling (WPCS 3.3.0, woocommerce-sniffs 1.0.1) and resolved all coding standards violations
+* Tweak: Added support for Google Ads conversion ID format (AW-) as a valid GA4 measurement ID
+* Tweak: Improved tracking accuracy analysis performance and reliability
+* Tweak: Added event-driven tracking accuracy table — per-order real-time writes replace the nightly batch analysis, with automatic 3-month backfill and graceful fallback to transients during transition
+* Tweak: Added comprehensive Action Scheduler cleanup on plugin deactivation, preventing orphaned pending tasks for tracking accuracy, duplication prevention, HTTP logging, LTV calculation, and SSP sync
+* Tweak: Fixed WP Rocket JS minification and combination breaking webpack chunk loading (ChunkLoadError) — PMW scripts are now always excluded from WP Rocket's minify and combine features, independent of compatibility mode
+* Tweak: Removed Maximum Compatibility Mode setting — JS optimization exclusions (minify, combine, delay JS on critical pages) are now automatic for all supported performance plugins
+* Fix: Fixed Google Tag Gateway proxy returning 400 errors on some shops due to overly aggressive path sanitization
+* Fix: Fixed Google Tag Gateway proxy generating malformed conversion tracking URLs on some shops due to double-rewriting CCM paths
 
 = 1.58.4  =
 *Release date - 16.03.2026*

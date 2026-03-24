@@ -30,6 +30,7 @@ use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\SSP_Purchase_Proxy;
 use SweetCode\Pixel_Manager\SSP_Sync;
 use SweetCode\Pixel_Manager\Shop;
+use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 use SweetCode\Pixel_Manager\Admin\Ask_For_Rating;
 // autoloader
 require_once 'autoload.php';
@@ -61,10 +62,7 @@ class WCPM {
         Environment::purge_cache_on_plugin_changes();
         register_activation_hook( __FILE__, [$this, 'plugin_activated'] );
         register_deactivation_hook( __FILE__, [$this, 'plugin_deactivated'] );
-        register_deactivation_hook( __FILE__, function () {
-            $timestamp = wp_next_scheduled( 'pmw_tracking_accuracy_analysis' );
-            wp_unschedule_event( $timestamp, 'pmw_tracking_accuracy_analysis' );
-        } );
+        register_deactivation_hook( __FILE__, [$this, 'unschedule_all_actions'] );
         register_deactivation_hook( __FILE__, function () {
             if ( class_exists( '\\SweetCode\\Pixel_Manager\\Pixels\\Google\\GTG_Proxy' ) ) {
                 \SweetCode\Pixel_Manager\Pixels\Google\GTG_Proxy::unschedule_config_refresh();
@@ -110,6 +108,9 @@ class WCPM {
         add_action( 'pmw_tracking_accuracy_analysis', function () {
             Debug_Info::run_tracking_accuracy_analysis();
         } );
+        add_action( Tracking_Accuracy_DB::BACKFILL_HOOK, function () {
+            Tracking_Accuracy_DB::run_backfill();
+        } );
         add_action( 'pmw_print_product_data_layer_script_by_product', function ( $product ) {
             Product::print_product_data_layer_script( $product );
         } );
@@ -149,7 +150,12 @@ class WCPM {
     }
 
     public function register_generic_hooks() {
-        // Nothing here yet
+        // Create table on upgrade if DB version changed
+        Tracking_Accuracy_DB::maybe_create_table();
+        // Schedule backfill if not yet complete
+        if ( Environment::is_action_scheduler_active() ) {
+            Tracking_Accuracy_DB::maybe_schedule_backfill();
+        }
     }
 
     public function run_woocommerce_reports() {
@@ -170,10 +176,11 @@ class WCPM {
         }
         // Only run if the Action Scheduler is loaded
         // and if transients are enabled
-        if ( Environment::is_action_scheduler_active() && Environment::is_transients_enabled() ) {
+        // and the event-driven DB table does not yet have data
+        if ( Environment::is_action_scheduler_active() && Environment::is_transients_enabled() && !Tracking_Accuracy_DB::has_data() ) {
             if ( !Helpers::pmw_as_has_scheduled_action( 'pmw_tracking_accuracy_analysis' ) ) {
                 as_schedule_recurring_action(
-                    Helpers::datetime_string_to_unix_timestamp_in_local_timezone( 'today 4:25am' ),
+                    Helpers::get_next_future_daily_timestamp( '4:25am' ),
                     DAY_IN_SECONDS,
                     'pmw_tracking_accuracy_analysis',
                     [],
@@ -183,9 +190,12 @@ class WCPM {
             }
             // If the tracking accuracy has not been run yet, run it immediately in the background.
             // https://github.com/woocommerce/action-scheduler/issues/839
-            if ( function_exists( 'as_enqueue_async_action' ) && !get_transient( 'pmw_tracking_accuracy_analysis' ) ) {
+            if ( function_exists( 'as_enqueue_async_action' ) && !get_transient( 'pmw_tracking_accuracy_analysis' ) && !get_transient( 'pmw_tracking_accuracy_analysis_running' ) ) {
                 as_enqueue_async_action( 'pmw_tracking_accuracy_analysis' );
             }
+        } elseif ( Environment::is_action_scheduler_active() && Tracking_Accuracy_DB::has_data() ) {
+            // DB table has data — unschedule the legacy nightly batch if it's still registered
+            as_unschedule_all_actions( 'pmw_tracking_accuracy_analysis' );
         }
     }
 
@@ -209,13 +219,13 @@ class WCPM {
     }
 
     protected function is_pmw_woocommerce_requirement_disabled() {
-        //			if (
-        //				defined('PMW_EXPERIMENTAL_DISABLE_WOOCOMMERCE_REQUIREMENT') &&
-        //				true === PMW_EXPERIMENTAL_DISABLE_WOOCOMMERCE_REQUIREMENT
-        //			) {
-        //				return true;
-        //			}
-        //			return false;
+        //          if (
+        //              defined('PMW_EXPERIMENTAL_DISABLE_WOOCOMMERCE_REQUIREMENT') &&
+        //              true === PMW_EXPERIMENTAL_DISABLE_WOOCOMMERCE_REQUIREMENT
+        //          ) {
+        //              return true;
+        //          }
+        //          return false;
         return true;
     }
 
@@ -257,9 +267,9 @@ class WCPM {
 			</ul>
 		</div>
 		<style>
-            .fs-tab {
-                display: none !important;
-            }
+			.fs-tab {
+				display: none !important;
+			}
 		</style>
 
 		<?php 
@@ -272,10 +282,41 @@ class WCPM {
         if ( class_exists( '\\SweetCode\\Pixel_Manager\\Pixels\\Google\\GTG_Proxy' ) ) {
             \SweetCode\Pixel_Manager\Pixels\Google\GTG_Proxy::update_proxy_config_cache();
         }
+        Tracking_Accuracy_DB::create_table();
+        Tracking_Accuracy_DB::maybe_schedule_backfill();
     }
 
     public function plugin_deactivated() {
         Environment::purge_entire_cache();
+    }
+
+    /**
+     * Unschedule all Action Scheduler tasks on plugin deactivation.
+     *
+     * Prevents orphaned pending actions from remaining in the
+     * actionscheduler_actions table after the plugin is deactivated.
+     *
+     * @return void
+     * @since 1.58.5
+     */
+    public function unschedule_all_actions() {
+        if ( !function_exists( 'as_unschedule_all_actions' ) ) {
+            return;
+        }
+        // Tracking accuracy analysis
+        as_unschedule_all_actions( 'pmw_tracking_accuracy_analysis' );
+        // Duplication prevention re-enable timer
+        as_unschedule_all_actions( 'pmw_reactivate_duplication_prevention' );
+        // HTTP request logging auto-disable timer
+        as_unschedule_all_actions( 'pmw_deactivate_log_http_requests' );
+        // LTV (Lifetime Value) calculation tasks
+        LTV::stop_ltv_recalculation();
+        // SSP (Server Side Proxy) tasks
+        as_unschedule_all_actions( 'pmw_ssp_daily_sync' );
+        as_unschedule_all_actions( 'pmw_ssp_settings_sync' );
+        as_unschedule_all_actions( 'pmw_ssp_activation_retry' );
+        // Tracking accuracy backfill
+        as_unschedule_all_actions( Tracking_Accuracy_DB::BACKFILL_HOOK );
     }
 
     // startup all functions
@@ -286,10 +327,6 @@ class WCPM {
         // endDeleteIf(wcMarketFree)
         // Needs to be under init to avoid issues with filters called in the Options class
         Environment::third_party_plugin_tweaks_on_init();
-        // Needs to be under init to avoid issues with filters called in the Options class
-        if ( Options::is_maximum_compatiblity_mode_active() ) {
-            Environment::enable_compatibility_mode();
-        }
         Admin_REST::get_instance();
         if ( is_admin() ) {
             Borlabs::init();

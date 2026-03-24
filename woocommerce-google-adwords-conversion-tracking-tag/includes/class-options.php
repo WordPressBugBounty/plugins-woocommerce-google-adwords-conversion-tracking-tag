@@ -45,7 +45,11 @@ class Options {
 			update_option(PMW_DB_OPTIONS_NAME, self::$options);
 		}
 
-		// Allow other plugins to modify the options before they are used
+		/**
+		 * Allow other plugins to modify the options before they are used.
+		 *
+		 * @since 1.58.5
+		 */
 		self::$options = apply_filters('pmw_options', self::$options);
 
 		self::$options_obj = self::encode_options_object(self::$options);
@@ -125,7 +129,7 @@ class Options {
 				],
 				'analytics'    => [
 					'universal'        => [                // TODO remove
-														   'property_id' => '',
+															'property_id' => '',
 					],
 					'ga4'              => [
 						'measurement_id'          => '',
@@ -259,7 +263,6 @@ class Options {
 			],
 			'general'    => [
 				'variations_output'          => true,  // TODO maybe should be in the shop section
-				'maximum_compatibility_mode' => false,
 				'pro_version_demo'           => false,
 				'scroll_tracker_thresholds'  => [],
 				'lazy_load_pmw'              => false,
@@ -284,7 +287,8 @@ class Options {
 				'last_sync_at'            => 0,
 				'last_sync_error'         => '',
 				'resync_callback_token'   => '',
-				'verification_key'        => '',
+				'domain_token'            => '',
+				'verification_key'        => '', // Deprecated: use domain_token
 				'proxy_failure_behavior'  => 'fallback_to_wc', // 'fallback_to_wc' | 'drop_events'
 				'plan_name'               => '',
 				'subscription_status'     => '',
@@ -293,7 +297,7 @@ class Options {
 				'billable_this_period'    => 0,
 				'quota_exceeded'          => false,
 				'activation_retry_start'  => 0,
-				'additional_domain_keys'  => [], // Keyed by proxy_hostname, stores verification_key + resync_callback_token
+				'additional_domain_keys'  => [], // Keyed by proxy_hostname, stores domain_token + resync_callback_token
 			],
 			'db_version' => PMW_DB_VERSION,
 			'timestamp'  => null, // This will be set when the options are saved
@@ -342,7 +346,7 @@ class Options {
 
 	public static function update_with_defaults( $target_array, $default_array ) {
 
-//		error_log(print_r($target_array, true));
+//      error_log(print_r($target_array, true));
 
 		// Walk through every key in the default array
 		foreach ($default_array as $default_key => $default_value) {
@@ -363,7 +367,7 @@ class Options {
 			}
 		}
 
-//		error_log(print_r($target_array, true));
+//      error_log(print_r($target_array, true));
 		return $target_array;
 	}
 
@@ -662,8 +666,7 @@ class Options {
 	}
 
 	public static function is_ga4_data_api_active() {
-		return
-			self::get_ga4_data_api_property_id()
+		return self::get_ga4_data_api_property_id()
 			&& !empty(self::get_ga4_data_api_credentials());
 	}
 
@@ -920,12 +923,16 @@ class Options {
 	}
 
 	public static function consent_management_is_explicit_consent_active_override() {
+		/**
+		 * Filters Consent management is explicit consent active.
+		 *
+		 * @since 1.58.5
+		 */
 		return (bool) apply_filters('pmw_consent_management_is_explicit_consent_active', false);
 	}
 
 	public static function is_consent_management_explicit_consent_active() {
-		return
-			self::get_options_obj()->shop->cookie_consent_mgmt->explicit_consent
+		return self::get_options_obj()->shop->cookie_consent_mgmt->explicit_consent
 			|| self::consent_management_is_explicit_consent_active_override();
 	}
 
@@ -1006,10 +1013,6 @@ class Options {
 		return (bool) self::get_options_obj()->general->always_send_s2s;
 	}
 
-	public static function is_maximum_compatiblity_mode_active() {
-		return (bool) self::get_options_obj()->general->maximum_compatibility_mode;
-	}
-
 	public static function is_lazy_load_pmw_active() {
 		return (bool) self::get_options_obj()->general->lazy_load_pmw;
 	}
@@ -1052,9 +1055,9 @@ class Options {
 
 		// If Google Optimize is active we need to make sure that the Google Optimize anti flicker snippet is active too
 
-//		if (self::is_google_optimize_active() && !self::is_google_optimize_anti_flicker_active()) {
-//			return false;
-//		}
+//      if (self::is_google_optimize_active() && !self::is_google_optimize_anti_flicker_active()) {
+//          return false;
+//      }
 
 		return true;
 	}
@@ -1337,7 +1340,7 @@ class Options {
 		foreach ($backup_timestamps as $timestamp) {
 			if ($recent_count < $settings['recent_count']) {
 				$retained_backups[$timestamp] = $backups[$timestamp];
-				$recent_count++;
+				++$recent_count;
 			} else {
 				break;
 			}
@@ -1510,8 +1513,7 @@ class Options {
 	public static function is_ssp_active() {
 		$options = self::get_options();
 
-		return
-			!empty($options['ssp']['enabled'])
+		return !empty($options['ssp']['enabled'])
 			&& !empty($options['ssp']['sync_token'])
 			&& 'active' === ( isset($options['ssp']['routing_status']) ? $options['ssp']['routing_status'] : '' )
 			&& 'synced' === ( isset($options['ssp']['config_status']) ? $options['ssp']['config_status'] : '' );
@@ -1533,8 +1535,7 @@ class Options {
 	public static function is_ssp_configured() {
 		$options = self::get_options();
 
-		return
-			!empty($options['ssp']['enabled'])
+		return !empty($options['ssp']['enabled'])
 			&& !empty($options['ssp']['sync_token']);
 	}
 
@@ -1595,17 +1596,27 @@ class Options {
 	}
 
 	/**
-	 * Get the SSP pixel verification key.
+	 * Get the SSP domain token.
 	 *
-	 * This key is provisioned by the SSP during domain-config sync
+	 * This token is provisioned by the SSP during domain-config sync
 	 * and used to authenticate proxy requests via X-SSP-Token header.
 	 *
-	 * @return string The 64-char hex verification key, or empty string.
-	 * @since 1.57.0
+	 * @return string The 64-char hex domain token, or empty string.
+	 * @since 1.58.5
+	 */
+	public static function get_ssp_domain_token() {
+		$options = self::get_options();
+		return isset( $options['ssp']['domain_token'] ) ? $options['ssp']['domain_token'] : '';
+	}
+
+	/**
+	 * Get the SSP verification key.
+	 *
+	 * @deprecated Use get_ssp_domain_token() instead.
+	 * @return string
 	 */
 	public static function get_ssp_verification_key() {
-		$options = self::get_options();
-		return isset($options['ssp']['verification_key']) ? $options['ssp']['verification_key'] : '';
+		return self::get_ssp_domain_token();
 	}
 
 	/**
@@ -1690,6 +1701,7 @@ class Options {
 		 * Filter to register additional SSP domains for multi-domain WordPress installs.
 		 *
 		 * @param array[] $domains Array of domain config arrays.
+		  * @since 1.58.5
 		 */
 		$domains = apply_filters( 'pmw_ssp_additional_domains', [] );
 
@@ -1743,13 +1755,22 @@ class Options {
 	 *
 	 * @param string $proxy_hostname The proxy hostname to look up.
 	 *
-	 * @return string The verification key, or empty string.
+	 * @return string The domain token, or empty string.
 	 * @since 1.57.1
 	 */
-	public static function get_ssp_additional_domain_verification_key( $proxy_hostname ) {
+	public static function get_ssp_additional_domain_domain_token( $proxy_hostname ) {
 		$options = self::get_options();
 		$keys    = isset( $options['ssp']['additional_domain_keys'][ $proxy_hostname ] ) ? $options['ssp']['additional_domain_keys'][ $proxy_hostname ] : [];
-		return isset( $keys['verification_key'] ) ? $keys['verification_key'] : '';
+		return isset( $keys['domain_token'] ) ? $keys['domain_token'] : '';
+	}
+
+	/**
+	 * Get the SSP additional domain verification key.
+	 *
+	 * @deprecated Use get_ssp_additional_domain_domain_token() instead.
+	 */
+	public static function get_ssp_additional_domain_verification_key( $proxy_hostname ) {
+		return self::get_ssp_additional_domain_domain_token( $proxy_hostname );
 	}
 
 	/**
@@ -1772,6 +1793,7 @@ class Options {
 		 * Filter backup retention policy settings.
 		 *
 		 * @param array $settings Default retention settings
+		  * @since 1.58.5
 		 */
 		return apply_filters('pmw_backup_retention_settings', $default_settings);
 	}

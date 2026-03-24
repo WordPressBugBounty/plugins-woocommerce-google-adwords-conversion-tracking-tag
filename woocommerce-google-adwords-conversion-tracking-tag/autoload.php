@@ -68,9 +68,9 @@ spl_autoload_register(function ( $fully_qualified_class_name ) use ( $package_na
 	$fully_qualified_path .= $file_name . '.php';
 
 	// Now include the file.
-//	if (stream_resolve_include_path( $fully_qualified_path )) {
-//		include_once $fully_qualified_path;
-//	}
+//  if (stream_resolve_include_path( $fully_qualified_path )) {
+//      include_once $fully_qualified_path;
+//  }
 
 	/**
 	 * Now include the file.

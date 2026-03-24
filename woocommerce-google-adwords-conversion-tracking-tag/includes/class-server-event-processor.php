@@ -95,9 +95,9 @@ class Server_Event_Processor {
 			if (class_exists($adapter_class, false)) {
 				$registered = Pixel_Registry::get_adapters();
 				// Extract just the pixel name (e.g., 'reddit' from 'Reddit_Adapter')
-				$parts = explode('\\', $adapter_class);
+				$parts       = explode('\\', $adapter_class);
 				$class_short = end($parts);
-				$pixel_name = strtolower(str_replace('_Adapter', '', $class_short));
+				$pixel_name  = strtolower(str_replace('_Adapter', '', $class_short));
 
 				if (!isset($registered[$pixel_name])) {
 					try {
@@ -127,8 +127,11 @@ class Server_Event_Processor {
 		// Ensure adapters are loaded before processing
 		self::ensure_adapters_loaded();
 
-		// Stage 1: Pre-processing filters
-		// Apply filters before any pixel-specific processing
+		/**
+		 * Stage 1: Pre-processing filters Apply filters before any pixel-specific processing.
+		 *
+		 * @since 1.58.5
+		 */
 		$event_data = apply_filters('pmw_server_event_payload_pre', $event_data);
 
 		// If pre-processing filter returns null/false, stop processing
@@ -142,6 +145,11 @@ class Server_Event_Processor {
 		// Stage 2: Global event filter (runs once per event type, before pixel processing)
 		// Apply filter for this specific event across all pixels
 		if ($event_name) {
+			/**
+			 * Filters Server event payload event {$event name}.
+			 *
+			 * @since 1.58.5
+			 */
 			$event_data = apply_filters("pmw_server_event_payload_event_{$event_name}", $event_data, $event_name);
 
 			// If event filter returns null/false, stop processing

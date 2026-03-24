@@ -23,6 +23,11 @@ class Google_Helpers {
             '1.31.2',
             'pmw_enable_ga_4_mp_event_debug_mode'
         );
+        /**
+         * Filters Enable ga 4 mp event debug mode.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_enable_ga_4_mp_event_debug_mode', $debug_mode );
     }
 
@@ -72,7 +77,11 @@ class Google_Helpers {
             '1.31.2',
             'pmw_product_id_type_for_google_analytics'
         );
-        // Change the output of the product ID type for Google Analytics
+        /**
+         * Change the output of the product ID type for Google Analytics.
+         *
+         * @since 1.31.2
+         */
         return (string) apply_filters( 'pmw_product_id_type_for_google_analytics', $ga_id_type );
     }
 
@@ -130,6 +139,11 @@ class Google_Helpers {
             '1.31.2',
             'pmw_google_ads_conversion_identifiers'
         );
+        /**
+         * Filters Google ads conversion identifiers.
+         *
+         * @since 1.31.2
+         */
         $google_ads_conversion_identifiers = apply_filters( 'pmw_google_ads_conversion_identifiers', $google_ads_conversion_identifiers );
         $formatted_conversion_ids = [];
         foreach ( $google_ads_conversion_identifiers as $conversion_id => $conversion_label ) {
@@ -321,6 +335,11 @@ class Google_Helpers {
             '1.31.2',
             'pmw_google_cross_domain_linker_settings'
         );
+        /**
+         * Filters Google cross domain linker settings.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_google_cross_domain_linker_settings', $linker_settings );
     }
 
@@ -341,6 +360,11 @@ class Google_Helpers {
             '1.31.0',
             'pmw_google_ads_data_redaction'
         );
+        /**
+         * Filters Google ads data redaction.
+         *
+         * @since 1.31.0
+         */
         return (bool) apply_filters( 'pmw_google_ads_data_redaction', $ads_data_redaction );
     }
 
@@ -357,6 +381,11 @@ class Google_Helpers {
             '1.31.0',
             'pmw_google_url_passthrough'
         );
+        /**
+         * Filters Google url passthrough.
+         *
+         * @since 1.31.0
+         */
         return (bool) apply_filters( 'pmw_google_url_passthrough', $url_passthrough );
     }
 
@@ -378,6 +407,11 @@ class Google_Helpers {
             '1.31.2',
             'pmw_ga_4_parameters'
         );
+        /**
+         * Filters Ga 4 parameters.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_ga_4_parameters', $ga_4_parameters, $id );
     }
 
@@ -407,6 +441,11 @@ class Google_Helpers {
             '1.31.2',
             'pmw_ga_ua_parameters'
         );
+        /**
+         * Filters Ga ua parameters.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_ga_ua_parameters', $ga_ua_parameters, $id );
     }
 
@@ -419,7 +458,7 @@ class Google_Helpers {
             $data['pr' . $item_index . 'id'] = $order_item_data['id'];
             $data['pr' . $item_index . 'qt'] = -1 * $order_item_data['quantity'];
             $data['pr' . $item_index . 'pr'] = $order_item_data['price'];
-            $item_index++;
+            ++$item_index;
         }
         return $data;
     }
@@ -560,6 +599,11 @@ class Google_Helpers {
             '1.48.0',
             'google_tag_id'
         );
+        /**
+         * Filters Google tag id.
+         *
+         * @since 1.58.5
+         */
         $google_tag_id_information['active'] = apply_filters( 'google_tag_id', $tag_active );
         set_transient( $transient_name, $google_tag_id_information, HOUR_IN_SECONDS );
         return $google_tag_id_information;

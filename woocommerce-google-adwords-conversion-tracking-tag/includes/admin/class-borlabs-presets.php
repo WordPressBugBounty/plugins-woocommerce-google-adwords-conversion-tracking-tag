@@ -220,34 +220,34 @@ class Borlabs_Presets {
 				'cookie_name'        => '_ga,_gat,_gid',
 				'privacy_policy_url' => 'https://policies.google.com/privacy',
 			],
-			//			'youtube'         => [
-			//				'group_id' => 'external-media',
-			//				'name'     => [
-			//					'en' => 'YouTube',
-			//					'de' => 'YouTube',
-			//				],
-			//				'provider' => 'google.com',
-			//				'purpose'  => [
-			//					'en' => 'YouTube is a video portal of YouTube LLC., a subsidiary of Google LLC. YouTube is a platform that allows users to upload, view, rate, share and comment on videos, subscribe to other users and create playlists. We use YouTube to embed videos on our website.',
-			//					'de' => 'YouTube ist ein Videoportal der YouTube LLC., einer Tochtergesellschaft der Google LLC. YouTube ist eine Plattform, die es Benutzern ermöglicht, Videos hochzuladen, anzusehen, zu bewerten, zu teilen und zu kommentieren, sich auf andere Benutzer zu abonnieren und Playlists zu erstellen. Wir verwenden YouTube, um Videos auf unserer Website einzubetten.',
-			//				],
-			//			],
-			//			'vimeo'         => [
-			//				'group_id' => 'external-media',
-			//				'name'     => [
-			//					'en' => 'Vimeo',
-			//					'de' => 'Vimeo',
-			//				],
-			//				'provider' => 'vimdeo.com',
-			//				'purpose'  => [
-			//					'en' => 'Vimeo is a video portal of Vimeo, Inc. Vimeo is a platform that allows users to upload, view, rate, share and comment on videos, subscribe to other users and create playlists. We use Vimeo to embed videos on our website.',
-			//					'de' => 'Vimeo ist ein Videoportal der Vimeo, Inc. Vimeo ist eine Plattform, die es Benutzern ermöglicht, Videos hochzuladen, anzusehen, zu bewerten, zu teilen und zu kommentieren, sich auf andere Benutzer zu abonnieren und Playlists zu erstellen. Wir verwenden Vimeo, um Videos auf unserer Website einzubetten.',
-			//				],
-			//				'privacy_policy_url' => 'https://vimeo.com/privacy',
-			//							'hosts' => ['player.vimeo.com'],
-			//				'cookie_name' => 'vuid',
-			//				'cookie_expiry' => '2 Years',
-			//			],
+			//          'youtube'         => [
+			//              'group_id' => 'external-media',
+			//              'name'     => [
+			//                  'en' => 'YouTube',
+			//                  'de' => 'YouTube',
+			//              ],
+			//              'provider' => 'google.com',
+			//              'purpose'  => [
+			//                  'en' => 'YouTube is a video portal of YouTube LLC., a subsidiary of Google LLC. YouTube is a platform that allows users to upload, view, rate, share and comment on videos, subscribe to other users and create playlists. We use YouTube to embed videos on our website.',
+			//                  'de' => 'YouTube ist ein Videoportal der YouTube LLC., einer Tochtergesellschaft der Google LLC. YouTube ist eine Plattform, die es Benutzern ermöglicht, Videos hochzuladen, anzusehen, zu bewerten, zu teilen und zu kommentieren, sich auf andere Benutzer zu abonnieren und Playlists zu erstellen. Wir verwenden YouTube, um Videos auf unserer Website einzubetten.',
+			//              ],
+			//          ],
+			//          'vimeo'         => [
+			//              'group_id' => 'external-media',
+			//              'name'     => [
+			//                  'en' => 'Vimeo',
+			//                  'de' => 'Vimeo',
+			//              ],
+			//              'provider' => 'vimdeo.com',
+			//              'purpose'  => [
+			//                  'en' => 'Vimeo is a video portal of Vimeo, Inc. Vimeo is a platform that allows users to upload, view, rate, share and comment on videos, subscribe to other users and create playlists. We use Vimeo to embed videos on our website.',
+			//                  'de' => 'Vimeo ist ein Videoportal der Vimeo, Inc. Vimeo ist eine Plattform, die es Benutzern ermöglicht, Videos hochzuladen, anzusehen, zu bewerten, zu teilen und zu kommentieren, sich auf andere Benutzer zu abonnieren und Playlists zu erstellen. Wir verwenden Vimeo, um Videos auf unserer Website einzubetten.',
+			//              ],
+			//              'privacy_policy_url' => 'https://vimeo.com/privacy',
+			//                          'hosts' => ['player.vimeo.com'],
+			//              'cookie_name' => 'vuid',
+			//              'cookie_expiry' => '2 Years',
+			//          ],
 			'woocommerce'      => [
 				'active'      => Environment::is_woocommerce_active(),
 				'group_id'    => 'essential',
@@ -277,21 +277,21 @@ class Borlabs_Presets {
 					'fr' => 'Reddit Ads est un service de publicité fourni par Reddit Inc. Ce site Web utilise la fonction de suivi des conversions Reddit Ads pour mesurer les performances des publicités sur la plate-forme.',
 				],
 			],
-			//			'matomo'     => [
-			//				'group_id' => 'statistics',
-			//				'name'     => [
-			//					'en' => 'Matomo',
-			//					'de' => 'Matomo',
-			//					'fr' => 'Matomo',
-			//					'it' => 'Matomo',
-			//				],
-			//				'provider' => 'matomo.com',
-			//				'purpose'  => [
-			//					'en' => 'Matomo is a tracking and analysis platform that protects the privacy of visitors and users. Store and analyze data such as the time spent on the website, the pages visited, the country of origin, the used search engine and the like. The evaluation is used exclusively for the optimization of the website and the cost-benefit analysis of Internet advertising.',
-			//					'de' => 'Matomo ist eine Tracking- und Analyseplattform, die die Privatsphäre von Besuchern und Nutzern schützt. Speichern und analysieren Sie Daten wie die auf der Website verbrachte Zeit, die besuchten Seiten, das Herkunftsland, die verwendete Suchmaschine und dergleichen. Die Auswertung wird ausschließlich zur Optimierung der Website und zur Kosten-Nutzen-Analyse von Internetwerbung verwendet.',
-			//					'fr' => 'Matomo est une plate-forme de suivi et d\'analyse qui protège la vie privée des visiteurs et des utilisateurs. Stocker et analyser des données telles que le temps passé sur le site Web, les pages visitées, le pays d\'origine, le moteur de recherche utilisé et autres. L\'évaluation est utilisée exclusivement pour l\'optimisation du site Web et l\'analyse coût-bénéfice de la publicité sur Internet.',
-			//				],
-			//			],
+			//          'matomo'     => [
+			//              'group_id' => 'statistics',
+			//              'name'     => [
+			//                  'en' => 'Matomo',
+			//                  'de' => 'Matomo',
+			//                  'fr' => 'Matomo',
+			//                  'it' => 'Matomo',
+			//              ],
+			//              'provider' => 'matomo.com',
+			//              'purpose'  => [
+			//                  'en' => 'Matomo is a tracking and analysis platform that protects the privacy of visitors and users. Store and analyze data such as the time spent on the website, the pages visited, the country of origin, the used search engine and the like. The evaluation is used exclusively for the optimization of the website and the cost-benefit analysis of Internet advertising.',
+			//                  'de' => 'Matomo ist eine Tracking- und Analyseplattform, die die Privatsphäre von Besuchern und Nutzern schützt. Speichern und analysieren Sie Daten wie die auf der Website verbrachte Zeit, die besuchten Seiten, das Herkunftsland, die verwendete Suchmaschine und dergleichen. Die Auswertung wird ausschließlich zur Optimierung der Website und zur Kosten-Nutzen-Analyse von Internetwerbung verwendet.',
+			//                  'fr' => 'Matomo est une plate-forme de suivi et d\'analyse qui protège la vie privée des visiteurs et des utilisateurs. Stocker et analyser des données telles que le temps passé sur le site Web, les pages visitées, le pays d\'origine, le moteur de recherche utilisé et autres. L\'évaluation est utilisée exclusivement pour l\'optimisation du site Web et l\'analyse coût-bénéfice de la publicité sur Internet.',
+			//              ],
+			//          ],
 		];
 	}
 
@@ -302,34 +302,34 @@ class Borlabs_Presets {
 				'name'        => [
 					'en' => 'Marketing',
 					'de' => 'Marketing',
-					//					'fr' => 'Marketing',
+					//                  'fr' => 'Marketing',
 				],
 				'description' => [
 					'en' => 'Marketing cookies are used to track visitors across websites. The intention is to display ads that are relevant and engaging for the individual user and thereby more valuable for publishers and third party advertisers.',
 					'de' => 'Marketing-Cookies werden verwendet, um Besucher über Websites hinweg zu verfolgen. Die Absicht ist es, Anzeigen zu schalten, die für den einzelnen Nutzer relevant und ansprechend sind und damit für Publisher und Drittanbieter-Anzeigen wertvoller sind.',
-					//					'fr' => 'Les cookies marketing sont utilisés pour suivre les visiteurs sur les sites Web. L\'intention est d\'afficher des publicités qui sont pertinentes et engageantes pour l\'utilisateur individuel et donc plus précieux pour les éditeurs et les annonceurs tiers.',
+					//                  'fr' => 'Les cookies marketing sont utilisés pour suivre les visiteurs sur les sites Web. L\'intention est d\'afficher des publicités qui sont pertinentes et engageantes pour l\'utilisateur individuel et donc plus précieux pour les éditeurs et les annonceurs tiers.',
 				],
 			],
 			'statistics' => [
 				'name'        => [
 					'en' => 'Statistics',
 					'de' => 'Statistiken',
-					//					'fr' => 'Statistiques',
-					//					'it' => 'Statistiche',
+					//                  'fr' => 'Statistiques',
+					//                  'it' => 'Statistiche',
 				],
 				'description' => [
 					'en' => 'Statistic cookies help website owners to understand how visitors interact with websites by collecting and reporting information anonymously.',
 					'de' => 'Statistik-Cookies helfen Website-Besitzern zu verstehen, wie Besucher mit Websites interagieren, indem sie Informationen anonym sammeln und melden.',
-					//					'fr' => 'Les cookies statistiques aident les propriétaires de sites Web à comprendre comment les visiteurs interagissent avec les sites Web en collectant et en signalant des informations de manière anonyme.',
-					//					'it' => 'I cookie statistici aiutano i proprietari di siti Web a capire come i visitatori interagiscono con i siti Web raccogliendo e segnalando informazioni in modo anonimo.',
+					//                  'fr' => 'Les cookies statistiques aident les propriétaires de sites Web à comprendre comment les visiteurs interagissent avec les sites Web en collectant et en signalant des informations de manière anonyme.',
+					//                  'it' => 'I cookie statistici aiutano i proprietari di siti Web a capire come i visitatori interagiscono con i siti Web raccogliendo e segnalando informazioni in modo anonimo.',
 				],
 			],
 			'essential'  => [
 				'name'        => [
 					'en' => 'Essential',
 					'de' => 'Essenziell',
-					//					'fr' => 'Essentiel',
-					//					'it' => 'Essenziale',
+					//                  'fr' => 'Essentiel',
+					//                  'it' => 'Essenziale',
 				],
 				'description' => [
 					'en' => 'Essential cookies enable basic functions and are necessary for the proper functioning of the website.',

@@ -45,9 +45,9 @@ class Notifications {
 
     public static function wpm_admin_css( $hook_suffix ) {
         // Only output the css on PMW pages and the order page
-        //		if (self::is_not_allowed_to_show_pmw_notification()) {
-        //			return;
-        //		}
+        //      if (self::is_not_allowed_to_show_pmw_notification()) {
+        //          return;
+        //      }
         wp_enqueue_style(
             'pmw-notifications-css',
             PMW_PLUGIN_DIR_PATH . 'css/notifications.css',
@@ -221,7 +221,7 @@ class Notifications {
             ?>
 						<a class="notification-card-button-link" href="#">
 							<div class="notification-dismiss"
-								 data-notification-id="<?php 
+								data-notification-id="<?php 
             echo esc_html( $notification_data['id'] );
             ?>">
 								<!-- Replace 'Dismiss' text with 'X' -->
@@ -308,7 +308,7 @@ class Notifications {
 							<div class="wistia_embed wistia_async_<?php 
             echo esc_html( $notification_data['video_id'] );
             ?> popover=true popoverContent=link videoFoam=false"
-								 >
+								>
 								<span class="dashicons dashicons-video-alt3"></span>
 							</div>
 						</div>
@@ -322,10 +322,10 @@ class Notifications {
         if ( isset( $notification_data['learn_more_link'] ) ) {
             ?>
 						<a class="notification-card-button-link"
-						   href="<?php 
+							href="<?php 
             echo esc_html( $notification_data['learn_more_link'] );
             ?>"
-						   target="_blank"
+							target="_blank"
 						>
 							<div class="notification-card-bottom-button">
 								<?php 
@@ -343,10 +343,10 @@ class Notifications {
         if ( isset( $notification_data['settings_link'] ) ) {
             ?>
 						<a class="notification-card-button-link"
-						   href="<?php 
+							href="<?php 
             echo esc_html( $notification_data['settings_link'] );
             ?>"
-						   target="_blank"
+							target="_blank"
 						>
 							<div class="notification-card-bottom-button">
 								<?php 
@@ -364,10 +364,10 @@ class Notifications {
         if ( isset( $notification_data['portal_link'] ) ) {
             ?>
 						<a class="notification-card-button-link"
-						   href="<?php 
+							href="<?php 
             echo esc_html( $notification_data['portal_link'] );
             ?>"
-						   target="_blank"
+							target="_blank"
 						>
 							<div class="notification-card-bottom-button">
 								<?php 
@@ -400,8 +400,8 @@ class Notifications {
         $counts_by_impact = Opportunities::get_active_opportunities_by_impact();
         ?>
 		<div id="active-opportunities-notification"
-			 class="notice notice-info pmw active-opportunities-notification"
-			 style="padding: 12px 16px;display: flex;flex-direction: row;justify-content: space-between;align-items: flex-start;">
+			class="notice notice-info pmw active-opportunities-notification"
+			style="padding: 12px 16px;display: flex;flex-direction: row;justify-content: space-between;align-items: flex-start;">
 			<div>
 				<div style="color:black;margin-bottom: 8px;">
 					<strong style="font-size: 14px;">
@@ -475,7 +475,7 @@ class Notifications {
 				<a href="<?php 
         echo esc_url_raw( '/wp-admin/admin.php?page=pmw&section=opportunities' );
         ?>"
-				   style="text-decoration: none;box-shadow: none;">
+					style="text-decoration: none;box-shadow: none;">
 					<div class="button button-primary" style="margin: 0;">
 						<?php 
         esc_html_e( 'View Opportunities', 'woocommerce-google-adwords-conversion-tracking-tag' );
@@ -486,9 +486,9 @@ class Notifications {
 
 			<div style="text-align: right;display: flex;flex-direction: column;">
 				<div id="pmw-dismiss-opportunities-message-button"
-					 class="button pmw-notification-dismiss-button"
-					 style="white-space:normal;margin-bottom: 6px;text-align: center;"
-					 data-notification-id="dashboard-opportunities-message-dismissed"
+					class="button pmw-notification-dismiss-button"
+					style="white-space:normal;margin-bottom: 6px;text-align: center;"
+					data-notification-id="dashboard-opportunities-message-dismissed"
 				><?php 
         esc_html_e( 'Dismiss', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>

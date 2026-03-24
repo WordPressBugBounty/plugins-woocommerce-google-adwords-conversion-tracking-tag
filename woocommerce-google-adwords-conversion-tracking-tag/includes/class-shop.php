@@ -118,7 +118,11 @@ class Shop {
             '1.31.2',
             'pmw_marketing_conversion_value_filter'
         );
-        // filter to adjust the order value
+        /**
+         * Filter to adjust the order value.
+         *
+         * @since 1.31.2
+         */
         $order_total = apply_filters( 'pmw_marketing_conversion_value_filter', $order_total, $order );
         return (float) Helpers::format_decimal( (float) $order_total, 2 );
     }
@@ -133,6 +137,11 @@ class Shop {
      */
     public static function get_order_value_total_statistics( $order ) {
         $order_total = $order->get_total();
+        /**
+         * Filters Order value total statistics.
+         *
+         * @since 1.58.5
+         */
         $order_total = apply_filters( 'pmw_order_value_total_statistics', $order_total, $order );
         return (float) Helpers::format_decimal( (float) $order_total, 2 );
     }
@@ -147,6 +156,11 @@ class Shop {
      */
     public static function get_order_value_subtotal_statistics( $order ) {
         $order_subtotal = $order->get_subtotal();
+        /**
+         * Filters Order value subtotal statistics.
+         *
+         * @since 1.58.5
+         */
         $order_subtotal = apply_filters( 'pmw_order_value_subtotal_statistics', $order_subtotal, $order );
         return (float) Helpers::format_decimal( (float) $order_subtotal, 2 );
     }
@@ -172,7 +186,7 @@ class Shop {
 				If you want to test the order you have two options:
 					- Turn off order duplication prevention in the advanced settings
 					- Add the '&nodedupe' parameter to the order confirmation URL like this:
-					  https://example.test/checkout/order-received/123/?key=wc_order_123abc&nodedupe
+						https://example.test/checkout/order-received/123/?key=wc_order_123abc&nodedupe
 
 				More info on testing: <?php 
         echo esc_html( Documentation::get_link( 'test_order' ) );
@@ -225,7 +239,11 @@ class Shop {
             '1.31.2',
             'pmw_conversion_prevention'
         );
-        // If the conversion prevention filter is set to true, the order confirmation will not be processed
+        /**
+         * If the conversion prevention filter is set to true, the order confirmation will not be processed.
+         *
+         * @since 1.31.2
+         */
         $conversion_prevention = apply_filters( 'pmw_conversion_prevention', $conversion_prevention, $order );
         // If the order deduplication is deactivated, we can process the order confirmation
         if ( self::is_order_duplication_prevention_disabled() ) {
@@ -266,10 +284,10 @@ class Shop {
 
     public static function is_browser_on_shop() {
         $_server = Helpers::get_input_vars( INPUT_SERVER );
-        //		error_log(print_r($_server, true));
-        //		error_log(print_r($_server['HTTP_HOST'], true));
-        //		error_log('get_site_url(): ' . parse_url(get_site_url(), PHP_URL_HOST));
-        //		error_log('parse url https://www.exampel.com : ' . parse_url('https://www.exampel.com', PHP_URL_HOST));
+        //      error_log(print_r($_server, true));
+        //      error_log(print_r($_server['HTTP_HOST'], true));
+        //      error_log('get_site_url(): ' . parse_url(get_site_url(), PHP_URL_HOST));
+        //      error_log('parse url https://www.exampel.com : ' . parse_url('https://www.exampel.com', PHP_URL_HOST));
         // Servers like Siteground don't seem to always provide $_server['HTTP_HOST']
         // In that case we need to pretend that we're on the same server
         if ( !isset( $_server['HTTP_HOST'] ) ) {
@@ -354,9 +372,9 @@ class Shop {
         }
         // Abort if the wc_get_orders query doesn't properly accept the 'billing_email' parameter
         // In that case a count filtered by billing email would return all orders of the shop
-        //		if (self::get_count_of_all_order_ids() === self::get_count_of_order_ids_by_billing_email($order->get_billing_email())) {
-        //			return false;
-        //		}
+        //      if (self::get_count_of_all_order_ids() === self::get_count_of_order_ids_by_billing_email($order->get_billing_email())) {
+        //          return false;
+        //      }
         return true;
     }
 
@@ -596,6 +614,11 @@ class Shop {
                 $order_fees += $ppcp_paypal_fees['paypal_fee']['value'];
             }
         }
+        /**
+         * Filters Order fees.
+         *
+         * @since 1.58.5
+         */
         return (float) apply_filters( 'pmw_order_fees', $order_fees, $order );
     }
 
@@ -681,6 +704,11 @@ class Shop {
      * @return bool
      */
     public static function track_subscription_renewal() {
+        /**
+         * Filters Subscription renewal tracking.
+         *
+         * @since 1.58.5
+         */
         return apply_filters( 'pmw_subscription_renewal_tracking', true );
     }
 
@@ -732,6 +760,11 @@ class Shop {
         $active_order_statuses = array_merge( $active_order_statuses, wc_get_is_paid_statuses() );
         // Remove duplicates
         $active_order_statuses = array_unique( $active_order_statuses );
+        /**
+         * Filters Active order statuses.
+         *
+         * @since 1.58.5
+         */
         return apply_filters( 'pmw_active_order_statuses', $active_order_statuses );
     }
 
@@ -784,6 +817,11 @@ class Shop {
             '1.31.2',
             'pmw_view_item_list_trigger_settings'
         );
+        /**
+         * Filters View item list trigger settings.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_view_item_list_trigger_settings', $settings );
     }
 
@@ -847,6 +885,11 @@ class Shop {
      * @since 1.44.0
      */
     public static function get_custom_order_parameters( $order ) {
+        /**
+         * Filters Custom order parameters.
+         *
+         * @since 1.58.5
+         */
         return (array) apply_filters( 'pmw_custom_order_parameters', [], $order );
     }
 
@@ -863,6 +906,11 @@ class Shop {
      * @since 1.44.0
      */
     public static function get_custom_order_item_parameters( $order_item, $order ) {
+        /**
+         * Filters Custom order item parameters.
+         *
+         * @since 1.58.5
+         */
         return (array) apply_filters(
             'pmw_custom_order_item_parameters',
             [],

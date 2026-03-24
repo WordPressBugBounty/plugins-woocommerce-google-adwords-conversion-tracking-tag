@@ -261,7 +261,16 @@ class GTG_Proxy {
 		}
 
 		// Check if the request starts with our measurement path (primary proxy requests)
-		if (strpos($request_uri, $measurement_path) === 0) {
+		// Must match exact path or path followed by / or ? to avoid matching
+		// unrelated paths (e.g., measurement path "/m" must not match "/my-account/")
+		if (
+			strpos($request_uri, $measurement_path) === 0
+			&& (
+				strlen($request_uri) === strlen($measurement_path)
+				|| '/' === $request_uri[strlen($measurement_path)]
+				|| '?' === $request_uri[strlen($measurement_path)]
+			)
+		) {
 			// This is our request - handle it
 			self::handle_rewrite_request();
 			// We should never reach here because handle_rewrite_request calls die()
@@ -328,7 +337,7 @@ class GTG_Proxy {
 		// Process the proxy request
 		$_server = Helpers::get_input_vars( INPUT_SERVER );
 		$method  = isset( $_server['REQUEST_METHOD'] ) ? $_server['REQUEST_METHOD'] : 'GET';
-		$body   = 'POST' === $method ? file_get_contents('php://input') : '';
+		$body    = 'POST' === $method ? file_get_contents('php://input') : '';
 
 		$response = self::process_and_return_proxy_response($tag_id, $destination_path, $geo, $method, $body);
 
@@ -414,7 +423,7 @@ class GTG_Proxy {
 	private static function send_health_response() {
 		status_header(200);
 		header('Content-Type: text/plain; charset=utf-8');
-		header('X-PMW-GTG-Handler: wordpress');
+		header('X-PMW-GTG-Handler: WordPress');
 		die('ok');
 	}
 
@@ -548,11 +557,12 @@ class GTG_Proxy {
 			return new \WP_Error('invalid_tag_id', 'Invalid Google Tag ID format', [ 'status' => 400 ]);
 		}
 
-		// Sanitize path
-		$original_path = $path;
-		$path          = self::sanitize_path($path);
+		// Sanitize path (light-touch, matching standalone proxy behavior)
+		// Only strip dangerous characters — no URL-encoding or trailing slash changes.
+		// SSRF protection is handled by is_valid_fps_url() after URL construction.
+		$path = self::sanitize_destination_path($path);
 		if (!$path) {
-			self::log_proxy_event( 'Invalid path after sanitization', [ 'original_path' => $original_path ], 'warning' );
+			self::log_proxy_event( 'Invalid path after sanitization', [ 'original_path' => $path ], 'warning' );
 			return new \WP_Error('invalid_path', 'Invalid path', [ 'status' => 400 ]);
 		}
 
@@ -754,7 +764,16 @@ class GTG_Proxy {
 				status_header( isset( $data['status_code'] ) ? $data['status_code'] : 200 );
 				die();
 			} else {
-				self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => isset( $data['status_code'] ) ? $data['status_code'] : 'unknown' ], 'error' );
+				$empty_status = isset( $data['status_code'] ) ? $data['status_code'] : null;
+
+				// 2xx status codes with empty body are normal (e.g. tracking/beacon responses)
+				if ( $empty_status && $empty_status >= 200 && $empty_status < 300 ) {
+					self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => $empty_status ], 'debug' );
+					status_header( $empty_status );
+					die();
+				}
+
+				self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => isset( $empty_status ) ? $empty_status : 'unknown' ], 'error' );
 				status_header( 502 );
 				die( 'Empty response from upstream' );
 			}
@@ -867,6 +886,48 @@ class GTG_Proxy {
 	}
 
 	/**
+	 * Light-touch sanitization for destination paths sent to Google FPS.
+	 *
+	 * Unlike sanitize_path() which aggressively URL-encodes segments and strips
+	 * trailing slashes, this method only removes dangerous characters while
+	 * preserving the path exactly as Google expects it. This matches the
+	 * standalone proxy behavior and the Google Site Kit reference implementation,
+	 * which does NOT sanitize the destination path at all.
+	 *
+	 * SSRF protection is handled separately by is_valid_fps_url() which validates
+	 * the constructed URL points to .fps.goog.
+	 *
+	 * @param string $path The destination path (may include query string).
+	 * @return string|false The sanitized path or false if invalid.
+	 *
+	 * @since 1.58.5
+	 */
+	private static function sanitize_destination_path( $path ) {
+
+		if ( empty( $path ) ) {
+			return '/';
+		}
+
+		// Remove null bytes
+		$path = str_replace( chr( 0 ), '', $path );
+
+		// Remove non-printable characters
+		$path = preg_replace( '/[\x00-\x1F\x7F]/', '', $path );
+
+		// Limit length to 2048 characters
+		if ( strlen( $path ) > 2048 ) {
+			return false;
+		}
+
+		// Ensure path starts with /
+		if ( '/' !== $path[0] ) {
+			$path = '/' . $path;
+		}
+
+		return $path;
+	}
+
+	/**
 	 * Build the FPS URL
 	 *
 	 * @param string $tag_id The Google Tag ID.
@@ -922,7 +983,7 @@ class GTG_Proxy {
 		if ( $contains_query_parameters ) {
 			// Split path and query, then encode the query portion
 			list( $base_path, $query ) = explode( '?', $path, 2 );
-			$path = $base_path . '?' . self::encode_query_parameter( $query );
+			$path                      = $base_path . '?' . self::encode_query_parameter( $query );
 		}
 
 		// Append remaining query parameters
@@ -1174,9 +1235,10 @@ class GTG_Proxy {
 	 */
 	private static function send_request( $method, $url, $headers, $body = '' ) {
 
-		// Remove Accept-Encoding to get uncompressed response
-		// WordPress HTTP API will handle decompression but we want plain text
-		unset($headers['Accept-Encoding']);
+		// Remove accept-encoding — forwarded headers use lowercase keys.
+		// WordPress HTTP API (via Requests library) sets CURLOPT_ENCODING
+		// which handles Accept-Encoding and decompression automatically.
+		unset($headers['accept-encoding']);
 
 		/**
 		 * Filter the timeout for Google Tag Gateway proxy requests.
@@ -1249,30 +1311,6 @@ class GTG_Proxy {
 		// Only rewrite body for JavaScript responses
 		if ( self::is_script_response( $response['headers'] ) ) {
 			$response['body'] = str_replace( '/' . self::$fps_path_placeholder . '/', $substitution_path, $response['body'] );
-
-			// Also rewrite known consent mode / CCM paths that Google hardcodes without the placeholder
-			// These paths are used for consent mode data collection and need to be proxied through our endpoint
-			// We need to transform: "/d/ccm/form-data" => "/metrics5?id=TAG&s=/d/ccm/form-data"
-			$ccm_paths = [
-				'"/d/ccm/form-data"',
-				'"/d/ccm/conversion"',
-				'"/as/d/ccm/conversion"',
-				'"/g/d/ccm/conversion"',
-				'"/gs/ccm/conversion"',
-				'"/gs/ccm/collect"',
-			];
-			
-			foreach ( $ccm_paths as $ccm_path ) {
-				// Build the replacement - remove quotes and add to measurement path format
-				$path_without_quotes = trim( $ccm_path, '"' );
-				$ccm_replacement = '"' . $measurement_path . '?id=' . $tag_id;
-				if ( ! empty( $geo ) ) {
-					$ccm_replacement .= '&geo=' . rawurlencode( $geo );
-				}
-				$ccm_replacement .= '&s=' . $path_without_quotes . '"';
-				
-				$response['body'] = str_replace( $ccm_path, $ccm_replacement, $response['body'] );
-			}
 		} elseif ( self::is_redirect_response( $response['status_code'] ) && ! empty( $response['headers'] ) ) {
 			// Handle redirect responses (3xx) - rewrite Location header with absolute URL
 			// Must be absolute to prevent Apache from treating it as an internal redirect (AH00124)
@@ -1332,54 +1370,6 @@ class GTG_Proxy {
 	 */
 	private static function is_redirect_response( $status_code ) {
 		return $status_code >= 300 && $status_code < 400;
-	}
-
-	/**
-	 * Rewrite redirect location headers
-	 *
-	 * @param string $location The original location.
-	 * @param string $tag_id   The Google Tag ID.
-	 * @param string $geo      Geographic information.
-	 * @return string The rewritten location.
-	 */
-	private static function rewrite_redirect_location( $location, $tag_id, $geo ) {
-
-		// Check if this is a Google FPS URL
-		if (strpos($location, '.fps.goog') === false) {
-			return $location;
-		}
-
-		// Parse the URL
-		$parsed = wp_parse_url($location);
-		if (!$parsed) {
-			return $location;
-		}
-
-		$path = isset( $parsed['path'] ) ? $parsed['path'] : '';
-
-		// Remove the PHP_GTG_REPLACE_PATH if present
-		$path = str_replace('/PHP_GTG_REPLACE_PATH', '', $path);
-
-		// Build the new location through our proxy
-		$measurement_path = Options::get_google_tag_gateway_measurement_path();
-
-		if ($measurement_path) {
-			$new_location = get_site_url() . $measurement_path . '/?id=' . $tag_id;
-		} else {
-			$new_location = rest_url(self::$rest_namespace . '/gtg-proxy/') . '?id=' . $tag_id;
-		}
-
-		if (!empty($geo)) {
-			$new_location .= '&geo=' . rawurlencode($geo);
-		}
-
-		$new_location .= '&s=' . rawurlencode($path);
-
-		if (!empty($parsed['query'])) {
-			$new_location .= rawurlencode('?' . $parsed['query']);
-		}
-
-		return $new_location;
 	}
 
 	/**
@@ -1631,8 +1621,11 @@ class GTG_Proxy {
 			? $options['general']['logger']['level']
 			: 'error';
 
-		// Allow disabling isolated proxy for testing
-		// Usage: add_filter( 'pmw_gtg_isolated_proxy_enabled', '__return_false' );
+		/**
+		 * Allow disabling isolated proxy for testing Usage: add_filter( 'pmw_gtg_isolated_proxy_enabled', '__return_false' );.
+		 *
+		 * @since 1.58.5
+		 */
 		$isolated_proxy_enabled = apply_filters( 'pmw_gtg_isolated_proxy_enabled', true );
 
 		// Get the isolated proxy URL for self-referencing in rewrites
@@ -1872,8 +1865,11 @@ class GTG_Proxy {
 	 */
 	public static function is_isolated_proxy_available() {
 
-		// Allow disabling isolated proxy for testing
-		// Usage: add_filter( 'pmw_gtg_isolated_proxy_enabled', '__return_false' );
+		/**
+		 * Allow disabling isolated proxy for testing Usage: add_filter( 'pmw_gtg_isolated_proxy_enabled', '__return_false' );.
+		 *
+		 * @since 1.58.5
+		 */
 		if ( ! apply_filters( 'pmw_gtg_isolated_proxy_enabled', true ) ) {
 			return false;
 		}

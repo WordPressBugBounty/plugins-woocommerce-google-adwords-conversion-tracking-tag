@@ -351,7 +351,11 @@ class Borlabs {
 			}
 		}
 
-		// Add more languages to the $cookie_group_languages array using the filter pmw_borlabs_cookie_group_languages
+		/**
+		 * Add more languages to the $cookie_group_languages array using the filter pmw_borlabs_cookie_group_languages.
+		 *
+		 * @since 1.58.5
+		 */
 		$cookie_group_languages = apply_filters('pmw_borlabs_cookie_group_languages', $cookie_group_languages);
 
 		// Make the $cookie_group_languages array unique
@@ -522,9 +526,9 @@ class Borlabs {
 				'privacy_policy_url' => isset(self::$cookie_presets[$cookie_preset_id]['privacy_policy'])
 					? self::$cookie_presets[$cookie_preset_id]['privacy_policy']
 					: '',
-				//				'hosts'           => isset(self::$cookie_presets[$cookie_preset_id]['hosts'])
-				//					? self::$cookie_presets[$cookie_preset_id]['hosts']
-				//					: 'a:0:{}',
+				//              'hosts'           => isset(self::$cookie_presets[$cookie_preset_id]['hosts'])
+				//                  ? self::$cookie_presets[$cookie_preset_id]['hosts']
+				//                  : 'a:0:{}',
 				'hosts'              => isset(self::$cookie_presets[$cookie_preset_id]['hosts'])
 					? serialize(self::$cookie_presets[$cookie_preset_id]['hosts'])
 					: serialize([]),
@@ -534,10 +538,10 @@ class Borlabs {
 				'cookie_expiry'      => isset(self::$cookie_presets[$cookie_preset_id]['cookie_expiry'])
 					? self::$cookie_presets[$cookie_preset_id]['cookie_expiry']
 					: '',
-				//				'opt_in_js'       => '',
-				//				'opt_out_js'      => '',
-				//				'fallback_js'     => '',
-				//								'settings'        => 'a:2:{s:25:"blockCookiesBeforeConsent";s:1:"0";s:10:"prioritize";s:1:"0";}',
+				//              'opt_in_js'       => '',
+				//              'opt_out_js'      => '',
+				//              'fallback_js'     => '',
+				//                              'settings'        => 'a:2:{s:25:"blockCookiesBeforeConsent";s:1:"0";s:10:"prioritize";s:1:"0";}',
 				'settings'           => serialize([
 					'blockCookiesBeforeConsent' => '0',
 					'prioritize'                => '0',

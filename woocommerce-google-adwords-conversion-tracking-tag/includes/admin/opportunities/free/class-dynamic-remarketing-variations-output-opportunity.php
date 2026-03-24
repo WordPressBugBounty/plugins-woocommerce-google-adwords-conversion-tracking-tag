@@ -53,7 +53,7 @@ class Dynamic_Remarketing_Variations_Output extends Opportunity {
 				'woocommerce-google-adwords-conversion-tracking-tag'
 			),
 			'setup_link'  => Documentation::get_link('variations_output'),
-			//			'learn_more_link' => '#',
+			//          'learn_more_link' => '#',
 			'since'       => 1672895375, // timestamp
 		];
 	}

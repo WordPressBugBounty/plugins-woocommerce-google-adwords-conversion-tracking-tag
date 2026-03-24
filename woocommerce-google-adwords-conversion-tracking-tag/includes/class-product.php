@@ -37,8 +37,11 @@ class Product {
 		$order_items = apply_filters_deprecated('wooptpm_order_items', [ $order->get_items(), $order ], '1.13.0', 'wpm_order_items');
 		$order_items = apply_filters_deprecated('wpm_order_items', [ $order_items ], '1.31.2', 'pmw_order_items');
 
-		// Give option to filter order items
-		// then return
+		/**
+		 * Give option to filter order items then return.
+		 *
+		 * @since 1.31.2
+		 */
 		return apply_filters('pmw_order_items', $order_items, $order);
 	}
 
@@ -64,6 +67,11 @@ class Product {
 		$dyn_r_ids = apply_filters_deprecated('wooptpm_product_ids', [ $dyn_r_ids, $product ], '1.13.0', 'pmw_product_ids');
 		$dyn_r_ids = apply_filters_deprecated('wpm_product_ids', [ $dyn_r_ids, $product ], '1.31.2', 'pmw_product_ids');
 
+		/**
+		 * Filters Product ids.
+		 *
+		 * @since 1.31.2
+		 */
 		return apply_filters('pmw_product_ids', $dyn_r_ids, $product);
 	}
 
@@ -96,6 +104,11 @@ class Product {
 		$dyn_r_id_type = apply_filters_deprecated('wooptpm_product_id_type_for_' . $pixel_name, [ $dyn_r_id_type ], '1.13.0', 'pmw_product_id_type_for_');
 		$dyn_r_id_type = apply_filters_deprecated('wpm_product_id_type_for_' . $pixel_name, [ $dyn_r_id_type ], '1.31.2', 'pmw_product_id_type_for_');
 
+		/**
+		 * Filters Product id type for.
+		 *
+		 * @since 1.31.2
+		 */
 		return apply_filters('pmw_product_id_type_for_' . $pixel_name, $dyn_r_id_type);
 	}
 
@@ -193,8 +206,11 @@ class Product {
 	 */
 	public static function output_product_prices_with_tax() {
 
-		// Output the product prices with tax as default
-		// otherwise, output the prices without tax
+		/**
+		 * Output the product prices with tax as default otherwise, output the prices without tax.
+		 *
+		 * @since 1.58.5
+		 */
 		return (bool) apply_filters('pmw_output_product_prices_with_tax', true);
 	}
 
@@ -220,7 +236,11 @@ class Product {
 		$brand_taxonomy = apply_filters_deprecated('wooptpm_custom_brand_taxonomy', [ $brand_taxonomy ], '1.13.0', 'pmw_custom_brand_taxonomy');
 		$brand_taxonomy = apply_filters_deprecated('wpm_custom_brand_taxonomy', [ $brand_taxonomy ], '1.31.2', 'pmw_custom_brand_taxonomy');
 
-		// Use custom brand_taxonomy
+		/**
+		 * Use custom brand_taxonomy.
+		 *
+		 * @since 1.31.2
+		 */
 		$brand_taxonomy = apply_filters('pmw_custom_brand_taxonomy', $brand_taxonomy);
 
 		$brand = self::get_brand_by_taxonomy($product_id, $brand_taxonomy);
@@ -402,7 +422,7 @@ class Product {
 		if ($meta_tag) {
 			?>
 			<meta name="pm-dataLayer-meta" content="<?php echo esc_html($product->get_id()); ?>" class="pmwProductId"
-				  data-id="<?php echo esc_html($product->get_id()); ?>">
+					data-id="<?php echo esc_html($product->get_id()); ?>">
 			<?php
 		} else {
 			?>

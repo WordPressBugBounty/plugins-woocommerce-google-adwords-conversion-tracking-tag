@@ -37,9 +37,9 @@ class Database {
 		}
 
 		// TODO implement in Q1 2023
-//		if (version_compare(4, $db_version, '>')) {
-//			self::up_from_3_to_4();
-//		}
+//      if (version_compare(4, $db_version, '>')) {
+//          self::up_from_3_to_4();
+//      }
 
 		if (version_compare(PMW_DB_VERSION, $db_version, '<')) {
 			self::downgrade_db();
@@ -184,7 +184,7 @@ class Database {
 
 		$options = Options::get_options();
 
-//		error_log(print_r($options,true));
+//      error_log(print_r($options,true));
 
 		if (( get_option('wgact_plugin_options_1') ) || ( get_option('wgact_plugin_options_2') )) {
 			return '0';

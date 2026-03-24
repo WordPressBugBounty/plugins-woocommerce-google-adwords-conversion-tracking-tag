@@ -53,7 +53,7 @@ class LTV_Order_Level_Calculation extends Opportunity {
 				'woocommerce-google-adwords-conversion-tracking-tag'
 			),
 			'setup_link'  => Documentation::get_link('ltv_order_calculation'),
-			//			'learn_more_link' => '#',
+			//          'learn_more_link' => '#',
 			'since'       => 1706849519, // current timestamp
 		];
 	}

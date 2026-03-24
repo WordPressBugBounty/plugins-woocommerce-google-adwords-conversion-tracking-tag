@@ -11,7 +11,7 @@
  * - Response time: 50-150ms vs 200-500ms with WordPress
  *
  * Defensive behavior:
- * - Returns 503 with X-PMW-Fallback: wordpress header if config cannot be loaded
+ * - Returns 503 with X-PMW-Fallback: WordPress header if config cannot be loaded
  * - JavaScript client detects this and switches to WordPress proxy
  *
  * @package PMW
@@ -92,7 +92,7 @@ function pmw_gtg_get_wp_content_path() {
 	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized via pmw_gtg_sanitize_path below.
 	$doc_root_raw = isset( $_SERVER['DOCUMENT_ROOT'] ) ? stripslashes( $_SERVER['DOCUMENT_ROOT'] ) : null;
 	if ( $doc_root_raw ) {
-		$doc_root = rtrim( pmw_gtg_sanitize_path( $doc_root_raw ), '/' );
+		$doc_root       = rtrim( pmw_gtg_sanitize_path( $doc_root_raw ), '/' );
 		$possible_paths = [
 			$doc_root . '/wp-content',
 			$doc_root . '/public/wp-content',      // GridPane/Trellis style
@@ -148,7 +148,7 @@ function pmw_gtg_get_config_directory() {
 	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized via pmw_gtg_sanitize_path below.
 	$doc_root_raw = isset( $_SERVER['DOCUMENT_ROOT'] ) ? stripslashes( $_SERVER['DOCUMENT_ROOT'] ) : null;
 	if ( $doc_root_raw ) {
-		$doc_root = rtrim( pmw_gtg_sanitize_path( $doc_root_raw ), '/' );
+		$doc_root       = rtrim( pmw_gtg_sanitize_path( $doc_root_raw ), '/' );
 		$possible_paths = [
 			$doc_root . '/wp-content/uploads/pmw-gtg',
 			$doc_root . '/public/wp-content/uploads/pmw-gtg',      // GridPane/Trellis style
@@ -282,7 +282,7 @@ function pmw_gtg_find_config_file( $config_dir ) {
 function pmw_gtg_send_fallback_response( $reason = 'unknown' ) {
 	http_response_code( 503 );
 	header( 'Content-Type: text/plain; charset=utf-8' );
-	header( 'X-PMW-Fallback: wordpress' );
+	header( 'X-PMW-Fallback: WordPress' );
 	header( 'X-PMW-Fallback-Reason: ' . $reason );
 	header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
 	echo 'Fallback to WordPress proxy';
@@ -322,8 +322,8 @@ if ( isset( $_GET['healthCheck'] ) ) {
 
 	// Config is valid - log if enabled
 	if ( ! empty( $config['logging_enabled'] ) ) {
-		$log_level = isset( $config['log_level'] ) ? $config['log_level'] : 'error';
-		$level_priority = [ 'debug' => 7, 'info' => 6, 'notice' => 5, 'warning' => 4, 'error' => 3 ];
+		$log_level           = isset( $config['log_level'] ) ? $config['log_level'] : 'error';
+		$level_priority      = [ 'debug' => 7, 'info' => 6, 'notice' => 5, 'warning' => 4, 'error' => 3 ];
 		$configured_priority = isset( $level_priority[ $log_level ] ) ? $level_priority[ $log_level ] : 3;
 
 		if ( 6 <= $configured_priority ) { // info level = 6
@@ -335,8 +335,8 @@ if ( isset( $_GET['healthCheck'] ) ) {
 				$debug_log = dirname( dirname( $config['log_directory'] ) ) . '/debug.log';
 			}
 			if ( $debug_log ) {
-				$timestamp  = gmdate( 'd-M-Y H:i:s \U\T\C' );
-				$log_entry  = "[{$timestamp}] pmw [info] [GTG-Proxy-Standalone] Health check request received - proxy functional\n";
+				$timestamp = gmdate( 'd-M-Y H:i:s \U\T\C' );
+				$log_entry = "[{$timestamp}] pmw [info] [GTG-Proxy-Standalone] Health check request received - proxy functional\n";
 				@file_put_contents( $debug_log, $log_entry, FILE_APPEND | LOCK_EX );
 			}
 		}
@@ -461,7 +461,7 @@ final class PMW_GTG_Proxy_Standalone {
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Request URI is used for routing only
 			$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Request method is validated against known values
-			$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+			$method = isset( $_SERVER['REQUEST_METHOD'] ) ? $_SERVER['REQUEST_METHOD'] : 'GET';
 
 			self::log( 'Processing GTG request', [ 'uri' => $request_uri, 'method' => $method ], 'debug' );
 
@@ -510,11 +510,11 @@ final class PMW_GTG_Proxy_Standalone {
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_tag_id method
 			$tag_id = isset( $_GET['id'] ) ? self::sanitize_tag_id( $_GET['id'] ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_geo method
-			$geo    = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
+			$geo = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_s_path method
 			$s_path = isset( $_GET['s'] ) ? self::sanitize_s_path( $_GET['s'] ) : '';
 			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_mpath method
-			$mpath  = isset( $_GET['mpath'] ) ? self::sanitize_mpath( $_GET['mpath'] ) : '';
+			$mpath = isset( $_GET['mpath'] ) ? self::sanitize_mpath( $_GET['mpath'] ) : '';
 
 			// Build destination path
 			$destination_path = self::build_destination_path( $s_path, $_GET, $tag_id, $path );
@@ -613,7 +613,7 @@ final class PMW_GTG_Proxy_Standalone {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Validated by caller and sanitized by sanitize_tag_id
 		$tag_id = self::sanitize_tag_id( $_GET['id'] );
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_geo method
-		$geo    = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
+		$geo = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
 
 		self::log( 'Handling secondary Google request', [ 'tag_id' => $tag_id ], 'info' );
 
@@ -672,9 +672,9 @@ final class PMW_GTG_Proxy_Standalone {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_s_path method
 		$s_path = isset( $_GET['s'] ) ? self::sanitize_s_path( $_GET['s'] ) : '';
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_geo method
-		$geo    = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
+		$geo = isset( $_GET['geo'] ) ? self::sanitize_geo( $_GET['geo'] ) : '';
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by sanitize_mpath method
-		$mpath  = isset( $_GET['mpath'] ) ? self::sanitize_mpath( $_GET['mpath'] ) : '';
+		$mpath = isset( $_GET['mpath'] ) ? self::sanitize_mpath( $_GET['mpath'] ) : '';
 
 		self::log(
 			'Processing direct access request',
@@ -1043,7 +1043,7 @@ final class PMW_GTG_Proxy_Standalone {
 			$contains_query_params = strpos( $destination_path, '?' ) !== false;
 			if ( $contains_query_params ) {
 				list( $dest_path, $query ) = explode( '?', $destination_path, 2 );
-				$destination_path = $dest_path . '?' . self::encode_query_parameter( $query );
+				$destination_path          = $dest_path . '?' . self::encode_query_parameter( $query );
 			}
 
 			if ( ! empty( $params ) ) {
@@ -1511,7 +1511,7 @@ final class PMW_GTG_Proxy_Standalone {
 		if ( $direct_access && ! empty( $config['proxy_url'] ) ) {
 			// Parse proxy_url to get just the path part (e.g., /wp-content/plugins/.../pmw-gtg-proxy.php)
 			$parsed_url = parse_url( $config['proxy_url'] );
-			$base_path = isset( $parsed_url['path'] ) ? $parsed_url['path'] : '';
+			$base_path  = isset( $parsed_url['path'] ) ? $parsed_url['path'] : '';
 			
 			if ( ! empty( $base_path ) ) {
 				// Use proxy_url path for direct access mode
@@ -1559,49 +1559,18 @@ final class PMW_GTG_Proxy_Standalone {
 		if ( 0 === strpos( strtolower( str_replace( ' ', '', $content_type ) ), 'application/javascript' ) ) {
 			// Replace the FPS path placeholder (including the leading slash)
 			// Input: '/PHP_GTG_REPLACE_PATH/some/path' => '/metrics5?id=TAG&s=/some/path'
-			$before_count = substr_count( $response['body'], '/' . self::FPS_PATH_PLACEHOLDER . '/' );
+			$before_count     = substr_count( $response['body'], '/' . self::FPS_PATH_PLACEHOLDER . '/' );
 			$response['body'] = str_replace( '/' . self::FPS_PATH_PLACEHOLDER . '/', $replacement, $response['body'] );
-			$after_count = substr_count( $response['body'], '/' . self::FPS_PATH_PLACEHOLDER . '/' );
+			$after_count      = substr_count( $response['body'], '/' . self::FPS_PATH_PLACEHOLDER . '/' );
 			self::log( 'Rewrite JS response', [
 				'replacements' => $before_count - $after_count,
 				'pattern'      => '/' . self::FPS_PATH_PLACEHOLDER . '/',
 			], 'debug' );
-
-			// Also rewrite known consent mode / CCM paths that Google hardcodes without the placeholder
-			// These paths are used for consent mode data collection and need to be proxied through our endpoint
-			// We need to transform: "/d/ccm/form-data" => "/base_path?id=TAG&s=/d/ccm/form-data"
-			$ccm_paths = [
-				'"/d/ccm/form-data"',
-				'"/d/ccm/conversion"',
-				'"/as/d/ccm/conversion"',
-				'"/g/d/ccm/conversion"',
-				'"/gs/ccm/conversion"',
-				'"/gs/ccm/collect"',
-			];
-			
-			$ccm_count = 0;
-			foreach ( $ccm_paths as $ccm_path ) {
-				// Build the replacement - remove quotes and add to base path format
-				$path_without_quotes = trim( $ccm_path, '"' );
-				$ccm_replacement = '"' . $base_path . '?id=' . urlencode( $tag_id );
-				if ( ! empty( $geo ) ) {
-					$ccm_replacement .= '&geo=' . urlencode( $geo );
-				}
-				$ccm_replacement .= '&s=' . $path_without_quotes . '"';
-				
-				$path_count = substr_count( $response['body'], $ccm_path );
-				$response['body'] = str_replace( $ccm_path, $ccm_replacement, $response['body'] );
-				$ccm_count += $path_count;
-			}
-			
-			if ( $ccm_count > 0 ) {
-				self::log( 'Rewrite CCM paths', [ 'count' => $ccm_count ], 'debug' );
-			}
 		} elseif ( self::is_redirect_response( $status_code ) && ! empty( $response['headers'] ) ) {
 			// Handle redirect responses (3xx) - rewrite Location header with absolute URL
 			// Must be absolute to prevent Apache from treating it as an internal redirect (AH00124)
 			if ( isset( $response['headers']['location'] ) ) {
-				$site_url = isset( $config['site_url'] ) ? rtrim( $config['site_url'], '/' ) : '';
+				$site_url                        = isset( $config['site_url'] ) ? rtrim( $config['site_url'], '/' ) : '';
 				$response['headers']['location'] = str_replace(
 					'/' . self::FPS_PATH_PLACEHOLDER,
 					$site_url . $replacement,
@@ -1660,6 +1629,13 @@ final class PMW_GTG_Proxy_Standalone {
 		$allow_empty = ( strtoupper( $method ) === 'POST' );
 
 		if ( empty( $body ) && ! $allow_empty ) {
+			// 2xx status codes with empty body are normal (e.g. tracking/beacon responses)
+			if ( $status_code >= 200 && $status_code < 300 ) {
+				self::log( 'Empty response from upstream', [ 'status_code' => $status_code ], 'debug' );
+				http_response_code( $status_code );
+				exit;
+			}
+
 			self::log( 'Empty response from upstream', [ 'status_code' => $status_code ], 'warning' );
 			http_response_code( 502 );
 			exit( 'Empty response from upstream' );

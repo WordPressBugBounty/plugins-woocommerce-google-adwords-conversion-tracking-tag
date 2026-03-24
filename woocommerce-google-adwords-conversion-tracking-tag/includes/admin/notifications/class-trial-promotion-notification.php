@@ -174,8 +174,8 @@ class Trial_Promotion_Notification extends Notification {
 
 		?>
 		<div id="pmw-trial-promotion-notification"
-			 class="notice notice-info pmw trial-promotion-notification"
-			 style="padding: 12px 16px; display: flex; flex-direction: row; justify-content: space-between; align-items: flex-start; border-left-color: #2271b1;">
+			class="notice notice-info pmw trial-promotion-notification"
+			style="padding: 12px 16px; display: flex; flex-direction: row; justify-content: space-between; align-items: flex-start; border-left-color: #2271b1;">
 			<div>
 				<div style="color: black; margin-bottom: 8px;">
 					<strong style="font-size: 14px;">
@@ -206,7 +206,7 @@ class Trial_Promotion_Notification extends Notification {
 				</div>
 
 				<a href="<?php echo esc_url($trial_url); ?>"
-				   style="text-decoration: none; box-shadow: none;">
+					style="text-decoration: none; box-shadow: none;">
 					<div class="button button-primary" style="margin: 0;">
 						<?php esc_html_e('Start Free Trial', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 					</div>
@@ -214,8 +214,8 @@ class Trial_Promotion_Notification extends Notification {
 
 				<?php if (!empty($notification_data['learn_more_link'])) : ?>
 					<a href="<?php echo esc_url($notification_data['learn_more_link']); ?>"
-					   target="_blank"
-					   style="margin-left: 12px; color: #2271b1; text-decoration: none;">
+						target="_blank"
+						style="margin-left: 12px; color: #2271b1; text-decoration: none;">
 						<?php esc_html_e('Learn more', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 					</a>
 				<?php endif; ?>
@@ -223,9 +223,9 @@ class Trial_Promotion_Notification extends Notification {
 
 			<div style="text-align: right; display: flex; flex-direction: column;">
 				<div id="pmw-dismiss-trial-promotion-button"
-					 class="button pmw-notification-dismiss-button"
-					 style="white-space: normal; margin-bottom: 6px; text-align: center;"
-					 data-notification-id="<?php echo esc_attr($notification_data['id']); ?>"
+					class="button pmw-notification-dismiss-button"
+					style="white-space: normal; margin-bottom: 6px; text-align: center;"
+					data-notification-id="<?php echo esc_attr($notification_data['id']); ?>"
 				><?php esc_html_e('Dismiss', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
 				</div>
 			</div>

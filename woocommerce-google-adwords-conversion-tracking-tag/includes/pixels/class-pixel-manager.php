@@ -26,6 +26,7 @@ use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\Server_Event_Processor;
 use SweetCode\Pixel_Manager\Shop;
+use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 use WP_Error;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
@@ -85,7 +86,7 @@ class Pixel_Manager {
             if ( wpm_fs()->can_use_premium_code__premium_only() && Options::get_facebook_domain_verification_id() ) {
                 ?>
 				<meta name="facebook-domain-verification"
-					  content="<?php 
+						content="<?php 
                 echo esc_attr( Options::get_facebook_domain_verification_id() );
                 ?>"/>
 				<?php 
@@ -260,6 +261,11 @@ class Pixel_Manager {
             '1.31.2',
             'pmw_experimental_defer_scripts'
         );
+        /**
+         * Filters Experimental defer scripts.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_experimental_defer_scripts', $defer_scripts );
     }
 
@@ -323,9 +329,9 @@ class Pixel_Manager {
         // For production
         $server->send_header( 'Content-Type', 'text/csv' );
         // For testing
-        //		$server->send_header('Content-Type', 'text/html');
-        //		$server->send_header('Content-Type', 'text/xml');
-        //		$server->send_header('Content-Type', 'application/xml');
+        //      $server->send_header('Content-Type', 'text/html');
+        //      $server->send_header('Content-Type', 'text/xml');
+        //      $server->send_header('Content-Type', 'application/xml');
         // Echo the XML that's returned by smg_feed().
         echo esc_html( $result->get_data() );
         exit;
@@ -398,9 +404,9 @@ class Pixel_Manager {
             'callback'            => function ( $request ) {
                 $data = $request->get_json_params();
                 // TODO: Maybe remove the nonce verification. 1) Some merchants even cache parts of the purchase confirmation page, which lets the nonce fail. 2) Nonce checks in this endpoint are not really necessary as we CAN check for a valid order_key which is only known to the customer who purchased a specific order.
-                //				if (!wp_verify_nonce($request->get_header('X-WP-Nonce'), 'wp_rest')) {
-                //					wp_send_json_error('Invalid nonce');
-                //				}
+                //              if (!wp_verify_nonce($request->get_header('X-WP-Nonce'), 'wp_rest')) {
+                //                  wp_send_json_error('Invalid nonce');
+                //              }
                 $data = Helpers::generic_sanitization( $data );
                 self::process_conversion_pixel_status( $data['order_id'], $data['order_key'], $data['source'] );
             },
@@ -656,6 +662,13 @@ class Pixel_Manager {
         }
         $order->add_meta_data( '_wpm_customer_user', $user_id, true );
         $order->save();
+        $payment_method = $order->get_payment_method();
+        if ( !empty( $payment_method ) ) {
+            $date_created = $order->get_date_created();
+            if ( $date_created ) {
+                Tracking_Accuracy_DB::increment_orders_total( gmdate( 'Y-m-d', $date_created->getTimestamp() ), $payment_method );
+            }
+        }
     }
 
     // Thanks to: https://gist.github.com/mishterk/6b7a4d6e5a91086a5a9b05ace304b5ce#file-mark-wordpress-scripts-as-async-or-defer-php
@@ -704,7 +717,7 @@ class Pixel_Manager {
         ];
         $json_encode_options = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
         // add JSON_PRETTY_PRINT
-        //		$json_encode_options = $json_encode_options | JSON_PRETTY_PRINT;
+        //      $json_encode_options = $json_encode_options | JSON_PRETTY_PRINT;
         ?>
 		<script>
 			window.pmwDataLayer.cart_item_keys                                          = window.pmwDataLayer.cart_item_keys || {};
@@ -797,6 +810,11 @@ class Pixel_Manager {
     }
 
     public function inject_data_layer_through_litespeed_esi() {
+        /**
+         * Fires Litespeed control set nocache.
+         *
+         * @since 1.58.5
+         */
         do_action( 'litespeed_control_set_nocache', 'nocache for Pixel the Pixel Manager' );
         $this->inject_data_layer();
     }
@@ -816,11 +834,21 @@ class Pixel_Manager {
      **/
     private function inject_data_layer_litespeed_esi() {
         if ( 'wcm' === PMW_DISTRO ) {
+            /**
+             * Fires Litespeed control set nocache.
+             *
+             * @since 1.58.5
+             */
             do_action( 'litespeed_control_set_nocache', 'logged in user: disable cache' );
             $this->inject_data_layer();
             return;
         }
         // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped
+        /**
+         * Filters Unknown hook.
+         *
+         * @since 1.58.5
+         */
         echo apply_filters( 'litespeed_esi_url', 'pmw_data_layer', 'Inject data layer through ESI block' );
         // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
     }
@@ -835,7 +863,7 @@ class Pixel_Manager {
     private function inject_data_layer() {
         $json_encode_options = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
         // add JSON_PRETTY_PRINT
-        //		$json_encode_options = $json_encode_options | JSON_PRETTY_PRINT;
+        //      $json_encode_options = $json_encode_options | JSON_PRETTY_PRINT;
         // We add a script string with additional attributes to the script tag.
         // Those attributes are primarily to exclude the script from being processed
         // by various script loaders and script blockers.
@@ -879,7 +907,7 @@ class Pixel_Manager {
          */
         if ( Environment::is_woocommerce_active() ) {
             $data = $this->add_order_data( $data );
-            //			$data         = array_merge($data, $this->get_order_data());
+            //          $data         = array_merge($data, $this->get_order_data());
             $data['shop'] = $this->get_shop_data();
         }
         $data['page'] = self::get_page_data();
@@ -887,16 +915,20 @@ class Pixel_Manager {
         /**
          * Load the experiment settings
          */
-        //		$data['experiments'] = [
-        //				'ga4_server_and_browser_tracking' => apply_filters('experimental_pmw_ga4_server_and_browser_tracking', false),
-        //		];
+        //      $data['experiments'] = [
+        //              'ga4_server_and_browser_tracking' => apply_filters('experimental_pmw_ga4_server_and_browser_tracking', false),
+        //      ];
         $data = apply_filters_deprecated(
             'wpm_experimental_data_layer',
             [$data],
             '1.31.2',
             'pmw_experimental_data_layer'
         );
-        // Return and optionally modify the pmw data layer
+        /**
+         * Return and optionally modify the pmw data layer.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_experimental_data_layer', $data );
     }
 
@@ -966,7 +998,7 @@ class Pixel_Manager {
                 $data['tag_gateway']['handler'] = $handler;
             }
             // Only include proxy_url when the server detected standalone
-            // When handler is 'wordpress', there's no point sending proxy_url
+            // When handler is 'WordPress', there's no point sending proxy_url
             // since JS would just get a 503/403 trying to use it
             if ( 'standalone' === $handler ) {
                 $isolated_url = GTG_Proxy::get_isolated_proxy_url();
@@ -1001,6 +1033,11 @@ class Pixel_Manager {
             '1.31.2',
             'pmw_send_events_with_parent_ids'
         );
+        /**
+         * Filters Send events with parent ids.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_send_events_with_parent_ids', $events_with_parent_ids );
     }
 
@@ -1048,7 +1085,17 @@ class Pixel_Manager {
             'exclusion_patterns'  => apply_filters( 'pmw_facebook_tracking_exclusion_patterns', [] ),
             'fbevents_js_url'     => Helpers::get_facebook_fbevents_js_url(),
         ];
+        /**
+         * Filters Facebook mobile bridge app id.
+         *
+         * @since 1.58.5
+         */
         if ( apply_filters( 'pmw_facebook_mobile_bridge_app_id', null ) ) {
+            /**
+             * Filters Facebook mobile bridge app id.
+             *
+             * @since 1.58.5
+             */
             $data['mobile_bridge_app_id'] = apply_filters( 'pmw_facebook_mobile_bridge_app_id', null );
         }
         return $data;
@@ -1090,6 +1137,11 @@ class Pixel_Manager {
             'start_checkout' => 'checkout',
             'purchase'       => 'purchase',
         ];
+        /**
+         * Filters Outbrain event name mapping.
+         *
+         * @since 1.58.5
+         */
         return (array) apply_filters( 'pmw_outbrain_event_name_mapping', $mapping );
     }
 
@@ -1157,6 +1209,11 @@ class Pixel_Manager {
             'start_checkout'  => 'start_checkout',
             'purchase'        => 'make_purchase',
         ];
+        /**
+         * Filters Taboola event name mapping.
+         *
+         * @since 1.58.5
+         */
         return (array) apply_filters( 'pmw_taboola_event_name_mapping', $mapping );
     }
 
@@ -1288,6 +1345,11 @@ class Pixel_Manager {
      * @since 1.43.5
      */
     private function get_google_ads_custom_variables( $order ) {
+        /**
+         * Filters Google ads order custom variables.
+         *
+         * @since 1.58.5
+         */
         return (array) apply_filters( 'pmw_google_ads_order_custom_variables', [], $order );
     }
 
@@ -1471,9 +1533,9 @@ class Pixel_Manager {
         $_post = Helpers::get_input_vars( INPUT_POST );
         // Don't use the nonce check from the admin class, because some plugin users have even partial purchase confirmation pages cached,
         // which means the nonce will be invalid.
-        //		if (!wp_verify_nonce($_post['nonce_ajax'], 'nonce-pmw-ajax')) {
-        //			wp_send_json_error('Invalid nonce');
-        //		}
+        //      if (!wp_verify_nonce($_post['nonce_ajax'], 'nonce-pmw-ajax')) {
+        //          wp_send_json_error('Invalid nonce');
+        //      }
         self::process_conversion_pixel_status( $_post['order_id'], $_post['order_key'], $_post['source'] );
     }
 
@@ -1493,12 +1555,28 @@ class Pixel_Manager {
     }
 
     public static function save_conversion_pixels_fired_status( $order, $source = 'thankyou_page' ) {
+        // Guard against double pixel-fire incrementing
+        $already_fired = $order->meta_exists( '_wpm_conversion_pixel_fired' );
         $order->update_meta_data( '_wpm_conversion_pixel_trigger', $source );
         $order->update_meta_data( '_wpm_conversion_pixel_fired', true );
         // Get the time between when the order was created and now and save it in _wpm_conversion_pixel_fired_delay
         $time_diff = time() - strtotime( $order->get_date_created() );
         $order->update_meta_data( '_wpm_conversion_pixel_fired_delay', $time_diff );
         $order->save();
+        if ( !$already_fired ) {
+            $payment_method = $order->get_payment_method();
+            if ( !empty( $payment_method ) ) {
+                $date_created = $order->get_date_created();
+                if ( $date_created ) {
+                    Tracking_Accuracy_DB::increment_orders_measured(
+                        gmdate( 'Y-m-d', $date_created->getTimestamp() ),
+                        $payment_method,
+                        $source,
+                        $time_diff
+                    );
+                }
+            }
+        }
     }
 
     public function front_end_scripts() {
@@ -1539,7 +1617,11 @@ class Pixel_Manager {
             '1.31.2',
             'pmw_experimental_move_pmw_script_to_footer'
         );
-        // this filter moves the PMW script to the footer
+        /**
+         * This filter moves the PMW script to the footer.
+         *
+         * @since 1.31.2
+         */
         return apply_filters( 'pmw_experimental_move_pmw_script_to_footer', $move_pmw_script_to_footer_active );
     }
 
@@ -1550,6 +1632,11 @@ class Pixel_Manager {
             '1.31.2',
             'pmw_script_optimization_preset_version'
         );
+        /**
+         * Filters Script optimization preset version.
+         *
+         * @since 1.31.2
+         */
         return '.p' . apply_filters( 'pmw_script_optimization_preset_version', $version );
     }
 
@@ -1636,7 +1723,7 @@ class Pixel_Manager {
         $data['title'] = get_the_title();
         $data['type'] = get_post_type();
         $data['categories'] = get_the_category();
-        //		$data['template']   = get_page_template_slug();
+        //      $data['template']   = get_page_template_slug();
         $parent_id = wp_get_post_parent_id( $data['id'] );
         // Parent
         $data['parent'] = [
@@ -1687,7 +1774,7 @@ class Pixel_Manager {
      * Build the SSP data layer config, accounting for additional domains.
      *
      * If the current request is served on an additional SSP domain (registered
-     * via the pmw_ssp_additional_domains filter), the events URL and verification
+     * via the pmw_ssp_additional_domains filter), the events URL and domain
      * token are swapped to that domain's values.
      *
      * @return array SSP config for the pmwDataLayer.
@@ -1698,7 +1785,7 @@ class Pixel_Manager {
             'active'         => Options::is_ssp_active(),
             'events_url'     => Options::get_ssp_events_url(),
             'fallback_to_wc' => Options::get_ssp_proxy_failure_behavior() === 'fallback_to_wc',
-            'token'          => Options::get_ssp_verification_key(),
+            'domain_token'   => Options::get_ssp_domain_token(),
             'session_id'     => Options::get_ssp_session_id(),
             'quota_exceeded' => Options::is_ssp_quota_exceeded(),
         ];
@@ -1706,7 +1793,7 @@ class Pixel_Manager {
         $additional_domain = Options::get_matching_ssp_additional_domain();
         if ( $additional_domain ) {
             $config['events_url'] = 'https://' . $additional_domain['proxy_hostname'] . '/v1/pmw-events';
-            $config['token'] = Options::get_ssp_additional_domain_verification_key( $additional_domain['proxy_hostname'] );
+            $config['domain_token'] = Options::get_ssp_additional_domain_domain_token( $additional_domain['proxy_hostname'] );
         }
         return $config;
     }

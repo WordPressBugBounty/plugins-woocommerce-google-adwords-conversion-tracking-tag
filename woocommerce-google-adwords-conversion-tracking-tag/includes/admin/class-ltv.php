@@ -13,8 +13,9 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 
 class LTV {
 
-	private static $max_failed_as_attempts = 3;
-	private static $as_group_name          = 'pmw_ltv_calculation';
+	private static $max_failed_as_attempts      = 3;
+	private static $as_group_name               = 'pmw_ltv_calculation';
+	private static $max_orders_per_chain_action = 50;
 
 	private static function pmw_order_value_meta_key() {
 		return '_pmw_order_value';
@@ -254,7 +255,11 @@ class LTV {
 			return;
 		}
 
-		// Stop if the billing email address is one of the email address returned by the get_test_email_addresses filter
+		/**
+		 * Stop if the billing email address is one of the email address returned by the get_test_email_addresses filter.
+		 *
+		 * @since 1.58.5
+		 */
 		$test_email_addresses = apply_filters('pmw_get_test_email_addresses', []);
 		if (in_array($order->get_billing_email(), $test_email_addresses)) {
 			Logger::info('LTV::horizontal_ltv_calculation_check() - order with ID ' . $order_id . ' has a test email address. Stopping.');
@@ -290,18 +295,19 @@ class LTV {
 	}
 
 	/**
-	 * Schedules the horizontal LTV (Lifetime Value) processing for a specific order.
+	 * Processes a horizontal LTV chain for a customer, starting from the given order.
 	 *
-	 * This function fetches the order based on the given order ID. If the order does not exist, it logs a warning.
-	 * It then calculates the PMW (Purchase-Marketing-Worth) for the retrieved order. Subsequently, it fetches the
-	 * next order placed with the same email address. If no such order exists or an LTV calculation action is already
-	 * scheduled for this order, the function simply returns. Otherwise, it schedules a LTV calculation action for the
-	 * next order with the ActionScheduler.
+	 * Processes up to self::$max_orders_per_chain_action orders in a single call to reduce
+	 * Action Scheduler overhead. If more orders remain, queues continuation as a new async action.
 	 *
-	 * @param int $order_id The ID of the order for which the horizontal LTV is to be calculated.
+	 * Includes early termination: if the next order in the chain already has LTV data that is
+	 * consistent with the just-calculated values, the rest of the chain is assumed up-to-date
+	 * and processing stops. This makes repeated recalculations nearly instant.
+	 *
+	 * @param int $order_id The ID of the order to start processing from.
 	 * @return void
 	 *
-	 * @since 1.35.1
+	 * @since 1.58.5
 	 */
 	public static function horizontal_ltv_calculation( $order_id ) {
 
@@ -315,42 +321,63 @@ class LTV {
 			return;
 		}
 
-		$order = wc_get_order($order_id);
+		$current_order = wc_get_order($order_id);
 
 		// Do nothing if the order does not exist
-		if (!$order) {
+		if (!$current_order) {
 			Logger::warning('LTV::horizontal_ltv_calculation() - order with ID ' . $order_id . ' does not exist');
 			return;
 		}
 
-		self::calculate_pmw_order_values($order);
+		$processed = 0;
 
-		$next_order_id = self::get_next_order_with_same_email_address($order);
+		while ($current_order) {
 
-		// Stop if there is no next order
-		if (!$next_order_id) {
-			return;
+			$last_calculated_values = self::calculate_pmw_order_values($current_order);
+			++$processed;
+
+			$next_order_id = self::get_next_order_with_same_email_address($current_order);
+
+			// End of customer chain
+			if (!$next_order_id) {
+				return;
+			}
+
+			// If we've reached the per-action limit, queue continuation for remaining orders
+			if ($processed >= self::$max_orders_per_chain_action) {
+
+				if (
+					!Helpers::pmw_as_has_scheduled_action(
+						'pmw_horizontal_ltv_calculation',
+						[ 'order_id' => $next_order_id ],
+						self::$as_group_name,
+						true
+					)
+				) {
+					as_enqueue_async_action(
+						'pmw_horizontal_ltv_calculation',
+						[ 'order_id' => $next_order_id ],
+						self::$as_group_name
+					);
+				}
+
+				return;
+			}
+
+			$next_order = wc_get_order($next_order_id);
+
+			if (!$next_order) {
+				return;
+			}
+
+			// Early termination: if next order's LTV is already consistent with what we just
+			// calculated, the rest of the chain is up to date — no need to continue.
+			if (self::is_order_ltv_consistent_with_previous($next_order, $last_calculated_values)) {
+				return;
+			}
+
+			$current_order = $next_order;
 		}
-
-		// Stop if there is already an action scheduled for the same order ID
-		if (
-			Helpers::pmw_as_has_scheduled_action(
-				'pmw_horizontal_ltv_calculation',
-				[ 'order_id' => $next_order_id ],
-				self::$as_group_name,
-				true
-			)
-		) {
-			Logger::info('LTV::horizontal_ltv_calculation() - action already scheduled for order ID: ' . $next_order_id);
-			return;
-		}
-
-		// Use the action scheduler to schedule the next order for LTV calculation
-		as_enqueue_async_action(
-			'pmw_horizontal_ltv_calculation',
-			[ 'order_id' => $next_order_id ],
-			self::$as_group_name
-		);
 	}
 
 	/**
@@ -386,13 +413,13 @@ class LTV {
 		// and not all PMW order values are set,
 		// it means the LTV calculation on that old order came from a previous version of the plugin.
 		// Therefore, we need to schedule a complete vertical LTV calculation.
-//		if (
-//			$previous_order
-//			&& !self::are_all_pmw_order_values_set($previous_order)
-//			&& Options::is_automatic_ltv_recalculation_active()
-//		) {
-//			self::schedule_complete_vertical_ltv_calculation();
-//		}
+//      if (
+//          $previous_order
+//          && !self::are_all_pmw_order_values_set($previous_order)
+//          && Options::is_automatic_ltv_recalculation_active()
+//      ) {
+//          self::schedule_complete_vertical_ltv_calculation();
+//      }
 
 		// If there is a previous order and all PMW order values are set, calculate the LTV
 		if ($previous_order && self::are_all_pmw_order_values_set($previous_order)) {
@@ -401,7 +428,7 @@ class LTV {
 
 			// Check if the marketing order value calculation changed
 			// If yes, schedule a complete vertical LTV calculation
-//			self::vertical_recalculation_if_the_marketing_order_value_calculation_changed($previous_order);
+//          self::vertical_recalculation_if_the_marketing_order_value_calculation_changed($previous_order);
 		} else {
 			$order_values['marketing_ltv'] = $order_values['marketing_order_value'];
 			$order_values['total_ltv']     = $order_values['total_order_value'];
@@ -497,43 +524,103 @@ class LTV {
 	}
 
 	/**
-	 * Performs a batch processing operation on a vertical LTV calculation.
+	 * Checks if an order's stored LTV data is consistent with the given previous order's calculated values.
 	 *
-	 * This function obtains a set amount of orders, including the one indicated by the provided order id.
-	 * The orders are obtained in an ascending manner by date. Only orders that have active statuses which are
-	 * defined in the `Shop::get_active_order_statuses_for_db_queries()` function are returned. Each retrieved order
-	 * is then queued for a horizontal LTV calculation check to occur. In case the limit defined has been reached, a new
-	 * vertical LTV calculation batch process is scheduled for the last order in the list.
+	 * Used for early termination during horizontal chain processing: if the next order's stored LTV data
+	 * already matches what we'd calculate based on the previous order, the rest of the chain is up to date
+	 * and processing can stop. This makes repeated recalculations nearly instant on already-processed chains.
 	 *
-	 * This process plays an important role in an asynchronous LTV calculation system where checks and updates
-	 * on the Lifetime Value parameters are distributed.
+	 * @param WC_Order $order                  The order to check.
+	 * @param array    $previous_order_values  The just-calculated values of the previous order in the chain.
 	 *
-	 * @param int $next_order_id The ID of the next order that the LTV calculation will be applied to.
+	 * @return bool True if stored LTV data is consistent, false otherwise.
+	 *
+	 * @since 1.58.5
+	 */
+	private static function is_order_ltv_consistent_with_previous( $order, $previous_order_values ) {
+
+		$stored = $order->get_meta(self::pmw_order_value_meta_key());
+
+		// No stored values means not yet calculated
+		if (empty($stored) || !is_array($stored)) {
+			return false;
+		}
+
+		// Check all required keys exist
+		foreach (self::default_pmw_order_values() as $key => $value) {
+			if (!isset($stored[$key])) {
+				return false;
+			}
+		}
+
+		// Check if the stored order values still match current calculation
+		$current_marketing_value = (float) Shop::get_order_value_total_marketing($order);
+		$current_total_value     = (float) $order->get_total();
+
+		if (abs((float) $stored['marketing_order_value'] - $current_marketing_value) > 0.01) {
+			return false;
+		}
+
+		if (abs((float) $stored['total_order_value'] - $current_total_value) > 0.01) {
+			return false;
+		}
+
+		// Check LTV consistency with previous order's values
+		$expected_marketing_ltv = $previous_order_values['marketing_ltv'] + $current_marketing_value;
+		$expected_total_ltv     = $previous_order_values['total_ltv'] + $current_total_value;
+
+		if (abs((float) $stored['marketing_ltv'] - $expected_marketing_ltv) > 0.01) {
+			return false;
+		}
+
+		if (abs((float) $stored['total_ltv'] - $expected_total_ltv) > 0.01) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Processes a batch of orders for vertical LTV calculation using in-memory state.
+	 *
+	 * Instead of scheduling individual Action Scheduler actions per order (which created
+	 * ~100K AS actions for 50K orders), this method processes orders directly in date-ascending
+	 * order, maintaining a per-email running LTV total in memory.
+	 *
+	 * Key optimizations:
+	 * - In-memory email→LTV map eliminates all chain-walking DB queries within a batch
+	 * - Only the first encounter of each email per batch needs a previous-order lookup
+	 * - Orders with already-correct values skip the expensive $order->save() call
+	 * - Time safety valve bails and schedules continuation if approaching execution limits
+	 *
+	 * For 50K orders: ~250 batch AS actions (vs ~100K individual AS actions before).
+	 *
+	 * @param int $next_order_id The ID of the order to start processing from.
 	 *
 	 * @return void
 	 *
-	 * @since 1.35.1
+	 * @since 1.58.5
 	 */
 	public static function batch_process_vertical_ltv_calculation( $next_order_id ) {
 
-		$limit = 25;
+		$batch_size    = 200;
+		$max_exec_time = 20; // seconds — safety margin below Action Scheduler's 30s limit
+		$start_time    = time();
 
-		// Add one to the limit which we will use for further batch processing
-		// It will be removed later from the array
-		$limit = ++$limit;
+		$memory_limit_pct = 0.80;
+		$memory_limit     = self::get_memory_limit_bytes();
 
 		$order = wc_get_order($next_order_id);
 
-		// Do nothing if the order does not exist
 		if (!$order) {
 			Logger::warning('LTV::batch_process_vertical_ltv_calculation() - order with ID ' . $next_order_id . ' does not exist');
 			return;
 		}
 
-		// Get the order IDs including the $next_order_id
-		$orders = wc_get_orders([
+		// Fetch batch_size + 1 (sentinel to detect if more orders exist)
+		$order_ids = wc_get_orders([
 			'type'         => 'shop_order',
-			'limit'        => $limit,
+			'limit'        => $batch_size + 1,
 			'orderby'      => 'date',
 			'order'        => 'ASC',
 			'status'       => Shop::get_active_order_statuses_for_db_queries(),
@@ -541,54 +628,168 @@ class LTV {
 			'return'       => 'ids',
 		]);
 
-		// Sort the order IDs in ascending order
-		sort($orders);
+		sort($order_ids);
 
-		// Remove the last one and save it for later
-		$last_order_id = array_pop($orders);
+		$has_more    = count($order_ids) > $batch_size;
+		$sentinel_id = $has_more ? array_pop($order_ids) : null;
 
-		// Schedule a horizontal LTV calculation check for each order ID
-		foreach ($orders as $order_id) {
+		// In-memory LTV state per customer email — eliminates all chain-walking queries
+		$email_state = [];
+		/**
+		 * Filters Get test email addresses.
+		 *
+		 * @since 1.58.5
+		 */
+		$test_emails = apply_filters('pmw_get_test_email_addresses', []);
+		$order_count = count($order_ids);
+		$processed   = 0;
+		$skipped     = 0;
+		$updated     = 0;
 
-			// Stop if the action is already scheduled with the same order ID
-			if (
-				Helpers::pmw_as_has_scheduled_action(
-					'pmw_horizontal_ltv_calculation_check',
-					[ 'order_id' => $order_id ],
-					self::$as_group_name
-				)
-			) {
+		// Index-based loop so bail points always advance past the current order
+		for ($i = 0; $i < $order_count; $i++) {
+
+			$order_id = $order_ids[$i];
+
+			try {
+
+				$current_order = wc_get_order($order_id);
+				if (!$current_order) {
+					continue;
+				}
+
+				$email = $current_order->get_billing_email();
+
+				// Skip orders without valid email or with test emails
+				if (empty($email) || !Helpers::is_email($email) || in_array($email, $test_emails, true)) {
+					continue;
+				}
+
+				$marketing_order_value = (float) Shop::get_order_value_total_marketing($current_order);
+				$total_order_value     = (float) $current_order->get_total();
+
+				// Calculate LTV: use in-memory state if available, otherwise look up previous order
+				if (isset($email_state[$email])) {
+					// In-memory hit — zero DB queries needed
+					$marketing_ltv = $email_state[$email]['marketing_ltv'] + $marketing_order_value;
+					$total_ltv     = $email_state[$email]['total_ltv'] + $total_order_value;
+				} else {
+					// First encounter of this email in this batch — one efficient LIMIT 1 query
+					$prev_order_id = self::get_previous_order_with_same_email_address($current_order);
+					$prev_order    = $prev_order_id ? wc_get_order($prev_order_id) : null;
+
+					if ($prev_order && self::are_all_pmw_order_values_set($prev_order)) {
+						$marketing_ltv = self::get_marketing_ltv_from_order($prev_order) + $marketing_order_value;
+						$total_ltv     = self::get_total_ltv_from_order($prev_order) + $total_order_value;
+					} else {
+						$marketing_ltv = $marketing_order_value;
+						$total_ltv     = $total_order_value;
+					}
+				}
+
+				// Update in-memory state for subsequent orders from this email
+				$email_state[$email] = [
+					'marketing_ltv' => $marketing_ltv,
+					'total_ltv'     => $total_ltv,
+				];
+
+				// Skip the expensive $order->save() if values are already correct
+				$stored = $current_order->get_meta(self::pmw_order_value_meta_key());
+
+				if (
+					is_array($stored)
+					&& isset($stored['marketing_ltv'], $stored['total_ltv'], $stored['marketing_order_value'], $stored['total_order_value'])
+					&& abs((float) $stored['marketing_ltv'] - $marketing_ltv) < 0.01
+					&& abs((float) $stored['total_ltv'] - $total_ltv) < 0.01
+					&& abs((float) $stored['marketing_order_value'] - $marketing_order_value) < 0.01
+					&& abs((float) $stored['total_order_value'] - $total_order_value) < 0.01
+				) {
+					++$processed;
+					++$skipped;
+					continue;
+				}
+
+				$order_values = [
+					'marketing_ltv'         => $marketing_ltv,
+					'marketing_order_value' => $marketing_order_value,
+					'total_order_value'     => $total_order_value,
+					'total_ltv'             => $total_ltv,
+				];
+
+				self::set_pmw_order_values_on_order($current_order, $order_values);
+				++$processed;
+				++$updated;
+
+			} catch ( \Exception $e ) {
+				Logger::warning('LTV batch: failed processing order ID ' . $order_id . ': ' . $e->getMessage());
+				++$processed;
+				continue;
+			} catch ( \Error $e ) {
+				Logger::warning('LTV batch: fatal error on order ID ' . $order_id . ': ' . $e->getMessage());
+				++$processed;
 				continue;
 			}
 
-			as_enqueue_async_action(
-				'pmw_horizontal_ltv_calculation_check',
-				[ 'order_id' => $order_id ],
-				self::$as_group_name
-			);
-		}
+			// Resource checks AFTER processing — guarantees the pointer always advances past the current order
+			if (time() - $start_time >= $max_exec_time) {
+				$next_index    = $i + 1;
+				$continue_from = ( $next_index < $order_count ) ? $order_ids[$next_index] : $sentinel_id;
 
-		// If the count of orders is $limit -1, schedule a new batch process for the last order ID
-		// The check makes sure that we're not at the end of the orders
-		if (count($orders) === $limit - 1) {
+				if ($continue_from) {
+					Logger::info('LTV batch: time limit reached after ' . $processed . ' orders (' . $updated . ' updated, ' . $skipped . ' skipped). Continuing from order ID: ' . $continue_from);
+					self::schedule_batch_continuation($continue_from);
+				}
 
-			// Stop if the action is already scheduled with the same order ID
-			if (
-				Helpers::pmw_as_has_scheduled_action(
-					'pmw_batch_process_vertical_ltv_calculation',
-					[ 'order_id' => $last_order_id ],
-					self::$as_group_name
-				)
-			) {
 				return;
 			}
 
-			as_enqueue_async_action(
-				'pmw_batch_process_vertical_ltv_calculation',
-				[ 'order_id' => $last_order_id ],
-				self::$as_group_name
-			);
+			if ($memory_limit > 0 && memory_get_usage(true) > $memory_limit * $memory_limit_pct) {
+				$next_index    = $i + 1;
+				$continue_from = ( $next_index < $order_count ) ? $order_ids[$next_index] : $sentinel_id;
+
+				if ($continue_from) {
+					Logger::info('LTV batch: memory limit approaching (' . round(memory_get_usage(true) / 1048576) . 'MB) after ' . $processed . ' orders. Continuing from order ID: ' . $continue_from);
+					self::schedule_batch_continuation($continue_from);
+				}
+
+				return;
+			}
 		}
+
+		Logger::info('LTV batch: completed ' . $processed . ' orders (' . $updated . ' updated, ' . $skipped . ' unchanged) in ' . ( time() - $start_time ) . 's');
+
+		// If more orders exist beyond this batch, schedule next batch
+		if ($has_more && $sentinel_id) {
+			self::schedule_batch_continuation($sentinel_id);
+		}
+	}
+
+	/**
+	 * Schedules a continuation batch for vertical LTV calculation.
+	 *
+	 * @param int $order_id The order ID to continue from.
+	 *
+	 * @return void
+	 *
+	 * @since 1.58.5
+	 */
+	private static function schedule_batch_continuation( $order_id ) {
+
+		if (
+			Helpers::pmw_as_has_scheduled_action(
+				'pmw_batch_process_vertical_ltv_calculation',
+				[ 'order_id' => $order_id ],
+				self::$as_group_name
+			)
+		) {
+			return;
+		}
+
+		as_enqueue_async_action(
+			'pmw_batch_process_vertical_ltv_calculation',
+			[ 'order_id' => $order_id ],
+			self::$as_group_name
+		);
 	}
 
 	/**
@@ -629,16 +830,16 @@ class LTV {
 			return false;
 		}
 
-		// Schedule the calculation for 2:25 AM in the local timezone
+		// Schedule the calculation for 2:00 AM tomorrow in the local timezone
 		as_schedule_single_action(
-			Helpers::datetime_string_to_unix_timestamp_in_local_timezone('tomorrow 2:25am'),
+			Helpers::datetime_string_to_unix_timestamp_in_local_timezone('tomorrow 2:00am'),
 			'pmw_batch_process_vertical_ltv_calculation',
 			[ 'order_id' => $first_order_id ],
 			self::$as_group_name,
 			true
 		);
 
-		Logger::info('LTV::schedule_a_complete_vertical_ltv_calculation() - scheduled a complete vertical LTV calculation for order ID: ' . $first_order_id);
+		Logger::info('LTV::schedule_complete_vertical_ltv_calculation() - scheduled for tomorrow 2:00 AM, starting from order ID: ' . $first_order_id);
 
 		return true;
 	}
@@ -761,23 +962,30 @@ class LTV {
 		$action = ActionScheduler::store()->fetch_action($action_id);
 
 		// Stop if it is not from our group
-		// If the string $action->get_group() does not contain the string self::$as_group_name
 		if (strpos($action->get_group(), self::$as_group_name) === false) {
 			return;
 		}
 
 		Logger::debug('LTV::handle_action_scheduler_failed_action() - action ID: ' . $action_id . ' - type: ' . $type);
 
-		if (self::get_failed_as_attempts($action_id) >= self::$max_failed_as_attempts) {
-			Logger::info('LTV::handle_action_scheduler_failed_action() - max attempts reached');
+		// Track retries across rescheduled actions via a counter in the args.
+		// AS's built-in attempts column resets with each new action row, so
+		// we maintain our own counter that survives rescheduling.
+		$args        = $action->get_args();
+		$retry_count = isset($args['pmw_retry_count']) ? (int) $args['pmw_retry_count'] : 0;
+
+		if ($retry_count >= self::$max_failed_as_attempts) {
+			Logger::info('LTV::handle_action_scheduler_failed_action() - max attempts (' . self::$max_failed_as_attempts . ') reached for hook: ' . $action->get_hook() . ' - args: ' . wp_json_encode($args));
 			return;
 		}
+
+		$args['pmw_retry_count'] = $retry_count + 1;
 
 		// Stop if the same action is already scheduled
 		if (
 			Helpers::pmw_as_has_scheduled_action(
 				$action->get_hook(),
-				$action->get_args(),
+				$args,
 				$action->get_group()
 			)
 		) {
@@ -785,15 +993,12 @@ class LTV {
 			return;
 		}
 
-		Logger::debug('LTV::handle_action_scheduler_failed_action() - rescheduling action: hook: ' . $action->get_hook() . ' - args: ' . print_r($action->get_args(), true) . ' - group: ' . $action->get_group());
-
-		// If the hook name is pmw_horizontal_ltv_calculation
-		// And the group name is pmw_ltv_calculation_ followed by the email address fom the order
-		// Then we don't need to reschedule the action
+		Logger::debug('LTV::handle_action_scheduler_failed_action() - rescheduling action (attempt ' . $args['pmw_retry_count'] . '/' . self::$max_failed_as_attempts . '): hook: ' . $action->get_hook() . ' - args: ' . wp_json_encode($args) . ' - group: ' . $action->get_group());
 
 		if (
 			$action->get_hook() == 'pmw_horizontal_ltv_calculation'
-			&& self::is_horizontal_ltv_calculation_in_progress($action->get_args()['order_id'])
+			&& isset($args['order_id'])
+			&& self::is_horizontal_ltv_calculation_in_progress($args['order_id'])
 		) {
 			Logger::debug('LTV::handle_action_scheduler_failed_action() - horizontal ltv calculation for this customer is already in progress - stopping');
 			return;
@@ -802,7 +1007,7 @@ class LTV {
 		as_schedule_single_action(
 			0,
 			$action->get_hook(),
-			$action->get_args(),
+			$args,
 			$action->get_group()
 		);
 	}
@@ -843,26 +1048,33 @@ class LTV {
 	}
 
 	/**
-	 * Retrieve the number of failed attempts for a given action ID.
+	 * Returns the PHP memory limit in bytes, or 0 if unlimited/unparseable.
 	 *
-	 * This method queries the `actionscheduler_actions` table in the database
-	 * and returns the number of failed attempts for the specified action ID.
+	 * @return int
 	 *
-	 * @param int $action_id The ID of the action to retrieve the failed attempts for.
-	 *
-	 * @return int The number of failed attempts for the action, as an integer.
-	 *
-	 * @since 1.35.1
+	 * @since 1.58.5
 	 */
-	private static function get_failed_as_attempts( $action_id ) {
-		global $wpdb;
-		$attempts = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT attempts FROM $wpdb->actionscheduler_actions WHERE action_id=%d",
-				$action_id
-			)
-		);
+	private static function get_memory_limit_bytes() {
+		$limit = ini_get('memory_limit');
 
-		return intval($attempts);
+		if (!$limit || '-1' === $limit) {
+			return 0;
+		}
+
+		$value = (int) $limit;
+		$unit  = strtolower(substr(trim($limit), -1));
+
+		switch ($unit) {
+			case 'g':
+				$value *= 1024;
+				// fall through
+			case 'm':
+				$value *= 1024;
+				// fall through
+			case 'k':
+				$value *= 1024;
+		}
+
+		return $value;
 	}
 }

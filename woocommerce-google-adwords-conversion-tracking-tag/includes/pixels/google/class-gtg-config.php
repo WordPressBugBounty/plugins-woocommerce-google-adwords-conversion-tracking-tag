@@ -54,7 +54,7 @@ class GTG_Config {
 	 * 2. Standalone - direct PHP proxy responds with X-PMW-GTG-Handler: standalone
 	 * 3. WordPress - fallback
 	 *
-	 * @return string Handler type ('external', 'standalone', 'wordpress')
+	 * @return string Handler type ('external', 'standalone', 'WordPress')
 	 */
 	public static function detect_handler() {
 		$measurement_path = Options::get_google_tag_gateway_measurement_path();
@@ -63,7 +63,7 @@ class GTG_Config {
 		// If no measurement path configured, can't use external/Cloudflare
 		if ( empty( $measurement_path ) ) {
 			// Still check if standalone proxy is available
-			return self::check_standalone_proxy() ? 'standalone' : 'wordpress';
+			return self::check_standalone_proxy() ? 'standalone' : 'WordPress';
 		}
 
 		// Priority 1: Check if measurement_path is handled by external (Cloudflare)
@@ -84,7 +84,7 @@ class GTG_Config {
 		}
 
 		// Priority 3: Fallback to WordPress proxy
-		return 'wordpress';
+		return 'WordPress';
 	}
 
 	/**
@@ -122,7 +122,7 @@ class GTG_Config {
 			return 'external';
 		}
 
-		// Return the detected handler (isolated or wordpress)
+		// Return the detected handler (isolated or WordPress)
 		if ( in_array( $handler_header, self::VALID_HANDLERS, true ) ) {
 			return $handler_header;
 		}
@@ -139,7 +139,11 @@ class GTG_Config {
 	 * @return bool True to verify SSL, false to skip verification
 	 */
 	private static function should_verify_ssl() {
-		// Allow explicit override via filter
+		/**
+		 * Allow explicit override via filter.
+		 *
+		 * @since 1.58.5
+		 */
 		$filter_value = apply_filters( 'pmw_gtg_health_check_sslverify', null );
 		if ( null !== $filter_value ) {
 			return (bool) $filter_value;
@@ -271,6 +275,17 @@ class GTG_Config {
 	 * @return string Handler type
 	 */
 	public static function get_handler( $force_refresh = false ) {
+
+		/**
+		 * Filters Gtg handler.
+		 *
+		 * @since 1.58.5
+		 */
+		$filtered = apply_filters( 'pmw_gtg_handler', null );
+		if ( null !== $filtered && in_array( $filtered, self::VALID_HANDLERS, true ) ) {
+			return $filtered;
+		}
+
 		if ( ! $force_refresh ) {
 			$cached = self::get_cached_handler();
 			if ( null !== $cached ) {

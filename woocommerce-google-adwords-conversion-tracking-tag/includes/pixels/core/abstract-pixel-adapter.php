@@ -29,7 +29,11 @@ abstract class Abstract_Pixel_Adapter implements Pixel_Adapter {
 	 */
 	public function process_event( $pixel_data, $event_name = null ) {
 
-		// Apply all filters
+		/**
+		 * Apply all filters.
+		 *
+		 * @since 1.58.5
+		 */
 		$pixel_data = $this->apply_filters( $pixel_data, $event_name );
 
 		// If filters didn't block the event, send it
@@ -44,12 +48,17 @@ abstract class Abstract_Pixel_Adapter implements Pixel_Adapter {
 	 * @param array       $pixel_data Event data
 	 * @param string|null $event_name Event name
 	 * @return array|null Filtered data or null if blocked
+	  * @since 1.58.5
 	 */
 	protected function apply_filters( $pixel_data, $event_name ) {
 
 		$pixel_name = $this->get_pixel_name();
 
-		// Stage 3: Pixel-specific filters (all events)
+		/**
+		 * Stage 3: Pixel-specific filters (all events).
+		 *
+		 * @since 1.58.5
+		 */
 		$pixel_data = apply_filters( "pmw_server_event_payload_{$pixel_name}", $pixel_data, $pixel_name );
 
 		if ( empty( $pixel_data ) ) {
@@ -58,6 +67,11 @@ abstract class Abstract_Pixel_Adapter implements Pixel_Adapter {
 
 		// Stage 4: Pixel + Event-specific filters
 		if ( $event_name ) {
+			/**
+			 * Filters Server event payload {$pixel name} {$event name}.
+			 *
+			 * @since 1.58.5
+			 */
 			$pixel_data = apply_filters( "pmw_server_event_payload_{$pixel_name}_{$event_name}", $pixel_data, $pixel_name, $event_name );
 
 			if ( empty( $pixel_data ) ) {
@@ -65,7 +79,11 @@ abstract class Abstract_Pixel_Adapter implements Pixel_Adapter {
 			}
 		}
 
-		// Stage 5: Post-processing filters
+		/**
+		 * Stage 5: Post-processing filters.
+		 *
+		 * @since 1.58.5
+		 */
 		$pixel_data = apply_filters( 'pmw_server_event_payload_post', $pixel_data, $pixel_name );
 
 		if ( empty( $pixel_data ) ) {

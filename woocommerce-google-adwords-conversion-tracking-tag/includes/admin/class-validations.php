@@ -13,8 +13,8 @@ class Validations {
 
 	public static function validate_imported_options( $options ) {
 
-//		error_log('Validating imported options...');
-//		error_log(print_r($options, true));
+//      error_log('Validating imported options...');
+//      error_log(print_r($options, true));
 
 		$options_to_check = [
 			'google'     => [
@@ -70,7 +70,7 @@ class Validations {
 
 		$input = Helpers::generic_sanitization($input);
 
-//		// validate Adroll advertiser ID
+//      // validate Adroll advertiser ID
 		if (isset($input['pixels']['adroll']['advertiser_id'])) {
 
 			// Trim space, newlines and quotes
@@ -85,7 +85,7 @@ class Validations {
 			}
 		}
 
-//		// validate Adroll pixel ID
+//      // validate Adroll pixel ID
 		if (isset($input['pixels']['adroll']['pixel_id'])) {
 
 			// Trim space, newlines and quotes
@@ -883,7 +883,11 @@ class Validations {
 			return;
 		}
 
-		// set delay to 3 hours
+		/**
+		 * Set delay to 3 hours.
+		 *
+		 * @since 1.58.5
+		 */
 		$delay = apply_filters('pmw_http_request_log_auto_off_delay', 12 * HOUR_IN_SECONDS);
 
 		// schedule pmw_deactivate_log_http_requests action
@@ -1158,7 +1162,7 @@ class Validations {
 
 	public static function is_google_analytics_4_measurement_id( $string ) {
 
-		$re = '/^(G|GT)-[A-Z0-9]{8,12}$/m';
+		$re = '/^(G|GT|AW)-[A-Z0-9]{8,12}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}

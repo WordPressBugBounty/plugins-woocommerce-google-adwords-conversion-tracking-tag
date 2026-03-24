@@ -58,7 +58,11 @@ if ( function_exists( 'wpm_fs' ) ) {
 
         // Init Freemius.
         wpm_fs();
-        // Signal that SDK was initiated.
+        /**
+         * Signal that SDK was initiated.
+         *
+         * @since 1.58.5
+         */
         do_action( 'wpm_fs_loaded' );
         function pmw_fs_settings_url() {
             if ( pmw_is_woocommerce_active() ) {

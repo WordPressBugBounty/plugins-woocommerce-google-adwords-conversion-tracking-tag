@@ -21,20 +21,27 @@ class Ask_For_Rating {
 
 	public function __construct() {
 
-//	    $options = get_option($this->option_name);
-//	    $options['conversions_count'] = 8;
-//	    $options['rating_threshold'] = 10;
-//	    unset($options['conversion_count']);
-//	    $options['rating_done'] = false;
-//	    update_option($this->option_name,$options);
+//      $options = get_option($this->option_name);
+//      $options['conversions_count'] = 8;
+//      $options['rating_threshold'] = 10;
+//      unset($options['conversion_count']);
+//      $options['rating_done'] = false;
+//      update_option($this->option_name,$options);
 
 		// ask for a rating in a plugin notice
 		add_action('admin_enqueue_scripts', [ $this, 'wpm_rating_script' ]);
 		add_action('wp_ajax_pmw_dismissed_notice_handler', [ $this, 'ajax_rating_notice_handler' ]);
+		add_action('admin_init', [ $this, 'handle_rating_action_from_url' ]);
 		add_action('admin_notices', [ $this, 'ask_for_rating_notice' ]);
 	}
 
 	public function wpm_rating_script() {
+
+		// Only load the script on the dashboard and the PMW settings page.
+		if (!Helpers::is_dashboard() && !Environment::is_pmw_settings_page()) {
+			return;
+		}
+
 		wp_enqueue_script(
 			'pmw-ask-for-rating',
 			PMW_PLUGIN_DIR_PATH . 'js/admin/ask-for-rating.js',
@@ -83,16 +90,60 @@ class Ask_For_Rating {
 		wp_die(); // this is required to terminate immediately and return a proper response
 	}
 
+	/**
+	 * Server-side handler for dismiss actions via URL query parameters.
+	 * This is the no-JS fallback — processes the action and redirects back.
+	 */
+	public function handle_rating_action_from_url() {
+
+		$_get = Helpers::get_input_vars(INPUT_GET);
+
+		if (!isset($_get['pmw-rating-action'])) {
+			return;
+		}
+
+		if (!Environment::can_current_user_edit_options()) {
+			return;
+		}
+
+		if (!isset($_get['_wpnonce']) || !wp_verify_nonce($_get['_wpnonce'], 'pmw-rating-action')) {
+			return;
+		}
+
+		$action  = sanitize_key($_get['pmw-rating-action']);
+		$options = get_option($this->option_name);
+
+		if ('rating_done' === $action) {
+			$options['rating_done'] = true;
+			update_option($this->option_name, $options);
+		} elseif ('later' === $action) {
+			$options['rating_threshold'] = $this->get_next_threshold($options['conversions_count']);
+			update_option($this->option_name, $options);
+		}
+
+		wp_safe_redirect(remove_query_arg([ 'pmw-rating-action', '_wpnonce' ]));
+		exit;
+	}
+
 	private function show_admin_notifications() {
 
 		$show_admin_notifications = apply_filters_deprecated('wooptpm_show_admin_notifications', [ true ], '1.13.0', 'pmw_show_admin_notifications');
 		$show_admin_notifications = apply_filters_deprecated('wpm_show_admin_notifications', [ $show_admin_notifications ], '1.31.2', 'pmw_show_admin_notifications');
 
-		// Allow users to disable admin notifications for the plugin
+		/**
+		 * Allow users to disable admin notifications for the plugin.
+		 *
+		 * @since 1.31.2
+		 */
 		return apply_filters('pmw_show_admin_notifications', $show_admin_notifications);
 	}
 
 	public function ask_for_rating_notice() {
+
+		// Only show on the dashboard and the PMW settings page.
+		if (!Helpers::is_dashboard() && !Environment::is_pmw_settings_page()) {
+			return;
+		}
 
 		// Don't show if the user lacks the required capabilities.
 		if (!Environment::can_current_user_edit_options()) {
@@ -170,8 +221,8 @@ class Ask_For_Rating {
 	public function ask_for_rating_notices( $conversions_count ) {
 		?>
 		<div id="pmw-rating-notice"
-			 class="notice notice-success pmw pmw-rating-notice"
-			 style="padding: 12px 16px; display: none; flex-direction: row; justify-content: space-between; align-items: flex-start; border-left-color: #46b450;">
+			class="notice notice-success pmw pmw-rating-notice"
+			style="padding: 12px 16px; display: flex; flex-direction: row; justify-content: space-between; align-items: flex-start; border-left-color: #46b450;">
 
 			<!-- Left side: Message and CTA -->
 			<div style="flex: 1;">
@@ -198,9 +249,9 @@ class Ask_For_Rating {
 				<!-- Stars and CTA -->
 				<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
 					<a id="pmw-rate-it"
-					   href="https://wordpress.org/support/plugin/woocommerce-google-adwords-conversion-tracking-tag/reviews/#new-post"
-					   target="_blank"
-					   style="text-decoration: none; box-shadow: none;">
+						href="https://wordpress.org/support/plugin/woocommerce-google-adwords-conversion-tracking-tag/reviews/#new-post"
+						target="_blank"
+						style="text-decoration: none; box-shadow: none;">
 						<div class="button button-primary" style="margin: 0;">
 							<?php esc_html_e('Leave a Review', 'woocommerce-google-adwords-conversion-tracking-tag'); ?> ⭐
 						</div>
@@ -215,18 +266,20 @@ class Ask_For_Rating {
 
 			<!-- Right side: Secondary actions -->
 			<div style="text-align: right; display: flex; flex-direction: column; gap: 6px; margin-left: 20px;">
-				<div id="pmw-already-did"
-					 class="button pmw-rating-dismiss-button"
-					 style="white-space: normal; text-align: center;"
-					 data-action="rating_done">
+				<a id="pmw-already-did"
+					class="button pmw-rating-dismiss-button"
+					style="white-space: normal; text-align: center;"
+					data-action="rating_done"
+					href="<?php echo esc_url(wp_nonce_url(add_query_arg('pmw-rating-action', 'rating_done'), 'pmw-rating-action')); ?>">
 					<?php esc_html_e('Already reviewed', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-				</div>
-				<div id="pmw-maybe-later"
-					 class="button pmw-rating-dismiss-button"
-					 style="white-space: normal; text-align: center;"
-					 data-action="later">
+				</a>
+				<a id="pmw-maybe-later"
+					class="button pmw-rating-dismiss-button"
+					style="white-space: normal; text-align: center;"
+					data-action="later"
+					href="<?php echo esc_url(wp_nonce_url(add_query_arg('pmw-rating-action', 'later'), 'pmw-rating-action')); ?>">
 					<?php esc_html_e('Maybe later', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
-				</div>
+				</a>
 			</div>
 		</div>
 		<?php

@@ -248,6 +248,11 @@ class Pixel_Registry {
 	 * @return void
 	 */
 	public static function init_third_party_pixels() {
+		/**
+		 * Fires Register pixel descriptors.
+		 *
+		 * @since 1.58.5
+		 */
 		do_action( 'pmw_register_pixel_descriptors', __CLASS__ );
 	}
 }

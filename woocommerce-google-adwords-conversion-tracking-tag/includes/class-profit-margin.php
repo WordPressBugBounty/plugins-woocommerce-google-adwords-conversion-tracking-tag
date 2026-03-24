@@ -311,6 +311,11 @@ class Profit_Margin {
 
 		$meta_key = apply_filters_deprecated('pmw_custom_cogs_meta_key', [ $meta_key ], '1.43.5', 'pmw_custom_cogs_product_meta_key');
 
+		/**
+		 * Filters Custom cogs product meta key.
+		 *
+		 * @since 1.43.5
+		 */
 		return apply_filters('pmw_custom_cogs_product_meta_key', $meta_key);
 	}
 

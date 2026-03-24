@@ -53,6 +53,11 @@ class HTTP {
 		$this->request_args = apply_filters_deprecated('wooptpm_http_post_request_args', [ $this->request_args ], '1.13.0', 'pmw_http_post_request_args');
 		$this->request_args = apply_filters_deprecated('wpm_http_post_request_args', [ $this->request_args ], '1.31.2', 'pmw_http_post_request_args');
 
+		/**
+		 * Filters Http post request args.
+		 *
+		 * @since 1.31.2
+		 */
 		return apply_filters('pmw_http_post_request_args', $this->request_args);
 	}
 

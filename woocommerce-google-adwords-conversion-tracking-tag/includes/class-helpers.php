@@ -288,10 +288,30 @@ class Helpers {
      */
     public static function get_facebook_fbevents_js_url() {
         $fbevents_standard_url = 'https://connect.facebook.net/en_US/fbevents.js';
+        /**
+         * Filters Facebook fbevents script version.
+         *
+         * @since 1.58.5
+         */
         if ( apply_filters( 'pmw_facebook_fbevents_script_version', '' ) ) {
+            /**
+             * Filters Facebook fbevents script version.
+             *
+             * @since 1.58.5
+             */
             return $fbevents_standard_url . '?v=' . apply_filters( 'pmw_facebook_fbevents_script_version', '' );
         }
+        /**
+         * Filters Facebook fbevents script url.
+         *
+         * @since 1.58.5
+         */
         if ( apply_filters( 'pmw_facebook_fbevents_script_url', '' ) ) {
+            /**
+             * Filters Facebook fbevents script url.
+             *
+             * @since 1.58.5
+             */
             return apply_filters( 'pmw_facebook_fbevents_script_url', '' );
         }
         return $fbevents_standard_url;
@@ -309,13 +329,34 @@ class Helpers {
         return wp_date( 'U', strtotime( $datetime_string . ' ' . wp_timezone_string() ) );
     }
 
+    /**
+     * Get the next future occurrence of a daily time string.
+     *
+     * Returns today's timestamp if the time hasn't passed yet,
+     * otherwise returns tomorrow's. This prevents Action Scheduler
+     * from treating a newly created recurring action as overdue
+     * and running it immediately on every heartbeat.
+     *
+     * @param string $time_string A time string like '4:25am' or '3:15am'.
+     * @return int|false Unix timestamp for the next occurrence.
+     *
+     * @since 1.58.5
+     */
+    public static function get_next_future_daily_timestamp( $time_string ) {
+        $today = self::datetime_string_to_unix_timestamp_in_local_timezone( 'today ' . $time_string );
+        if ( $today > time() ) {
+            return $today;
+        }
+        return self::datetime_string_to_unix_timestamp_in_local_timezone( 'tomorrow ' . $time_string );
+    }
+
     public static function is_admin_page( $page_ids = [] ) {
         // If no page IDs are given, check if the current page is an admin page
         if ( empty( $page_ids ) ) {
             return false;
         }
         // Check if the current page is an admin page and if it is one of the given page IDs
-        //		return is_admin() && in_array(get_current_screen()->id, $page_ids);
+        //      return is_admin() && in_array(get_current_screen()->id, $page_ids);
         $_get = self::get_input_vars( INPUT_GET );
         if ( !isset( $_get['page'] ) || !in_array( $_get['page'], $page_ids ) ) {
             return false;
@@ -379,7 +420,7 @@ class Helpers {
         $raw_user_data = self::get_raw_user_data( $order, $current_user );
         // Add the details to the data array and return it
         // Only add the data if it exists
-        //		$data = $email ? self::get_user_object_email($email) : $data;
+        //      $data = $email ? self::get_user_object_email($email) : $data;
         // If $email is not empty,
         // get the data from self::get_user_object_email($email) and add it to $data['email']
         if ( !empty( $raw_user_data['email'] ) ) {
@@ -461,7 +502,7 @@ class Helpers {
     private static function get_user_object_email( $email ) {
         $email = self::trim_string( $email );
         $email = strtolower( $email );
-        //		$email = self::normalize_google_email_address($email);
+        //      $email = self::normalize_google_email_address($email);
         return [
             'raw'       => $email,
             'sha256'    => self::hash_string( $email ),
@@ -565,6 +606,11 @@ class Helpers {
      * @return bool
      */
     public static function should_all_s2s_requests_be_sent_blocking() {
+        /**
+         * Filters Send all s2s requests blocking.
+         *
+         * @since 1.58.5
+         */
         return (bool) apply_filters( 'pmw_send_all_s2s_requests_blocking', false ) || Options::is_http_request_logging_enabled();
     }
 
@@ -902,6 +948,11 @@ class Helpers {
         if ( Environment::is_elementor_active() && Environment::is_server_behind_cloudflare() ) {
             $attributes['data-cfasync'] = ['false'];
         }
+        /**
+         * Filters Opening script string attributes.
+         *
+         * @since 1.58.5
+         */
         $attributes = apply_filters( 'pmw_opening_script_string_attributes', $attributes );
         // Build the attribute string
         foreach ( $attributes as $attribute => $values ) {

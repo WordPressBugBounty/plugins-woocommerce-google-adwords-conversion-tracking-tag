@@ -97,6 +97,7 @@ class Geolocation {
 		 *
 		 * @param array|null $server_override Array of server variables to use instead of actual request data.
 		 *                                    Return null to use the actual request data.
+		  * @since 1.58.5
 		 */
 		$server_override = apply_filters('pmw_geolocation_server_vars', null);
 
@@ -204,6 +205,11 @@ class Geolocation {
 
 			if (false === $external_ip_address) {
 				$external_ip_address     = '0.0.0.0';
+				/**
+				 * Filters Geolocation ip lookup apis.
+				 *
+				 * @since 1.58.5
+				 */
 				$ip_lookup_services      = apply_filters('pmw_geolocation_ip_lookup_apis', self::$ip_lookup_apis);
 				$ip_lookup_services_keys = array_keys($ip_lookup_services);
 				shuffle($ip_lookup_services_keys);
@@ -214,11 +220,16 @@ class Geolocation {
 						$service_endpoint,
 						[
 							'timeout' => 2,
-							//							'user-agent' => 'WooCommerce/' . wc()->version,
+							//                          'user-agent' => 'WooCommerce/' . wc()->version,
 						]
 					);
 
 					if (!is_wp_error($response) && rest_is_ip_address($response['body'])) {
+						/**
+						 * Filters Geolocation ip lookup api response.
+						 *
+						 * @since 1.58.5
+						 */
 						$external_ip_address = apply_filters('pmw_geolocation_ip_lookup_api_response', wc_clean($response['body']), $service_name);
 						break;
 					}
@@ -247,7 +258,11 @@ class Geolocation {
 			return \WC_Geolocation::geolocate_ip(self::get_user_ip());
 		} else {
 
-			// Filter to allow custom geolocation of the IP address.
+			/**
+			 * Filter to allow custom geolocation of the IP address.
+			 *
+			 * @since 1.58.5
+			 */
 			$country_code = apply_filters('pmw_geolocate_ip', false, $ip_address, $fallback, $api_fallback);
 
 			if (false !== $country_code) {
@@ -269,6 +284,7 @@ class Geolocation {
 			 *
 			 * @param array  $geolocation Geolocation data, including country, state, city, and postcode.
 			 * @param string $ip_address  IP Address.
+			  * @since 1.58.5
 			 */
 			$geolocation = apply_filters(
 				'pmw_get_geolocation',
@@ -450,6 +466,11 @@ class Geolocation {
 	 */
 	public static function get_ip_exclusion_list() {
 
+		/**
+		 * Filters Ip exclusion list.
+		 *
+		 * @since 1.58.5
+		 */
 		$exclusion_list = apply_filters( 'pmw_ip_exclusion_list', [] );
 
 		// Backward compatibility: merge the deprecated filter
@@ -509,6 +530,11 @@ class Geolocation {
 		$country_code = get_transient('geoip_' . $ip_address);
 
 		if (false === $country_code) {
+			/**
+			 * Filters Geolocation geoip apis.
+			 *
+			 * @since 1.58.5
+			 */
 			$geoip_services = apply_filters('pmw_geolocation_geoip_apis', self::$geoip_apis);
 
 			if (empty($geoip_services)) {
@@ -525,7 +551,7 @@ class Geolocation {
 					sprintf($service_endpoint, $ip_address),
 					[
 						'timeout' => 2,
-						//						'user-agent' => 'WooCommerce/' . wc()->version,
+						//                      'user-agent' => 'WooCommerce/' . wc()->version,
 					]
 				);
 
@@ -540,6 +566,11 @@ class Geolocation {
 							$country_code = isset($data->countryCode) ? $data->countryCode : ''; // @codingStandardsIgnoreLine
 							break;
 						default:
+							/**
+							 * Filters Geolocation geoip response.
+							 *
+							 * @since 1.58.5
+							 */
 							$country_code = apply_filters('pmw_geolocation_geoip_response_' . $service_name, '', $response['body']);
 							break;
 					}

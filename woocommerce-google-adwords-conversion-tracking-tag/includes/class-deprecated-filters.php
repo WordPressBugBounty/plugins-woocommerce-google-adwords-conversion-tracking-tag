@@ -13,11 +13,10 @@ class Deprecated_Filters {
 	public static function load_deprecated_filters() {
 
 		// Choose what purchase event name has to be emitted, as TikTok has a choice of those
-		// "CompletePayment" seems to be the one that is used to optimize catalog sales
-		// "Purchase" seems also to work as per TikTok Pixel Helper
+		// "Purchase" is the standard event name used by TikTok
 		apply_filters_deprecated(
 			'wpm_tiktok_purchase_event_name',
-			[ 'CompletePayment' ],
+			[ 'Purchase' ],
 			'1.25.1',
 			null,
 			'This filter has been deprecated without replacement'

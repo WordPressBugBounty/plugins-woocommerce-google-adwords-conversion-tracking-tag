@@ -211,15 +211,15 @@ class Order_Columns {
 
 	public function custom_shop_order_column( $columns ) {
 
-//		error_log('columns: ' . print_r($columns, true));
+//      error_log('columns: ' . print_r($columns, true));
 
-//		function get_list_order_parameter( $list_order ) {
-//			if (is_null($list_order)) {
-//				return '';
-//			}
+//      function get_list_order_parameter( $list_order ) {
+//          if (is_null($list_order)) {
+//              return '';
+//          }
 //
-//			return '&amp;order=' . $list_order;
-//		}
+//          return '&amp;order=' . $list_order;
+//      }
 
 		$_get = Helpers::get_input_vars(INPUT_GET);
 
@@ -342,7 +342,7 @@ class Order_Columns {
 		?>
 
 		<div aria-hidden="true" title="<?php echo esc_html($status_text); ?>"
-			 class="pmw-monitored-icon <?php echo esc_html($status_class); ?>">
+			class="pmw-monitored-icon <?php echo esc_html($status_class); ?>">
 			<span class="screen-reader-text"><?php echo esc_html($status_text); ?></span>
 		</div>
 
