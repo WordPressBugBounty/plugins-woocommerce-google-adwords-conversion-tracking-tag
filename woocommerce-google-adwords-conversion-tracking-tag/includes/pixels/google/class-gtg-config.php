@@ -2,27 +2,36 @@
 /**
  * Google Tag Gateway Configuration
  *
- * Handles server-side detection of the optimal GTG handler and provides
+ * Reads the GTG handler type from a browser-set cookie and provides
  * the configuration to the frontend via pmwDataLayer.
+ *
+ * The browser is the source of truth for handler detection because
+ * server-to-server requests (wp_remote_get) bypass CDN/proxy layers
+ * and cannot reliably detect Cloudflare. JavaScript detects the handler
+ * via health check requests that traverse the actual network path,
+ * then sets a cookie (pmw_gtg_handler) for PHP to read on subsequent
+ * page loads. This eliminates all wp_remote_get() self-probing and
+ * prevents thundering herd problems on transient cache expiry.
  *
  * @package SweetCode\Pixel_Manager\Pixels\Google
  */
 
 namespace SweetCode\Pixel_Manager\Pixels\Google;
 
-use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Helpers;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Google Tag Gateway Configuration
  *
- * Server-side detection of the optimal proxy handler with caching.
+ * Cookie-based handler detection with transient/option caching.
  *
- * Priority:
- * 1. External (Cloudflare) - measurement_path responds without X-PMW-GTG-Handler header
- * 2. Standalone - direct PHP proxy responds with X-PMW-GTG-Handler: standalone
- * 3. WordPress - fallback when others fail
+ * Detection flow:
+ * 1. Filter override (pmw_gtg_handler)
+ * 2. Transient/option cache
+ * 3. Browser-set cookie (pmw_gtg_handler)
+ * 4. null (first visit — JS will detect and set cookie)
  */
 class GTG_Config {
 
@@ -42,242 +51,48 @@ class GTG_Config {
 	const OPTION_KEY = 'pmw_gtg_handler_cache';
 
 	/**
+	 * Transient key for the stale flag
+	 *
+	 * Set by refresh_handler() when settings change.
+	 * When present, the cookie is ignored and JS re-detects on next page load.
+	 *
+	 * @since 1.58.7
+	 */
+	const STALE_FLAG_KEY = 'pmw_gtg_handler_stale';
+
+	/**
+	 * Cookie name set by JavaScript after handler detection
+	 *
+	 * @since 1.58.7
+	 */
+	const COOKIE_NAME = 'pmw_gtg_handler';
+
+	/**
 	 * Valid handler types
 	 */
 	const VALID_HANDLERS = [ 'external', 'standalone', 'wordpress' ];
 
 	/**
-	 * Detect the GTG handler server-side
+	 * Get the GTG handler from cache, cookie, or return null
 	 *
 	 * Priority:
-	 * 1. External (Cloudflare) - measurement_path responds without X-PMW-GTG-Handler
-	 * 2. Standalone - direct PHP proxy responds with X-PMW-GTG-Handler: standalone
-	 * 3. WordPress - fallback
+	 * 1. Filter override (pmw_gtg_handler)
+	 * 2. Transient/option cache (unless force_refresh)
+	 * 3. Browser-set cookie (unless stale flag is set)
+	 * 4. null — no handler known (first visit, JS will detect)
 	 *
-	 * @return string Handler type ('external', 'standalone', 'WordPress')
-	 */
-	public static function detect_handler() {
-		$measurement_path = Options::get_google_tag_gateway_measurement_path();
-		$site_url         = get_site_url();
-
-		// If no measurement path configured, can't use external/Cloudflare
-		if ( empty( $measurement_path ) ) {
-			// Still check if standalone proxy is available
-			return self::check_standalone_proxy() ? 'standalone' : 'WordPress';
-		}
-
-		// Priority 1: Check if measurement_path is handled by external (Cloudflare)
-		$handler = self::check_measurement_path( $site_url . $measurement_path );
-
-		if ( 'external' === $handler ) {
-			return 'external';
-		}
-
-		// If measurement_path returned 'standalone', use it
-		if ( 'standalone' === $handler ) {
-			return 'standalone';
-		}
-
-		// Priority 2: Check if standalone proxy is available via direct access
-		if ( self::check_standalone_proxy() ) {
-			return 'standalone';
-		}
-
-		// Priority 3: Fallback to WordPress proxy
-		return 'WordPress';
-	}
-
-	/**
-	 * Check measurement_path for handler type
+	 * @param bool $force_refresh Force re-read from cookie, bypassing cache.
+	 * @return string|null Handler type or null if not yet detected by browser
 	 *
-	 * @param string $base_url The base URL with measurement_path.
-	 * @return string|null Handler type or null if check failed
-	 */
-	private static function check_measurement_path( $base_url ) {
-		$health_url = $base_url . '/healthy';
-
-		$response = wp_remote_get(
-			$health_url,
-			[
-				'timeout'   => 5,
-				'sslverify' => self::should_verify_ssl(),
-				'headers'   => [
-					'Cache-Control' => 'no-cache',
-				],
-			]
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return null;
-		}
-
-		if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
-			return null;
-		}
-
-		$handler_header = wp_remote_retrieve_header( $response, 'x-pmw-gtg-handler' );
-
-		// No header = Cloudflare (external) is proxying
-		if ( empty( $handler_header ) ) {
-			return 'external';
-		}
-
-		// Return the detected handler (isolated or WordPress)
-		if ( in_array( $handler_header, self::VALID_HANDLERS, true ) ) {
-			return $handler_header;
-		}
-
-		return null;
-	}
-
-	/**
-	 * Check if SSL verification should be disabled for health checks
-	 *
-	 * Detects local development environments where self-signed certificates
-	 * are commonly used.
-	 *
-	 * @return bool True to verify SSL, false to skip verification
-	 */
-	private static function should_verify_ssl() {
-		/**
-		 * Allow explicit override via filter.
-		 *
-		 * @since 1.58.5
-		 */
-		$filter_value = apply_filters( 'pmw_gtg_health_check_sslverify', null );
-		if ( null !== $filter_value ) {
-			return (bool) $filter_value;
-		}
-
-		// Detect common local development domains
-		$site_url = get_site_url();
-		$host     = wp_parse_url( $site_url, PHP_URL_HOST );
-
-		$local_patterns = [
-			'.test',
-			'.local',
-			'.localhost',
-			'.dev',
-			'.ddev.site',
-			'localhost',
-		];
-
-		foreach ( $local_patterns as $pattern ) {
-			// PHP 5.6 compatible string ends with check
-			$pattern_len = strlen( $pattern );
-			if ( substr( $host, -$pattern_len ) === $pattern || ltrim( $pattern, '.' ) === $host ) {
-				return false;
-			}
-		}
-
-		// Check for IP addresses (usually local)
-		if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if standalone proxy is available via direct access
-	 *
-	 * If the config file doesn't exist but GTG is active, try to create it first.
-	 * This ensures sites that upgraded to 1.56.0+ get the config file automatically.
-	 *
-	 * @return bool True if standalone proxy is available
-	 */
-	private static function check_standalone_proxy() {
-		$proxy_url = GTG_Proxy::get_isolated_proxy_url();
-
-		if ( ! $proxy_url ) {
-			return false;
-		}
-
-		// Before checking the proxy, ensure the config file exists
-		// This handles sites that upgraded but didn't have the config created
-		self::ensure_config_exists();
-
-		$response = wp_remote_get(
-			$proxy_url . '?healthCheck=1',
-			[
-				'timeout'   => 5,
-				'sslverify' => self::should_verify_ssl(),
-				'headers'   => [
-					'Cache-Control' => 'no-cache',
-				],
-			]
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return false;
-		}
-
-		if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
-			return false;
-		}
-
-		$handler_header = wp_remote_retrieve_header( $response, 'x-pmw-gtg-handler' );
-
-		return 'standalone' === $handler_header;
-	}
-
-	/**
-	 * Ensure the standalone proxy config file exists
-	 *
-	 * Creates the config file if GTG is active but the config is missing.
-	 * This handles sites that upgraded to 1.56.0+ but didn't have the config
-	 * file created during the upgrade process.
-	 *
-	 * @return void
-	 * @since 1.56.0
-	 */
-	private static function ensure_config_exists() {
-		// Only run if GTG is active
-		if ( ! GTG_Proxy::is_active() ) {
-			return;
-		}
-
-		// Check if config file exists
-		$config_file = GTG_Proxy::get_config_file_path();
-		if ( ! $config_file ) {
-			return;
-		}
-
-		// If config file already exists and is not too old, skip
-		if ( file_exists( $config_file ) ) {
-			// Check if it's not expired (7 days — matches standalone proxy TTL)
-			// WP-Cron refreshes every 24h, this is a safety net
-			$file_age = time() - filemtime( $config_file );
-			if ( $file_age < 7 * DAY_IN_SECONDS ) {
-				return;
-			}
-		}
-
-		// Create or refresh the config file
-		GTG_Proxy::update_proxy_config_cache();
-	}
-
-	/**
-	 * Get the proxy URL for direct PHP access
-	 *
-	 * @return string|false
-	 */
-	public static function get_proxy_url() {
-		return GTG_Proxy::get_isolated_proxy_url();
-	}
-
-	/**
-	 * Get cached handler or detect and cache
-	 *
-	 * Uses transients with fallback to options table when transients are disabled.
-	 *
-	 * @param bool $force_refresh Force re-detection.
-	 * @return string Handler type
+	 * @since 1.58.7
 	 */
 	public static function get_handler( $force_refresh = false ) {
 
 		/**
-		 * Filters Gtg handler.
+		 * Filters the GTG handler type.
+		 *
+		 * Allows manual override of handler detection. Return a valid handler
+		 * string ('external', 'standalone', 'WordPress') to bypass all detection.
 		 *
 		 * @since 1.58.5
 		 */
@@ -293,8 +108,49 @@ class GTG_Config {
 			}
 		}
 
-		$handler = self::detect_handler();
-		self::cache_handler( $handler );
+		// Read handler from browser-set cookie
+		$cookie_handler = self::get_cookie_handler();
+		if ( null !== $cookie_handler ) {
+			self::cache_handler( $cookie_handler );
+			return $cookie_handler;
+		}
+
+		// No handler known — first visit or cookie expired
+		// JS will detect and set the cookie on this page load
+		return null;
+	}
+
+	/**
+	 * Read the GTG handler from the browser-set cookie
+	 *
+	 * The cookie is set by JavaScript after browser-side handler detection.
+	 * Returns null if the cookie is missing, invalid, or marked stale.
+	 *
+	 * @return string|null Valid handler type or null
+	 *
+	 * @since 1.58.7
+	 */
+	private static function get_cookie_handler() {
+
+		// If settings recently changed, ignore the stale cookie
+		// and let JS re-detect on this page load
+		if ( get_transient( self::STALE_FLAG_KEY ) ) {
+			delete_transient( self::STALE_FLAG_KEY );
+			return null;
+		}
+
+		$_cookie = Helpers::get_input_vars( INPUT_COOKIE );
+
+		if ( empty( $_cookie[ self::COOKIE_NAME ] ) ) {
+			return null;
+		}
+
+		$handler = $_cookie[ self::COOKIE_NAME ];
+
+		// Validate against known handler types
+		if ( ! in_array( $handler, self::VALID_HANDLERS, true ) ) {
+			return null;
+		}
 
 		return $handler;
 	}
@@ -363,13 +219,20 @@ class GTG_Config {
 	}
 
 	/**
-	 * Force refresh the handler detection
-	 * Called when settings change to immediately detect the new handler
+	 * Invalidate handler detection and force JS re-detection
 	 *
-	 * @return string The newly detected handler
+	 * Clears all PHP caches and sets a one-shot stale flag so the next
+	 * page load ignores the (now stale) browser cookie and lets JS
+	 * re-detect the handler from scratch.
+	 *
+	 * Called when GTG settings change (e.g., measurement_path updated).
+	 *
+	 * @return void
+	 *
+	 * @since 1.58.7
 	 */
 	public static function refresh_handler() {
 		self::clear_cached_handler();
-		return self::get_handler( true );
+		set_transient( self::STALE_FLAG_KEY, 1, HOUR_IN_SECONDS );
 	}
 }

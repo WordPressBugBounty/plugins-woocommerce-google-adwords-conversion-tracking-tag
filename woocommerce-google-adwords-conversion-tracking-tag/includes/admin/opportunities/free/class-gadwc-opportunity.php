@@ -5,6 +5,7 @@ namespace SweetCode\Pixel_Manager\Admin\Opportunities\Free;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunity;
 use SweetCode\Pixel_Manager\Helpers;
+use SweetCode\Pixel_Manager\Options;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -22,6 +23,12 @@ class Google_Automated_Discounts extends Opportunity {
 
 		// Only show if GADWC is not active
 		if (Environment::is_gadwc_active()) {
+			return false;
+		}
+
+		// Only show if Conversion Cart Data is enabled,
+		// which indicates a Google Merchant Center is connected
+		if (!Options::is_google_ads_conversion_cart_data_enabled()) {
 			return false;
 		}
 

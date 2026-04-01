@@ -1354,4 +1354,209 @@ class Validations {
 
 		return true;
 	}
+
+	// ─── Single-field validation for REST PATCH ───────────
+
+	/**
+	 * Validate and preprocess a single option value by dot-notation path.
+	 *
+	 * Used by the Mantine admin REST PATCH endpoint to apply the same
+	 * trim / preprocessing / regex validation that options_validate() does
+	 * for the classic form POST.
+	 *
+	 * @param string $path  Dot-notation path (e.g. "facebook.pixel_id").
+	 * @param mixed  $value The value to validate.
+	 *
+	 * @return array { valid: bool, value: mixed, message?: string }
+	 *
+	 * @since 1.58.7
+	 */
+	public static function validate_single_option( $path, $value ) {
+
+		// Only validate string values — booleans, integers, arrays pass through
+		if (!is_string($value)) {
+			return [ 'valid' => true, 'value' => $value ];
+		}
+
+		// Trim whitespace, quotes, etc.
+		$value = Helpers::trim_string($value);
+
+		// Apply path-specific preprocessing (strip prefixes, extract IDs, etc.)
+		$value = self::preprocess_value_for_path($path, $value);
+
+		// Look up the validator for this path
+		$validators = self::get_field_validators();
+
+		if (!isset($validators[$path])) {
+			return [ 'valid' => true, 'value' => $value ];
+		}
+
+		$method = $validators[$path][0];
+		$error  = $validators[$path][1];
+
+		if (!call_user_func([ self::class, $method ], $value)) {
+			return [
+				'valid'   => false,
+				'value'   => $value,
+				'message' => $error,
+			];
+		}
+
+		return [ 'valid' => true, 'value' => $value ];
+	}
+
+	/**
+	 * Apply path-specific preprocessing to a value before regex validation.
+	 *
+	 * Mirrors the inline preprocessing in options_validate().
+	 *
+	 * @param string $path  Dot-notation path.
+	 * @param string $value Trimmed string value.
+	 *
+	 * @return string Preprocessed value.
+	 *
+	 * @since 1.58.7
+	 */
+	private static function preprocess_value_for_path( $path, $value ) {
+
+		if ('' === $value) {
+			return $value;
+		}
+
+		switch ($path) {
+			case 'google.ads.conversion_id':
+				// Strip "AW-" prefix and everything after a slash
+				$value = preg_replace('/^AW-/', '', $value);
+				$value = preg_replace('/\/.*$/', '', $value);
+				break;
+
+			case 'google.ads.conversion_label':
+				// If pasted as full tag, extract label after the slash
+				$value = preg_replace('/^.*\//', '', $value);
+				break;
+
+			case 'facebook.domain_verification_id':
+				// Extract content value from meta tag if pasted
+				$value = preg_replace('/^.*content\s*=\s*["\']?([^"\']+?)["\']?\s*\/?\s*>?$/', '$1', $value);
+				break;
+
+			case 'crazyegg.account_number':
+				// Extract from script URL or strip non-digits
+				if (preg_match('/script\.crazyegg\.com\/pages\/scripts\/(\d+)\/(\d+)\.js/', $value, $matches)) {
+					$value = $matches[1] . $matches[2];
+				} else {
+					$value = preg_replace('/\D/', '', $value);
+				}
+				break;
+
+			case 'google.tag_gateway.measurement_path':
+				// Prefix a slash if missing
+				if ('/' !== substr($value, 0, 1)) {
+					$value = '/' . $value;
+				}
+				break;
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Map of dot-notation paths to their [validator_method, error_message] pairs.
+	 *
+	 * @return array<string, array{0: string, 1: string}>
+	 *
+	 * @since 1.58.7
+	 */
+	private static function get_field_validators() {
+
+		return [
+			// Google Ads
+			'google.ads.conversion_id'                          => [ 'is_gads_conversion_id', __('Invalid conversion ID. It should contain 8 to 11 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.ads.conversion_label'                       => [ 'is_gads_conversion_label', __('Invalid Google Ads conversion label.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.ads.aw_merchant_id'                         => [ 'is_gads_aw_merchant_id', __('Invalid Merchant Center ID. It should contain 6 to 12 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.ads.phone_conversion_label'                 => [ 'is_gads_conversion_label', __('Invalid Google Ads conversion label.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.ads.phone_conversion_number'                => [ 'is_phone_number', __('Invalid phone number.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.ads.conversion_adjustments.conversion_name' => [ 'is_valid_conversion_adjustments_conversion_name', __('Invalid conversion name. Special characters and quotes are not allowed.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Google Analytics 4
+			'google.analytics.ga4.measurement_id'               => [ 'is_google_analytics_4_measurement_id', __('Invalid Google Analytics 4 measurement ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.analytics.ga4.api_secret'                   => [ 'is_google_analytics_4_api_secret', __('Invalid Google Analytics 4 API key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'google.analytics.ga4.data_api.property_id'         => [ 'is_ga4_property_id', __('Invalid GA4 property ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Google Tag Gateway
+			'google.tag_gateway.measurement_path'               => [ 'is_google_tag_gateway_measurement_path', __('Invalid measurement path. It should start with / and contain only letters and numbers.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Meta (Facebook)
+			'facebook.pixel_id'                                 => [ 'is_facebook_pixel_id', __('Invalid Meta (Facebook) pixel ID. It should contain 12 to 22 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'facebook.capi.token'                               => [ 'is_facebook_capi_token', __('Invalid Meta (Facebook) CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'facebook.capi.test_event_code'                     => [ 'is_facebook_capi_test_event_code', __('Invalid Meta (Facebook) CAPI test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'facebook.domain_verification_id'                   => [ 'is_facebook_domain_verification_id', __('Invalid Meta (Facebook) domain verification ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// TikTok
+			'tiktok.pixel_id'                                   => [ 'is_tiktok_pixel_id', __('Invalid TikTok pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'tiktok.eapi.token'                                 => [ 'is_tiktok_eapi_access_token', __('Invalid TikTok Events API access token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'tiktok.eapi.test_event_code'                       => [ 'is_tiktok_eapi_test_event_code', __('Invalid TikTok EAPI test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Microsoft Advertising
+			'bing.uet_tag_id'                                   => [ 'is_bing_uet_tag_id', __('Invalid Microsoft Advertising UET tag ID. It should contain 7 to 9 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// LinkedIn
+			'pixels.linkedin.partner_id'                        => [ 'is_linkedin_partner_id', __('Invalid LinkedIn partner ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.linkedin.conversion_ids.view_content'       => [ 'is_linkedin_conversion_id', __('Invalid LinkedIn conversion ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.linkedin.conversion_ids.add_to_cart'        => [ 'is_linkedin_conversion_id', __('Invalid LinkedIn conversion ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.linkedin.conversion_ids.purchase'           => [ 'is_linkedin_conversion_id', __('Invalid LinkedIn conversion ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Pinterest
+			'pinterest.pixel_id'                                => [ 'is_pinterest_pixel_id', __('Invalid Pinterest pixel ID. It should contain 13 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pinterest.ad_account_id'                           => [ 'is_pinterest_ad_account_id', __('Invalid Pinterest ad account ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pinterest.apic.token'                              => [ 'is_pinterest_apic_token', __('Invalid Pinterest API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Snapchat
+			'snapchat.pixel_id'                                 => [ 'is_snapchat_pixel_id', __('Invalid Snapchat pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'snapchat.capi.token'                               => [ 'is_snapchat_capi_token', __('Invalid Snapchat CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// X (Twitter)
+			'twitter.pixel_id'                                  => [ 'is_twitter_pixel_id', __('Invalid X (Twitter) pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.add_to_cart'                     => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.add_to_wishlist'                 => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.view_content'                    => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.search'                          => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.initiate_checkout'               => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.add_payment_info'                => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'twitter.event_ids.purchase'                        => [ 'is_twitter_event_id', __('Invalid X (Twitter) event ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Reddit
+			'pixels.reddit.advertiser_id'                       => [ 'is_reddit_advertiser_id', __('Invalid Reddit advertiser ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.reddit.capi.token'                          => [ 'is_reddit_capi_token', __('Invalid Reddit CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.reddit.capi.test_event_code'                => [ 'is_reddit_capi_test_event_code', __('Invalid Reddit CAPI test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Hotjar
+			'hotjar.site_id'                                    => [ 'is_hotjar_site_id', __('Invalid Hotjar site ID. It should contain 6 to 9 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// CrazyEgg
+			'crazyegg.account_number'                           => [ 'is_crazyegg_account_number', __('Invalid CrazyEgg account number. It must be exactly 8 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// AdRoll
+			'pixels.adroll.advertiser_id'                       => [ 'is_adroll_advertiser_id', __('Invalid AdRoll advertiser ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.adroll.pixel_id'                            => [ 'is_adroll_pixel_id', __('Invalid AdRoll pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Outbrain
+			'pixels.outbrain.advertiser_id'                     => [ 'is_outbrain_account_id', __('Invalid Outbrain advertiser ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Taboola
+			'pixels.taboola.account_id'                         => [ 'is_taboola_account_id', __('Invalid Taboola account ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// AB Tasty
+			'pixels.ab_tasty.account_id'                        => [ 'is_ab_tasty_account_id', __('Invalid AB Tasty account ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Optimizely
+			'pixels.optimizely.project_id'                      => [ 'is_optimizely_project_id', __('Invalid Optimizely project ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// VWO
+			'pixels.vwo.account_id'                             => [ 'is_vwo_account_id', __('Invalid VWO account ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Contentsquare
+			'pixels.contentsquare.tag_id'                       => [ 'is_contentsquare_tag_id', __('Invalid Contentsquare tag ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+		];
+	}
 }

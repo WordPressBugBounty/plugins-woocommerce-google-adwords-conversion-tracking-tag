@@ -174,6 +174,10 @@ class Admin {
         if ( !strpos( $hook_suffix, 'page_pmw' ) ) {
             return;
         }
+        // Skip classic admin scripts when Mantine admin UI is active.
+        if ( self::is_mantine_admin_active() ) {
+            return;
+        }
         wp_enqueue_script(
             'pmw-admin',
             PMW_PLUGIN_DIR_PATH . 'js/admin/pmw-admin.p1.min.js',
@@ -1589,6 +1593,11 @@ class Admin {
 
     // display the admin options page
     public static function plugin_options_page() {
+        // ─── Mantine admin UI (dev-only theme switcher) ───────────
+        if ( self::is_mantine_admin_active() ) {
+            self::render_mantine_admin();
+            return;
+        }
         $freemius_data = [
             'active' => Environment::is_freemius_active(),
             'tabs'   => [
@@ -1683,7 +1692,7 @@ class Admin {
 
 			<h2 class="nav-tab-wrapper"></h2>
 
-			<form id="pmw_settings_form" method="post">
+			<form id="pmw_settings_form" method="post" autocomplete="off">
 
 				<?php 
         // Keep nonce for REST save validation
@@ -1766,6 +1775,100 @@ class Admin {
 			</div>
 		</div>
 
+		<?php 
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            ?>
+		<div style="position: fixed; bottom: 16px; right: 16px; z-index: 9999; background: #fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.15); padding: 8px 12px; border: 1px solid #dee2e6; display: flex; align-items: center; gap: 8px;">
+			<span style="font-size: 12px; color: #868e96; font-weight: 500;">Theme</span>
+			<span style="display: inline-flex; background: #f1f3f5; border-radius: 4px; overflow: hidden; font-size: 12px;">
+				<a href="<?php 
+            echo esc_url( remove_query_arg( 'pmw_theme' ) );
+            ?>"
+					style="padding: 4px 10px; text-decoration: none; color: #495057;">Mantine</a>
+				<span style="padding: 4px 10px; background: #fff; color: #000; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.1);">Classic</span>
+			</span>
+		</div>
+		<?php 
+        }
+        ?>
+
+		<?php 
+    }
+
+    // ─── Mantine Admin UI Helpers ───────────
+    /**
+     * Check if the Mantine admin UI should be rendered.
+     *
+     * Active when WP_DEBUG is true and the user's localStorage preference
+     * is communicated via a query parameter or cookie.
+     *
+     * For this first version we check for:
+     *  1. WP_DEBUG must be enabled
+     *  2. The built Mantine JS file must exist
+     *
+     * The actual theme selection is stored client-side in localStorage.
+     * On first load with WP_DEBUG, we always show the Mantine UI. The
+     * theme switcher component in Shell.tsx handles switching back to
+     * classic by reloading with ?pmw_theme=classic.
+     *
+     * @return bool
+     *
+     * @since 1.59.0
+     */
+    private static function is_mantine_admin_active() {
+        if ( !defined( 'WP_DEBUG' ) || !WP_DEBUG ) {
+            return false;
+        }
+        // Allow explicit override via query param (set by the theme switcher on "Classic" selection).
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( isset( $_GET['pmw_theme'] ) && 'classic' === sanitize_text_field( wp_unslash( $_GET['pmw_theme'] ) ) ) {
+            return false;
+        }
+        // Check that the Vite build output exists.
+        $js_file = plugin_dir_path( PMW_PLUGIN_FILE ) . 'js/admin/mantine/pmw-admin-mantine.js';
+        return file_exists( $js_file );
+    }
+
+    /**
+     * Render the Mantine admin UI mount point and enqueue its assets.
+     *
+     * @since 1.59.0
+     */
+    private static function render_mantine_admin() {
+        $base_url = PMW_PLUGIN_DIR_PATH . 'js/admin/mantine/';
+        $version = PMW_CURRENT_VERSION;
+        // Enqueue the Mantine admin CSS.
+        wp_enqueue_style(
+            'pmw-admin-mantine',
+            $base_url . 'pmw-admin-mantine.css',
+            [],
+            $version
+        );
+        // Enqueue the Mantine admin JS (IIFE bundle — no ES modules).
+        wp_enqueue_script(
+            'pmw-admin-mantine',
+            $base_url . 'pmw-admin-mantine.js',
+            [],
+            $version,
+            true
+        );
+        // Pass data to the React app.
+        $can_use_premium = false;
+        if ( function_exists( 'wpm_fs' ) ) {
+            $can_use_premium = wpm_fs()->can_use_premium_code__premium_only();
+        }
+        wp_localize_script( 'pmw-admin-mantine', 'pmwAdminApi', [
+            'root'               => esc_url_raw( rest_url() ),
+            'nonce'              => wp_create_nonce( 'wp_rest' ),
+            'isDebug'            => true,
+            'canUsePremiumCode'  => $can_use_premium,
+            'options'            => Options::get_options(),
+            'freemiusUpgradeUrl' => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_upgrade_url() : '' ),
+            'freemiusAccountUrl' => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_account_url() : '' ),
+        ] );
+        ?>
+		<style>.wrap > .nav-tab-wrapper { display: none !important; }</style>
+		<div id="pmw-mantine-root" style="margin: 10px 20px 0 0;"></div>
 		<?php 
     }
 

@@ -4,6 +4,7 @@ namespace SweetCode\Pixel_Manager\Admin\Opportunities\Free;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunity;
+use SweetCode\Pixel_Manager\Helpers;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -18,6 +19,11 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 class Google_Customer_Reviews extends Opportunity {
 
 	public static function available() {
+
+		// GCR is not available on the WooCommerce.com distribution
+		if (Helpers::is_pmw_wcm_distro()) {
+			return false;
+		}
 
 		// Only show if GCR is not active
 		if (Environment::is_gcr_active()) {

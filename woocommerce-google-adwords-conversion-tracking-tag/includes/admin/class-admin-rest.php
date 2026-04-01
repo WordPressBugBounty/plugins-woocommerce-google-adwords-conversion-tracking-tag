@@ -325,6 +325,118 @@ class Admin_REST {
 				],
 			],
 		]);
+
+		// ─── Mantine Admin UI: Granular option update ───────────
+		$this->register_mantine_routes();
+	}
+
+	/**
+	 * Register REST routes for the Mantine admin UI.
+	 *
+	 * @since 1.59.0
+	 */
+	private function register_mantine_routes() {
+
+		// PATCH /options — update a single option by dot-notation path
+		register_rest_route(self::$rest_namespace, '/options', [
+			'methods'             => 'PATCH',
+			'callback'            => [ $this, 'handle_option_patch' ],
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+
+		// GET /options — return the full options tree
+		register_rest_route(self::$rest_namespace, '/options', [
+			'methods'             => 'GET',
+			'callback'            => function () {
+				return new \WP_REST_Response(Options::get_options(), 200);
+			},
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+	}
+
+	/**
+	 * Handle PATCH /pmw/v1/options — update a single nested option value.
+	 *
+	 * Expects JSON body: { "path": "facebook.pixel_id", "value": "123456" }
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 *
+	 * @return \WP_REST_Response
+	 *
+	 * @since 1.59.0
+	 */
+	public function handle_option_patch( $request ) {
+
+		$data = $request->get_json_params();
+
+		if (empty($data['path']) || !is_string($data['path'])) {
+			return new \WP_REST_Response([
+				'success' => false,
+				'message' => 'Missing or invalid "path" parameter.',
+			], 400);
+		}
+
+		if (!array_key_exists('value', $data)) {
+			return new \WP_REST_Response([
+				'success' => false,
+				'message' => 'Missing "value" parameter.',
+			], 400);
+		}
+
+		$path  = sanitize_text_field($data['path']);
+		$value = Helpers::generic_sanitization($data['value']);
+
+		// Run field-specific validation (trim, preprocess, regex)
+		$validation = Validations::validate_single_option($path, $value);
+
+		if (!$validation['valid']) {
+			return new \WP_REST_Response([
+				'success' => false,
+				'message' => $validation['message'],
+			], 400);
+		}
+
+		// Use the preprocessed value (trimmed, prefix-stripped, etc.)
+		$value = $validation['value'];
+
+		$options = Options::get_options();
+		$options = self::set_nested_value($options, $path, $value);
+
+		Options::save_options_with_timestamp($options);
+
+		return new \WP_REST_Response([
+			'success' => true,
+			'value'   => $value,
+		], 200);
+	}
+
+	/**
+	 * Set a nested value in an associative array using dot-notation path.
+	 *
+	 * @param array  $array Array to modify.
+	 * @param string $path  Dot-notation path (e.g. "facebook.pixel_id").
+	 * @param mixed  $value Value to set.
+	 *
+	 * @return array Modified array.
+	 *
+	 * @since 1.59.0
+	 */
+	private static function set_nested_value( $array, $path, $value ) {
+		$keys    = explode('.', $path);
+		$current = &$array;
+
+		foreach ($keys as $i => $key) {
+			if ( count($keys) - 1 === $i ) {
+				$current[$key] = $value;
+			} else {
+				if (!isset($current[$key]) || !is_array($current[$key])) {
+					$current[$key] = [];
+				}
+				$current = &$current[$key];
+			}
+		}
+
+		return $array;
 	}
 
 	/**

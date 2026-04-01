@@ -984,27 +984,33 @@ class Pixel_Manager {
         $data['tag_id'] = Google_Helpers::get_google_tag_id_information()['active'];
         $data['tag_id_suppressed'] = Google_Helpers::get_google_tag_id_information()['suppressed'];
         $data['tag_gateway']['measurement_path'] = Options::get_google_tag_gateway_measurement_path();
-        // Pass server-detected handler hint to JavaScript for standalone/wordpress cases.
-        // Server-side detection cannot reliably detect Cloudflare (external) because
-        // server-to-server requests bypass CDN/proxy layers. For external detection,
-        // JavaScript must always check via browser request (Priority 1 in detectGtgHandler).
-        // For standalone/wordpress, the server hint prevents JS from hitting the standalone
-        // proxy health check — eliminating 503/4xx errors when the standalone proxy is
-        // unavailable (e.g., on hosts like WP Engine that block direct PHP file access).
+        // Pass handler hint and proxy_url to JavaScript for GTG handler selection.
+        //
+        // The browser is the source of truth for handler detection (it traverses CDN layers
+        // that server-to-server requests bypass). PHP reads the handler from a browser-set
+        // cookie. On first visit (no cookie), handler is null — JS does full async detection.
+        //
+        // Handler hint: Only sent for standalone/wordpress (never external or null).
+        // When present, JS Priority 2 trusts it and skips the standalone proxy health check,
+        // preventing 503/4xx errors on hosts that block direct PHP file access.
+        //
+        // proxy_url: Always included when the standalone proxy file exists (no HTTP cost,
+        // just file_exists()). This enables JS to discover standalone on first visit and
+        // to detect handler transitions (e.g., Cloudflare removed → standalone fallback).
+        // Safe because JS Priority 2 (server hint) short-circuits before Priority 3
+        // (proxy_url check) — so proxy_url being present does NOT cause 503s when
+        // standalone is unavailable and PHP knows it (handler = 'WordPress').
         if ( Options::get_google_tag_gateway_measurement_path() ) {
             $handler = GTG_Config::get_handler();
-            // Only pass handler for standalone/wordpress — never for external
-            if ( in_array( $handler, ['standalone', 'wordpress'], true ) ) {
+            // Only pass handler for standalone/wordpress — never for external or null
+            if ( null !== $handler && in_array( $handler, ['standalone', 'wordpress'], true ) ) {
                 $data['tag_gateway']['handler'] = $handler;
             }
-            // Only include proxy_url when the server detected standalone
-            // When handler is 'WordPress', there's no point sending proxy_url
-            // since JS would just get a 503/403 trying to use it
-            if ( 'standalone' === $handler ) {
-                $isolated_url = GTG_Proxy::get_isolated_proxy_url();
-                if ( $isolated_url ) {
-                    $data['tag_gateway']['proxy_url'] = $isolated_url;
-                }
+            // Always include proxy_url when the standalone proxy file exists
+            // Enables JS to discover standalone on first visit and handle transitions
+            $isolated_url = GTG_Proxy::get_isolated_proxy_url();
+            if ( $isolated_url ) {
+                $data['tag_gateway']['proxy_url'] = $isolated_url;
             }
         }
         $data['tcf_support'] = Options::is_google_tcf_support_active();
