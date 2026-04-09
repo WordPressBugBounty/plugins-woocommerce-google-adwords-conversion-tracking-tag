@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.58.7
+Stable tag: 1.58.8
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -297,6 +297,13 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.58.8  =
+*Release date - 09.08.2026*
+
+* Tweak: Added diagnostic consent decision logging that explains why consent categories were set to their values when the logger is active, including mode, CMP source, and region check details
+* Tweak: Eliminated the REST API preflight test request by using optimistic-try with AJAX fallback, saving one HTTP round-trip per browser session
+* Fix: Fixed WooCommerce HPOS compatibility not being declared for inactive remnant PMW plugin folders, causing false "incompatible" warnings on the plugins page
 
 = 1.58.7  =
 *Release date - 31.03.2026*

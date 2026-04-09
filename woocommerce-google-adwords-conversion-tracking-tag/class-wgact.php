@@ -416,13 +416,51 @@ class WCPM {
         if ( !Helpers::does_the_woocommerce_declare_compatibility_function_exist() ) {
             return;
         }
-        // Declare HPOS compatibility
-        Helpers::declare_woocommerce_compatibility( 'custom_order_tables' );
-        // Declare Cart and Checkout Blocks compatibility
-        Helpers::declare_woocommerce_compatibility( 'cart_checkout_blocks' );
-        // Declare Product Instance Caching compatibility
-        // https://developer.woocommerce.com/2026/01/19/experimental-product-object-caching-in-woocommerce-10-5/
-        Helpers::declare_woocommerce_compatibility( 'product_instance_caching' );
+        $features = ['custom_order_tables', 'cart_checkout_blocks', 'product_instance_caching'];
+        // Declare compatibility for the active plugin instance
+        foreach ( $features as $feature_id ) {
+            Helpers::declare_woocommerce_compatibility( $feature_id );
+        }
+        // Declare compatibility on behalf of any inactive PMW variants still present
+        // in the plugins directory. Without this, remnant folders are flagged as
+        // "incompatible" with HPOS because they never run their own declaration.
+        self::declare_compatibilities_for_inactive_pmw_variants( $features );
+    }
+
+    /**
+     * Declare WooCommerce feature compatibility for inactive PMW plugin variants
+     * that may still be present in the plugins directory.
+     *
+     * WooCommerce's HPOS feature treats plugins that don't explicitly declare
+     * compatibility as incompatible. If a customer has a remnant PMW folder
+     * (e.g. from a previous installation), it shows up as incompatible even
+     * though the active PMW instance has declared compatibility.
+     *
+     * @param array $features List of WooCommerce feature IDs to declare compatibility for.
+     *
+     * @since 1.58.8
+     */
+    private static function declare_compatibilities_for_inactive_pmw_variants( $features ) {
+        $known_pmw_basenames = [
+            'pixel-manager-pro-for-woocommerce/wgact.php',
+            'woocommerce-pixel-manager/woocommerce-pixel-manager.php',
+            'woocommerce-google-adwords-conversion-tracking-tag/wgact.php',
+            'woocommerce-pixel-manager-free/woocommerce-pixel-manager-free.php'
+        ];
+        $installed_plugins = array_keys( get_plugins() );
+        foreach ( $known_pmw_basenames as $basename ) {
+            // Skip the currently active instance, already declared above
+            if ( PMW_PLUGIN_BASENAME === $basename ) {
+                continue;
+            }
+            // Only declare for variants that actually exist as installed plugins
+            if ( !in_array( $basename, $installed_plugins, true ) ) {
+                continue;
+            }
+            foreach ( $features as $feature_id ) {
+                Helpers::declare_woocommerce_compatibility( $feature_id, $basename );
+            }
+        }
     }
 
 }

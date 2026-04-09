@@ -31,6 +31,8 @@ class Admin {
         add_action( 'admin_enqueue_scripts', [__CLASS__, 'wpm_admin_css'] );
         // add the admin options page
         add_action( 'admin_menu', [__CLASS__, 'plugin_admin_add_page'], 99 );
+        // Sync the dev theme switcher query param to a cookie (before output).
+        add_action( 'admin_init', [__CLASS__, 'sync_theme_cookie'] );
         // install a settings page in the admin console
         add_action( 'admin_init', [__CLASS__, 'plugin_admin_init'] );
         add_action( 'admin_init', [__CLASS__, 'add_order_extra_details'] );
@@ -1782,7 +1784,7 @@ class Admin {
 			<span style="font-size: 12px; color: #868e96; font-weight: 500;">Theme</span>
 			<span style="display: inline-flex; background: #f1f3f5; border-radius: 4px; overflow: hidden; font-size: 12px;">
 				<a href="<?php 
-            echo esc_url( remove_query_arg( 'pmw_theme' ) );
+            echo esc_url( add_query_arg( 'pmw_theme', 'mantine' ) );
             ?>"
 					style="padding: 4px 10px; text-decoration: none; color: #495057;">Mantine</a>
 				<span style="padding: 4px 10px; background: #fff; color: #000; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.1);">Classic</span>
@@ -1797,17 +1799,58 @@ class Admin {
 
     // ─── Mantine Admin UI Helpers ───────────
     /**
-     * Check if the Mantine admin UI should be rendered.
+    * Check if the Mantine admin UI should be rendered.
+    *
+    * Active when WP_DEBUG is true and the user's localStorage preference
+    	/**
+    * Sync the ?pmw_theme query parameter to a cookie so the choice
+    * persists across settings saves and tab navigation.
+    *
+    * Runs on admin_init (before output) so headers can still be sent.
+    *
+    * @since 1.59.0
+    */
+    public static function sync_theme_cookie() {
+        // Only relevant on the PMW settings page.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( !isset( $_GET['page'] ) || 'pmw' !== sanitize_text_field( wp_unslash( $_GET['page'] ) ) ) {
+            return;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( !isset( $_GET['pmw_theme'] ) ) {
+            return;
+        }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $theme = sanitize_text_field( wp_unslash( $_GET['pmw_theme'] ) );
+        if ( 'classic' === $theme ) {
+            setcookie(
+                'pmw_admin_theme',
+                'classic',
+                0,
+                '/wp-admin/'
+            );
+        } else {
+            // Switching to Mantine — clear the cookie.
+            setcookie(
+                'pmw_admin_theme',
+                '',
+                time() - 3600,
+                '/wp-admin/'
+            );
+        }
+    }
+
+    /**
+     * Whether to render the Mantine admin UI instead of the classic one.
      *
-     * Active when WP_DEBUG is true and the user's localStorage preference
-     * is communicated via a query parameter or cookie.
+     * Is communicated via a query parameter or cookie.
      *
      * For this first version we check for:
-     *  1. WP_DEBUG must be enabled
+     *  1. PMW_EXPERIMENTS must be enabled
      *  2. The built Mantine JS file must exist
      *
      * The actual theme selection is stored client-side in localStorage.
-     * On first load with WP_DEBUG, we always show the Mantine UI. The
+     * On first load with PMW_EXPERIMENTS, we always show the Mantine UI. The
      * theme switcher component in Shell.tsx handles switching back to
      * classic by reloading with ?pmw_theme=classic.
      *
@@ -1816,12 +1859,16 @@ class Admin {
      * @since 1.59.0
      */
     private static function is_mantine_admin_active() {
-        if ( !defined( 'WP_DEBUG' ) || !WP_DEBUG ) {
+        if ( !Helpers::is_experiment() ) {
             return false;
         }
         // Allow explicit override via query param (set by the theme switcher on "Classic" selection).
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if ( isset( $_GET['pmw_theme'] ) && 'classic' === sanitize_text_field( wp_unslash( $_GET['pmw_theme'] ) ) ) {
+            return false;
+        }
+        // Honour the persisted cookie so "Classic" survives settings saves and tab switches.
+        if ( isset( $_COOKIE['pmw_admin_theme'] ) && 'classic' === sanitize_text_field( wp_unslash( $_COOKIE['pmw_admin_theme'] ) ) ) {
             return false;
         }
         // Check that the Vite build output exists.
@@ -1860,9 +1907,10 @@ class Admin {
         wp_localize_script( 'pmw-admin-mantine', 'pmwAdminApi', [
             'root'               => esc_url_raw( rest_url() ),
             'nonce'              => wp_create_nonce( 'wp_rest' ),
-            'isDebug'            => true,
+            'isDebug'            => Helpers::is_experiment(),
             'canUsePremiumCode'  => $can_use_premium,
             'options'            => Options::get_options(),
+            'opportunities'      => self::get_opportunities_for_mantine(),
             'freemiusUpgradeUrl' => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_upgrade_url() : '' ),
             'freemiusAccountUrl' => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_account_url() : '' ),
         ] );
@@ -1870,6 +1918,58 @@ class Admin {
 		<style>.wrap > .nav-tab-wrapper { display: none !important; }</style>
 		<div id="pmw-mantine-root" style="margin: 10px 20px 0 0;"></div>
 		<?php 
+    }
+
+    /**
+     * Serialize all available opportunities as a flat JSON-friendly array
+     * for the Mantine admin UI.
+     *
+     * @return array
+     *
+     * @since 1.58.8
+     */
+    private static function get_opportunities_for_mantine() {
+        Opportunities::load_all_opportunity_classes_for_mantine();
+        $classes = get_declared_classes();
+        $result = [];
+        foreach ( $classes as $class ) {
+            if ( !is_subclass_of( $class, 'SweetCode\\Pixel_Manager\\Admin\\Opportunities\\Opportunity' ) ) {
+                continue;
+            }
+            if ( !$class::available() ) {
+                continue;
+            }
+            $card = $class::card_data();
+            $dismissed = $class::is_dismissed();
+            // card_data() descriptions use esc_html__() which encodes entities
+            // for HTML output. The React UI renders plain text, so decode
+            // entities and strip any inline HTML tags (e.g. <strong>).
+            $description = array_map( function ( $paragraph ) {
+                return html_entity_decode( wp_strip_all_tags( $paragraph ), ENT_QUOTES, 'UTF-8' );
+            }, ( isset( $card['description'] ) ? $card['description'] : [] ) );
+            $result[] = [
+                'id'          => ( isset( $card['id'] ) ? $card['id'] : '' ),
+                'title'       => html_entity_decode( wp_strip_all_tags( ( isset( $card['title'] ) ? $card['title'] : '' ) ), ENT_QUOTES, 'UTF-8' ),
+                'description' => $description,
+                'impact'      => strtolower( ( isset( $card['impact'] ) ? $card['impact'] : 'low' ) ),
+                'setupLink'   => ( isset( $card['setup_link'] ) ? $card['setup_link'] : '' ),
+                'learnMore'   => ( isset( $card['learn_more_link'] ) ? $card['learn_more_link'] : '' ),
+                'setupVideo'  => ( isset( $card['setup_video'] ) ? $card['setup_video'] : '' ),
+                'dismissed'   => $dismissed,
+            ];
+        }
+        // Sort by impact: high → medium → low
+        $impact_order = [
+            'high'   => 0,
+            'medium' => 1,
+            'low'    => 2,
+        ];
+        usort( $result, function ( $a, $b ) use($impact_order) {
+            $a_order = ( isset( $impact_order[$a['impact']] ) ? $impact_order[$a['impact']] : 2 );
+            $b_order = ( isset( $impact_order[$b['impact']] ) ? $impact_order[$b['impact']] : 2 );
+            return $a_order - $b_order;
+        } );
+        return $result;
     }
 
     private static function get_link_locale() {

@@ -338,6 +338,18 @@ class Opportunities {
 		}
 	}
 
+	/**
+	 * Public accessor for the Mantine admin UI to trigger class loading.
+	 *
+	 * This is safe because it delegates to the private loader that only
+	 * scans hardcoded directories (free/ and pro/ under this file's dir).
+	 *
+	 * @since 1.58.8
+	 */
+	public static function load_all_opportunity_classes_for_mantine() {
+		self::load_all_opportunity_classes();
+	}
+
 
 	private static function get_opportunities() {
 

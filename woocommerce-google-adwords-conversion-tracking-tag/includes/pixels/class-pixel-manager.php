@@ -352,32 +352,6 @@ class Pixel_Manager {
     }
 
     public function register_rest_routes() {
-        /**
-         * Testing endpoint which helps to verify if the REST API is working
-         */
-        // nosemgrep: audit.php.wp.security.rest-route.permission-callback.return-true
-        register_rest_route( $this->rest_namespace, '/test/', [
-            'methods'             => 'POST',
-            'callback'            => function () {
-                wp_send_json_success();
-            },
-            'permission_callback' => function () {
-                return true;
-            },
-        ] );
-        /**
-         * Testing endpoint which helps to verify if the REST API is working
-         */
-        // nosemgrep: audit.php.wp.security.rest-route.permission-callback.return-true
-        register_rest_route( $this->rest_namespace, '/test/', [
-            'methods'             => 'GET',
-            'callback'            => function () {
-                wp_send_json_success();
-            },
-            'permission_callback' => function () {
-                return true;
-            },
-        ] );
         register_rest_route( $this->rest_namespace, '/settings/', [
             'methods'             => 'POST',
             'callback'            => [$this, 'pmw_save_imported_settings'],
