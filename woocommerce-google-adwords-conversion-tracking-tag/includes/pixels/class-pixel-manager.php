@@ -523,37 +523,6 @@ class Pixel_Manager {
         return true;
     }
 
-    public static function pmw_store_client_ip_in_server_session() {
-        $_post = Helpers::get_input_vars( INPUT_POST );
-        // return error if the ip field is not set
-        if ( !isset( $_post['data']['ip'] ) ) {
-            wp_send_json_error( 'No IP address provided' );
-        }
-        $ip = sanitize_text_field( $_post['data']['ip'] );
-        // return error if the ip field is not a valid IP address (IPv4 or IPv6)
-        if ( !filter_var( $ip, FILTER_VALIDATE_IP ) ) {
-            wp_send_json_error( 'Invalid IP address' );
-        }
-        // If WooCommerce is not active, return error
-        if ( !Environment::is_woocommerce_active() ) {
-            wp_send_json_error( 'WooCommerce not active' );
-        }
-        // If WC() is not available, return error
-        if ( !function_exists( 'WC' ) ) {
-            wp_send_json_error( 'WC() not available' );
-        }
-        // If a WooCommerce session is not available, return error
-        if ( !WC()->session ) {
-            wp_send_json_error( 'WooCommerce session not available' );
-        }
-        // Set the client IP address in the WooCommerce session
-        WC()->session->set( 'client_ip', $ip );
-        wp_send_json_success( [
-            'ip'      => $ip,
-            'message' => 'Client IP address stored in server session',
-        ] );
-    }
-
     /**
      * Save imported settings from the REST API request.
      *

@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.58.8
+Stable tag: 1.58.9
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -297,6 +297,12 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.58.9  =
+*Release date - 14.04.2026*
+
+* Tweak: Added `pmw_` prefix to all generated event IDs for easier debugging and source identification
+* Fix: Fixed Termly CMP integration ignoring actual visitor consent choices and always granting full consent due to a hardcoded event payload
 
 = 1.58.8  =
 *Release date - 09.08.2026*
