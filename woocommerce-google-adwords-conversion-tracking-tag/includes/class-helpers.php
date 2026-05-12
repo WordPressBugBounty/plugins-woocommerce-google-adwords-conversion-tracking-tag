@@ -1088,6 +1088,46 @@ class Helpers {
     }
 
     /**
+     * Returns the active assets tier ('free' or 'pro') for selecting which JS
+     * bundle directory to serve to the browser.
+     *
+     * Use this for any code that picks between js/public/free/ and js/public/pro/
+     * (entry script enqueue, webpack chunk base path, admin/frontend asset URLs).
+     * It guarantees the entry script and the dynamic-import chunk base path always
+     * resolve to the same directory, so chunk filenames (which embed a
+     * [contenthash] that differs between the free and pro builds) line up.
+     *
+     * Resolution order:
+     *  1. PMW_HANDLE_AS_FREE_VERSION constant (local development override)
+     *  2. PMW_HANDLE_AS_PRO_VERSION  constant (local development override)
+     *  3. Freemius runtime check: can_use_premium_code__premium_only()
+     *     This is license-aware, so when a premium license is invalidated at
+     *     runtime (renewal failure, manual disconnect, sync downgrade) the
+     *     bundle directory flips to 'free' even though the premium PHP files
+     *     are still on disk.
+     *
+     * Do not use Helpers::is_free_plugin_distribution() for asset selection:
+     * that helper answers the distribution question (which ZIP was installed)
+     * and stays 'pro' on a downgrade-in-place, which causes the entry script
+     * (license-gated) and the chunk base path to disagree.
+     *
+     * @return string 'free' or 'pro'
+     * @since 1.58.10
+     */
+    public static function get_active_assets_tier() {
+        if ( defined( 'PMW_HANDLE_AS_FREE_VERSION' ) && PMW_HANDLE_AS_FREE_VERSION ) {
+            return 'free';
+        }
+        if ( defined( 'PMW_HANDLE_AS_PRO_VERSION' ) && PMW_HANDLE_AS_PRO_VERSION ) {
+            return 'pro';
+        }
+        if ( function_exists( 'wpm_fs' ) && wpm_fs()->can_use_premium_code__premium_only() ) {
+            return 'pro';
+        }
+        return 'free';
+    }
+
+    /**
      * Gets all plugin log files based on a specific source.
      *
      * This function searches all log files in the WooCommerce logs directory,

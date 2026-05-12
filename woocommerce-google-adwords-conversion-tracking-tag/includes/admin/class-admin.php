@@ -4672,43 +4672,36 @@ class Admin {
     public static function setting_html_cookiebot_support() {
         esc_html_e( 'Cookiebot detected. Automatic support is:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_complianz_support() {
         esc_html_e( 'Complianz GDPR detected. Automatic support is:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_cookie_notice_support() {
         esc_html_e( 'Cookie Notice (by hu-manity.co) detected. Automatic support is:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_cookie_script_support() {
         esc_html_e( 'Cookie Script (by cookie-script.com) detected. Automatic support is:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_moove_gdpr_support() {
         esc_html_e( 'GDPR Cookie Compliance (by Moove Agency) detected. Automatic support is:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_cookieyes_support() {
         esc_html_e( 'CookieYes detected. Automatic support is', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_termly_support() {
         esc_html_e( 'Termly CMP detected. Automatic support is:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         self::display_status_icon( true, true, true );
-        self::html_pro_feature();
     }
 
     public static function setting_html_facebook_capi_token() {

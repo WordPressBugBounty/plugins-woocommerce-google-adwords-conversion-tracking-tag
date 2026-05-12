@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 3.7
 Tested up to: 6.9
 Requires PHP: 7.3
-Stable tag: 1.58.9
+Stable tag: 1.58.10
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -298,11 +298,28 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.58.10  =
+*Release date - 12.05.2026*
+
+* Tweak: Tightened Google Consent Mode behavior by defaulting to "denied" in explicit consent mode and mapping `personalization_storage` to marketing instead of preferences
+* Tweak: Removed the Account and Pricing tabs from the experimental Mantine admin UI in the WooCommerce.com Marketplace distribution where Freemius is not available
+* Tweak: Bucketed the Payment Gateway Accuracy Report against the gateway used to finalize payment instead of the gateway set at order creation, preventing per-gateway percentages above 100% when a gateway (Affirm, wallets, etc.) overwrites the payment method during checkout
+* Tweak: Hardened the public products data layer endpoint with per-IP rate limiting, page ID validation against existing posts, and a shorter one-week cache TTL to bound transient storage growth from unauthenticated requests
+* Fix: Hardened inline product data layer JSON encoding against script-tag injection by switching to hex-encoded HTML special characters
+* Fix: Removed incorrect "Pro Feature" label from CMP automatic support rows in Consent Management settings, since CMP integrations (Complianz, Cookiebot, Cookie Notice, Cookie Script, Moove GDPR, CookieYes, Termly) are available in the free version
+* Fix: Fixed iubenda CMP integration using deny-by-default fallbacks for absent purposes, matching the correct consent cookie, and mapping purpose 3 (Experience) to preferences
+* Fix: Fixed external Google Consent Mode update handler incorrectly granting preferences when only `personalization_storage` was present
+* Fix: Fixed opportunity cards not displaying when an admin notice hider plugin is active, by removing WordPress notice classes from the card markup
+* Fix: Fixed profit margin calculation producing incorrect marketing order values when WooCommerce native Cost of Goods Sold is active and order items have quantity greater than one, caused by double-counting the COGS quantity
+* Fix: Fixed JS chunks failing to load when a premium license was deactivated while the premium plugin files remained installed, which broke consent loading and silently disabled tracking
+* Fix: Hardened the frontend initialization so a failed consent module load no longer aborts all subsequent tracking setup, with consent defaulting to denied on failure to preserve privacy
+
 = 1.58.9  =
 *Release date - 14.04.2026*
 
 * Tweak: Added `pmw_` prefix to all generated event IDs for easier debugging and source identification
 * Fix: Fixed Termly CMP integration ignoring actual visitor consent choices and always granting full consent due to a hardcoded event payload
+
 
 = 1.58.8  =
 *Release date - 09.08.2026*

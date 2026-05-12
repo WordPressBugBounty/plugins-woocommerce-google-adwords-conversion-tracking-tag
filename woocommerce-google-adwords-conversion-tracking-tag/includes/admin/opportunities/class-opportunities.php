@@ -203,8 +203,8 @@ class Opportunities {
 		?>
 		<div class="pmw">
 			<div id="pmw-opportunity-<?php echo esc_attr($card_data['id']); ?>"
-				class="notice notice-info inline opportunity-card-modern <?php echo $is_dismissed ? 'dismissed' : ''; ?>"
-				style="padding: 0; display: flex; flex-direction: column; border-left-color: <?php echo esc_attr($border_color); ?>; margin: 10px 0; border-radius: 5px; <?php echo esc_attr($dismissed_opacity); ?>">
+				class="opportunity-card-modern <?php echo $is_dismissed ? 'dismissed' : ''; ?>"
+				style="padding: 0; display: flex; flex-direction: column; border-left: 4px solid <?php echo esc_attr($border_color); ?>; margin: 10px 0; border-radius: 5px; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,0.04); <?php echo esc_attr($dismissed_opacity); ?>">
 
 				<!-- Top: Title and Impact Badge -->
 				<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px;">

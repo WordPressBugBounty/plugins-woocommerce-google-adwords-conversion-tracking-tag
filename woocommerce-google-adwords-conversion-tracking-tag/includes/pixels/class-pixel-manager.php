@@ -227,6 +227,15 @@ class Pixel_Manager {
             );
             add_action( 'woocommerce_mini_cart_contents', [$this, 'woocommerce_mini_cart_contents'] );
             add_action( 'woocommerce_new_order', [$this, 'pmw_woocommerce_new_order'] );
+            // Bucket orders_total against the *final* payment gateway, not the gateway at order creation.
+            // Some gateways (Affirm, wallets) overwrite payment_method between creation and payment, which
+            // would otherwise inflate the destination gateway's percentage above 100% and deflate the source
+            // gateway's percentage. The handler below is idempotent via order meta `_wpm_orders_total_counted`.
+            // @since 1.58.10
+            add_action( 'woocommerce_payment_complete', [__CLASS__, 'pmw_count_order_total_on_payment_finalized'] );
+            add_action( 'woocommerce_order_status_processing', [__CLASS__, 'pmw_count_order_total_on_payment_finalized'] );
+            add_action( 'woocommerce_order_status_completed', [__CLASS__, 'pmw_count_order_total_on_payment_finalized'] );
+            add_action( 'woocommerce_order_status_on-hold', [__CLASS__, 'pmw_count_order_total_on_payment_finalized'] );
             add_action(
                 'woocommerce_order_status_processing',
                 [$this, 'maybe_increase_conversion_count_for_ratings_on_status'],
@@ -411,6 +420,12 @@ class Pixel_Manager {
     }
 
     private function get_products_for_datalayer( $data ) {
+        // Per-IP rate limit. Prevents an unauthenticated client from flooding
+        // the server with bogus page_id values that would each create a
+        // long-lived transient row. @since 1.58.10
+        if ( self::is_rate_limited( 'products' ) ) {
+            wp_send_json_error( 'Too many requests', 429 );
+        }
         $product_ids = Helpers::generic_sanitization( $data['product_ids'] );
         if ( !$product_ids ) {
             wp_send_json_error( 'No product IDs provided.' );
@@ -426,13 +441,22 @@ class Pixel_Manager {
         if ( !isset( $data['page_type'] ) ) {
             wp_send_json_error( 'No page type provided' );
         }
+        // Validate page_id resolves to a real WP post. The legitimate value
+        // always originates from get_the_ID() server-side, so anything that
+        // doesn't resolve is either stale or attacker-supplied. Without this
+        // an attacker could create an unbounded number of long-lived
+        // transients by POSTing random IDs. @since 1.58.10
+        $page_id = (int) $data['page_id'];
+        if ( $page_id <= 0 || !get_post( $page_id ) ) {
+            wp_send_json_error( 'Invalid page ID' );
+        }
         // Prevent server overload if too many products are requested
         $product_ids = ( count( $product_ids ) > 50 ? array_slice( $product_ids, 0, 50 ) : $product_ids );
         $products = $this->get_products_for_datalayer_by_product_ids( $product_ids );
         // Check if a data layer products transient for this page exists
         // If it does, add the products from the transient to $products
-        if ( get_transient( 'pmw_products_for_datalayer_' . $data['page_id'] ) ) {
-            $products_in_transient = get_transient( 'pmw_products_for_datalayer_' . $data['page_id'] );
+        if ( get_transient( 'pmw_products_for_datalayer_' . $page_id ) ) {
+            $products_in_transient = get_transient( 'pmw_products_for_datalayer_' . $page_id );
             // Filter out products that no longer exist or are not published
             $products_in_transient = array_filter( $products_in_transient, function ( $product_data ) {
                 // Skip if no product ID
@@ -449,9 +473,13 @@ class Pixel_Manager {
             // Merge the associative arrays with nested arrays $products and $products_in_transient preserving the keys
             $products = array_replace_recursive( $products, $products_in_transient );
         }
-        // Set transient with products for $data['page_id']
+        // Set transient with products for $page_id.
+        // TTL is one week: long enough to keep the cache useful for returning
+        // visitors hitting the same page across days, short enough to bound
+        // storage growth and pick up product updates that don't otherwise
+        // invalidate the entry. @since 1.58.10 (was MONTH_IN_SECONDS)
         if ( 'cart' !== $data['page_type'] && 'checkout' !== $data['page_type'] && 'order_received_page' !== $data['page_type'] ) {
-            set_transient( 'pmw_products_for_datalayer_' . $data['page_id'], $products, MONTH_IN_SECONDS );
+            set_transient( 'pmw_products_for_datalayer_' . $page_id, $products, WEEK_IN_SECONDS );
         }
         wp_send_json_success( $products );
     }
@@ -521,6 +549,148 @@ class Pixel_Manager {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Permission check for the Google Ads conversion adjustments CSV route.
+     *
+     * Returns true (publicly readable) unless the merchant has registered the
+     * `pmw_google_ads_conversion_adjustments_credentials` filter to require
+     * HTTP Basic Auth. This matches Google Ads' scheduled bulk-upload UI which
+     * supports a Username and Password for the source URL.
+     *
+     * The filter must return either:
+     *   - null / empty / non-array → no auth required (default)
+     *   - [ 'user' => 'foo', 'pass' => 'bar' ] → Basic Auth required
+     *
+     * Credentials are compared with hash_equals() to avoid timing leaks.
+     * Falls back to the raw `Authorization` header when PHP_AUTH_USER /
+     * PHP_AUTH_PW are not populated by the SAPI (common on PHP-FPM/FastCGI).
+     *
+     * @return true|WP_Error
+     *
+     * @since 1.58.10
+     */
+    private static function is_gads_csv_auth_ok() {
+        /**
+         * Filters the credentials required to fetch the Google Ads conversion
+         * adjustments CSV feed.
+         *
+         * Return [ 'user' => '...', 'pass' => '...' ] to enable HTTP Basic
+         * Auth on the feed URL. Return null/empty to keep the feed publicly
+         * readable (default).
+         *
+         * @since 1.58.10
+         *
+         * @param array|null $credentials Default null.
+         */
+        $credentials = apply_filters( 'pmw_google_ads_conversion_adjustments_credentials', null );
+        if ( empty( $credentials ) || !is_array( $credentials ) || empty( $credentials['user'] ) || empty( $credentials['pass'] ) ) {
+            return true;
+        }
+        // Resolve incoming credentials, with HTTP_AUTHORIZATION fallback for
+        // PHP-FPM/FastCGI environments where PHP_AUTH_USER is not populated.
+        $incoming_user = ( isset( $_SERVER['PHP_AUTH_USER'] ) ? sanitize_text_field( wp_unslash( $_SERVER['PHP_AUTH_USER'] ) ) : '' );
+        $incoming_pass = ( isset( $_SERVER['PHP_AUTH_PW'] ) ? sanitize_text_field( wp_unslash( $_SERVER['PHP_AUTH_PW'] ) ) : '' );
+        if ( ('' === $incoming_user || '' === $incoming_pass) && !empty( $_SERVER['HTTP_AUTHORIZATION'] ) ) {
+            $header = sanitize_text_field( wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] ) );
+            if ( 0 === stripos( $header, 'Basic ' ) ) {
+                $decoded = base64_decode( substr( $header, 6 ), true );
+                if ( is_string( $decoded ) && false !== strpos( $decoded, ':' ) ) {
+                    list( $incoming_user, $incoming_pass ) = explode( ':', $decoded, 2 );
+                }
+            }
+        }
+        $user_match = hash_equals( (string) $credentials['user'], $incoming_user );
+        $pass_match = hash_equals( (string) $credentials['pass'], $incoming_pass );
+        if ( $user_match && $pass_match ) {
+            return true;
+        }
+        header( 'WWW-Authenticate: Basic realm="PMW Conversion Adjustments"' );
+        return new WP_Error('rest_forbidden', esc_html__( 'Authentication required', 'woocommerce-google-adwords-conversion-tracking-tag' ), [
+            'status' => 401,
+        ]);
+    }
+
+    /**
+     * Generic per-IP rate limiter for public PMW endpoints.
+     *
+     * Caps each client IP at $max requests per minute within a named bucket
+     * (different buckets are tracked independently) to dampen abuse while
+     * protecting outbound API quota and persistent storage from runaway
+     * unauthenticated writes. Fails open when the IP cannot be resolved so
+     * legit traffic is never silently dropped.
+     *
+     * @param string $bucket Short identifier for the endpoint (e.g. 'sse', 'products').
+     * @param int    $max    Maximum allowed requests per minute per IP.
+     * @return bool True when the current request should be rejected.
+     *
+     * @since 1.58.10
+     */
+    private static function is_rate_limited( $bucket, $max = 120 ) {
+        $ip = Geolocation::get_user_ip();
+        if ( empty( $ip ) ) {
+            return false;
+        }
+        $key = 'pmw_rl_' . $bucket . '_' . md5( $ip );
+        $count = (int) get_transient( $key );
+        if ( $count >= $max ) {
+            return true;
+        }
+        set_transient( $key, $count + 1, MINUTE_IN_SECONDS );
+        return false;
+    }
+
+    /**
+     * Reconcile client_ip_address and client_user_agent in an /sse/ payload.
+     *
+     * The client_user_agent field is always stripped because the request's own
+     * HTTP_USER_AGENT is authoritative for events fired from the same browser.
+     * Adapters re-derive it from the request.
+     *
+     * The client_ip_address field is kept only when it adds information the
+     * server cannot see, defined as: a valid public IP whose family (IPv4/IPv6)
+     * differs from the server-derived IP. This preserves the legitimate
+     * dual-stack case where the browser detected an IPv6 address that a
+     * IPv4-only proxy chain hides from the server, while preventing an
+     * attacker from impersonating arbitrary IPs in the same family they
+     * already connect from.
+     *
+     * @param array $data /sse/ payload after sanitization.
+     * @return array
+     *
+     * @since 1.58.10
+     */
+    private static function strip_client_identifiers_from_sse_payload( $data ) {
+        $server_ip = Geolocation::get_user_ip();
+        $server_is_ipv6 = $server_ip && false !== filter_var( $server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 );
+        foreach ( $data as $pixel_name => $pixel_payload ) {
+            if ( !is_array( $pixel_payload ) || !isset( $pixel_payload['user_data'] ) || !is_array( $pixel_payload['user_data'] ) ) {
+                continue;
+            }
+            // Always strip client-supplied user agent.
+            unset($data[$pixel_name]['user_data']['client_user_agent']);
+            // Reconcile client-supplied IP.
+            if ( !isset( $pixel_payload['user_data']['client_ip_address'] ) ) {
+                continue;
+            }
+            $client_ip = $pixel_payload['user_data']['client_ip_address'];
+            // Must be a valid public IP, otherwise drop.
+            $valid_public = filter_var( $client_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE );
+            if ( false === $valid_public ) {
+                unset($data[$pixel_name]['user_data']['client_ip_address']);
+                continue;
+            }
+            // Keep only when the family differs from the server-derived IP,
+            // i.e. when the client is genuinely contributing information the
+            // server could not see (typical dual-stack v6 case behind an
+            // IPv4-only proxy).
+            $client_is_ipv6 = false !== filter_var( $client_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 );
+            if ( $server_ip && $client_is_ipv6 === $server_is_ipv6 ) {
+                unset($data[$pixel_name]['user_data']['client_ip_address']);
+            }
+        }
+        return $data;
     }
 
     /**
@@ -605,13 +775,51 @@ class Pixel_Manager {
         }
         $order->add_meta_data( '_wpm_customer_user', $user_id, true );
         $order->save();
-        $payment_method = $order->get_payment_method();
-        if ( !empty( $payment_method ) ) {
-            $date_created = $order->get_date_created();
-            if ( $date_created ) {
-                Tracking_Accuracy_DB::increment_orders_total( gmdate( 'Y-m-d', $date_created->getTimestamp() ), $payment_method );
-            }
+    }
+
+    /**
+     * Increments orders_total exactly once per order, bucketed by the payment gateway
+     * that is set at the moment payment is finalized (or the order transitions to a
+     * post-pending status). This ensures that the gateway recorded for the denominator
+     * matches the gateway that will be recorded for the numerator (in
+     * save_conversion_pixels_fired_status), so the per-gateway percentages stay in
+     * the 0–100% range.
+     *
+     * Idempotency is enforced via the `_wpm_orders_total_counted` order meta flag.
+     *
+     * Accepts either an order ID or an order object so it can be invoked from action
+     * callbacks (which pass the ID) and from internal call sites that already have the
+     * order object loaded (e.g. save_conversion_pixels_fired_status).
+     *
+     * @param int|\WC_Order $order_or_id
+     *
+     * @return void
+     * @since 1.58.10
+     */
+    public static function pmw_count_order_total_on_payment_finalized( $order_or_id ) {
+        $order = ( is_object( $order_or_id ) ? $order_or_id : wc_get_order( $order_or_id ) );
+        if ( !$order ) {
+            return;
         }
+        // Only count orders that PMW was responsible for tracking when they were placed.
+        if ( !$order->meta_exists( '_wpm_process_through_wpm' ) ) {
+            return;
+        }
+        // Idempotency guard: only count each order once toward orders_total.
+        if ( $order->get_meta( '_wpm_orders_total_counted' ) ) {
+            return;
+        }
+        $payment_method = $order->get_payment_method();
+        if ( empty( $payment_method ) ) {
+            return;
+        }
+        $date_created = $order->get_date_created();
+        if ( !$date_created ) {
+            return;
+        }
+        Tracking_Accuracy_DB::increment_orders_total( gmdate( 'Y-m-d', $date_created->getTimestamp() ), $payment_method );
+        $order->update_meta_data( '_wpm_orders_total_counted', true );
+        $order->save();
     }
 
     // Thanks to: https://gist.github.com/mishterk/6b7a4d6e5a91086a5a9b05ace304b5ce#file-mark-wordpress-scripts-as-async-or-defer-php
@@ -1517,6 +1725,12 @@ class Pixel_Manager {
             if ( !empty( $payment_method ) ) {
                 $date_created = $order->get_date_created();
                 if ( $date_created ) {
+                    // Ensure orders_total is bucketed against the same final gateway before
+                    // recording orders_measured. Idempotent — counts at most once per order.
+                    // Covers gateways whose status-transition hook may not have fired yet
+                    // (e.g. delayed webhook/IPN), guaranteeing measured ≤ total per bucket.
+                    // @since 1.58.10
+                    self::pmw_count_order_total_on_payment_finalized( $order );
                     Tracking_Accuracy_DB::increment_orders_measured(
                         gmdate( 'Y-m-d', $date_created->getTimestamp() ),
                         $payment_method,
@@ -1530,13 +1744,39 @@ class Pixel_Manager {
 
     public function front_end_scripts() {
         $pmw_dependencies = ['jquery', 'wp-hooks'];
-        wp_enqueue_script(
-            'pmw',
-            PMW_PLUGIN_DIR_PATH . 'js/public/free/pmw-public.p1.min.js',
-            $pmw_dependencies,
-            PMW_CURRENT_VERSION,
-            $this->move_pmw_script_to_footer()
-        );
+        // Pick the entry script from the same tier directory the dynamically
+        // imported chunks are served from. Both must agree, otherwise the
+        // webpack runtime in the entry script requests chunks with hashes that
+        // don't exist in the other tier's directory and every dynamic import 404s.
+        //
+        // @since 1.58.10
+        $tier = Helpers::get_active_assets_tier();
+        if ( 'pro' === $tier ) {
+            wp_enqueue_script(
+                'pmw',
+                PMW_PLUGIN_DIR_PATH . 'js/public/pro/pmw-public__premium_only' . $this->get_preset_version() . '.min.js',
+                $pmw_dependencies,
+                PMW_CURRENT_VERSION,
+                $this->move_pmw_script_to_footer()
+            );
+            if ( Helpers::lazy_load_pmw__premium_only() ) {
+                wp_enqueue_script(
+                    'pmw-lazy',
+                    PMW_PLUGIN_DIR_PATH . 'js/public/pro/pmw-lazy__premium_only.js',
+                    ['pmw'],
+                    PMW_CURRENT_VERSION,
+                    $this->move_pmw_script_to_footer()
+                );
+            }
+        } else {
+            wp_enqueue_script(
+                'pmw',
+                PMW_PLUGIN_DIR_PATH . 'js/public/free/pmw-public.p1.min.js',
+                $pmw_dependencies,
+                PMW_CURRENT_VERSION,
+                $this->move_pmw_script_to_footer()
+            );
+        }
         wp_localize_script( 
             'pmw',
             //            'ajax_object',
@@ -1771,27 +2011,22 @@ class Pixel_Manager {
     }
 
     /**
-     * Retrieves the base path for the chunk files based on the plugin distribution type.
-     * Determines whether the plugin is a free or pro distribution and returns the
-     * corresponding directory path.
+     * Retrieves the base path for the chunk files for the active assets tier.
      *
-     * For local development, you can override this by defining PMW_HANDLE_AS_FREE_VERSION
-     * or PMW_HANDLE_AS_PRO_VERSION in wp-config.php
+     * Delegates the tier decision to Helpers::get_active_assets_tier() so the
+     * webpack chunk base path always matches the directory the entry script was
+     * enqueued from in front_end_scripts(). If these two ever drift apart, the
+     * entry script's webpack runtime requests chunks with hashes that don't
+     * exist in the other tier's directory and dynamic imports 404.
      *
      * @return string The base path for chunk files, either in the 'free' or 'pro' folder.
      *
      * @since 1.51.1
+     * @since 1.58.10 Use Helpers::get_active_assets_tier() to keep the entry
+     *                script and chunk path in sync on license downgrade.
      */
     private static function get_chunk_base_path() {
-        // Allow handling as free version via constant (useful for local testing)
-        if ( defined( 'PMW_HANDLE_AS_FREE_VERSION' ) && PMW_HANDLE_AS_FREE_VERSION ) {
-            $version = 'free';
-        } elseif ( defined( 'PMW_HANDLE_AS_PRO_VERSION' ) && PMW_HANDLE_AS_PRO_VERSION ) {
-            $version = 'pro';
-        } else {
-            $version = ( Helpers::is_free_plugin_distribution() ? 'free' : 'pro' );
-        }
-        return PMW_PLUGIN_DIR_PATH . 'js/public/' . $version . '/';
+        return PMW_PLUGIN_DIR_PATH . 'js/public/' . Helpers::get_active_assets_tier() . '/';
     }
 
 }

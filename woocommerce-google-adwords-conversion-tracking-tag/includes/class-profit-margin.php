@@ -114,21 +114,39 @@ class Profit_Margin {
 	}
 
 	/**
-	 * Retrieves the cost of goods (COG) from an order item by evaluating multiple item meta key options in order.
+	 * Retrieves the per-unit cost of goods (COG) from an order item.
 	 *
-	 * The method loops through a number of predefined meta keys. It checks if these meta keys have values set for
-	 * the provided order item. If a value is found, it returns the value as a float data type.
-	 * If no value is found for any meta keys, it returns null.
+	 * IMPORTANT - COGS storage format varies by source:
+	 *
+	 * - WooCommerce native COGS (_cogs_value): stores the LINE TOTAL (per-unit cost x quantity).
+	 *   See WC_Order_Item_Product::calculate_cogs_value_core() which returns $cogs_per_unit * $quantity.
+	 * - SkyVerge (_wc_cog_item_cost): stores the PER-UNIT cost.
+	 * - WPFactory (_alg_wc_cog_item_cost): stores the PER-UNIT cost.
+	 *
+	 * This method normalizes all values to PER-UNIT cost, because get_order_item_profit_margin()
+	 * multiplies the returned value by quantity. When adding a new COGS source, verify whether
+	 * it stores per-unit or line-total values and handle accordingly.
 	 *
 	 * @param mixed $order_item The order item object from which the COG is to be retrieved.
 	 *
-	 * @return float|null The value of the item cost of goods if found, else null.
+	 * @return float|null The per-unit cost of goods if found, else null.
 	 *
 	 * @since 1.35.1
 	 */
 	private static function get_cog_from_order_item( $order_item ) {
 
-		$meta_keys = self::get_active_order_item_cog_meta_keys();
+		// WooCommerce native COGS stores the LINE TOTAL (unit cost x quantity), not the per-unit cost.
+		// We must divide by quantity to normalize to per-unit cost before returning.
+		if (Environment::is_woocommerce_native_cogs_active()) {
+			$item_cog = $order_item->get_meta('_cogs_value');
+			if ($item_cog) {
+				$quantity = $order_item->get_quantity();
+				return ( $quantity > 0 ) ? floatval($item_cog) / $quantity : 0.0;
+			}
+		}
+
+		// All other COGS plugins store PER-UNIT cost on order items. No normalization needed.
+		$meta_keys = self::get_active_order_item_cog_meta_keys_per_unit();
 
 		foreach ($meta_keys as $meta_key) {
 			$item_cog = $order_item->get_meta($meta_key);
@@ -141,16 +159,18 @@ class Profit_Margin {
 	}
 
 	/**
-	 * Build the list of order item meta keys to check for COGS, based on which sources are currently active.
+	 * Build the list of order item meta keys that store PER-UNIT COGS values.
 	 *
-	 * Only includes meta keys for active COGS sources to prevent stale data from deactivated plugins
-	 * being used in calculations.
+	 * IMPORTANT: Only add meta keys here that store per-unit cost on order items.
+	 * WooCommerce native COGS (_cogs_value) is NOT included here because it stores
+	 * the line total (unit cost x quantity) and requires division by quantity to
+	 * normalize. It is handled separately in get_cog_from_order_item().
 	 *
-	 * @return array List of active order item meta keys to check.
+	 * @return array List of active order item meta keys that store per-unit COGS.
 	 *
 	 * @since 1.58.1
 	 */
-	private static function get_active_order_item_cog_meta_keys() {
+	private static function get_active_order_item_cog_meta_keys_per_unit() {
 
 		$meta_keys = [];
 
@@ -160,17 +180,12 @@ class Profit_Margin {
 			$meta_keys[] = $custom_key;
 		}
 
-		// WooCommerce native COGS
-		if (Environment::is_woocommerce_native_cogs_active()) {
-			$meta_keys[] = '_cogs_value';
-		}
-
-		// WooCommerce Cost of Goods (SkyVerge)
+		// WooCommerce Cost of Goods (SkyVerge) - stores PER-UNIT cost
 		if (Environment::is_woocommerce_cog_active()) {
 			$meta_keys[] = '_wc_cog_item_cost';
 		}
 
-		// Cost of Goods for WooCommerce (WPFactory)
+		// Cost of Goods for WooCommerce (WPFactory) - stores PER-UNIT cost
 		if (Environment::is_cog_for_woocommerce_active()) {
 			$meta_keys[] = '_alg_wc_cog_item_cost';
 		}

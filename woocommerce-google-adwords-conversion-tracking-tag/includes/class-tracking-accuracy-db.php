@@ -157,7 +157,9 @@ class Tracking_Accuracy_DB {
 	/**
 	 * Increment orders_total for a date+gateway.
 	 *
-	 * Called from pmw_woocommerce_new_order() when an order is placed.
+	 * Called from pmw_count_order_total_on_payment_finalized() once payment is
+	 * finalized (or the order transitions out of pending), so the gateway used
+	 * here matches the gateway that will be used for orders_measured.
 	 *
 	 * @param string $date       Date in Y-m-d format.
 	 * @param string $gateway_id Payment method ID.

@@ -166,12 +166,34 @@ class Shop {
     }
 
     public static function is_backend_manual_order( $order ) {
-        // Only continue if this is a back-end order
+        $is_backend_manual = false;
+        // Classic admin-created orders: WooCommerce sets `_created_via` to 'admin'
+        // when an order is created through the WP Admin order editor.
         if ( $order->meta_exists( '_created_via' ) && 'admin' === $order->get_meta( '_created_via', true ) ) {
-            return true;
-        } else {
-            return false;
+            $is_backend_manual = true;
         }
+        // WooCommerce Order Attribution (core, enabled by default since WC 8.5) also
+        // marks admin-created orders with an 'admin' source type. This catches orders
+        // created programmatically via `wc_create_order()` in custom quote, push-cart,
+        // or pay-for-order flows where `_created_via` is not set.
+        // @since 1.58.10
+        if ( !$is_backend_manual && 'admin' === $order->get_meta( '_wc_order_attribution_source_type', true ) ) {
+            $is_backend_manual = true;
+        }
+        /**
+         * Filters whether an order is considered a backend manual order.
+         *
+         * Return true for custom order-creation flows (quote-to-order, push-cart,
+         * B2B pay-for-order, etc.) that neither set `_created_via = 'admin'` nor
+         * trigger WooCommerce Order Attribution, so PMW re-captures the customer's
+         * current browser identifiers when they pay for the order.
+         *
+         * @since 1.58.10
+         *
+         * @param bool      $is_backend_manual Whether PMW considers this a backend manual order.
+         * @param \WC_Order $order             The order being evaluated.
+         */
+        return (bool) apply_filters( 'pmw_is_backend_manual_order', $is_backend_manual, $order );
     }
 
     public static function conversion_pixels_already_fired_html() {
