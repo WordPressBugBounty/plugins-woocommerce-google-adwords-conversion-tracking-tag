@@ -386,10 +386,9 @@ class Pixel_Manager {
             'methods'             => 'POST',
             'callback'            => function ( $request ) {
                 $data = $request->get_json_params();
-                // TODO: Maybe remove the nonce verification. 1) Some merchants even cache parts of the purchase confirmation page, which lets the nonce fail. 2) Nonce checks in this endpoint are not really necessary as we CAN check for a valid order_key which is only known to the customer who purchased a specific order.
-                //              if (!wp_verify_nonce($request->get_header('X-WP-Nonce'), 'wp_rest')) {
-                //                  wp_send_json_error('Invalid nonce');
-                //              }
+                // Nonce verification is intentionally skipped: some merchants cache parts of the purchase
+                // confirmation page (which makes nonces fail), and the order_key check downstream is
+                // sufficient since the key is only known to the customer who placed the order.
                 $data = Helpers::generic_sanitization( $data );
                 self::process_conversion_pixel_status( $data['order_id'], $data['order_key'], $data['source'] );
             },
@@ -972,13 +971,6 @@ class Pixel_Manager {
 
     /**
      * Output the uncached data layer through ESI.
-     *
-     * TODO: Once the wp_kses filter is updated, refactor the below code.
-     * TODO: Remove the wcm part and replace echo with echo wp_kses(...).
-     * TODO: The wp_kses output will have to go through a WP version check to
-     * TODO: make sure it's only used on WP installs with the updated wp_kses filter.
-     * TODO: https://core.trac.wordpress.org/ticket/58921
-     * TODO: Update the sweetcode.com docs after the refactor.
      *
      * @return void
      * @since 1.32.6

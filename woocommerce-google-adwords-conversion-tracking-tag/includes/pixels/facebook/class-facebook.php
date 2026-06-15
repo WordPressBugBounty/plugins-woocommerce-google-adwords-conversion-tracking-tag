@@ -2,8 +2,6 @@
 
 namespace SweetCode\Pixel_Manager\Pixels\Facebook;
 
-// TODO disable Yoast SEO Open Graph wp_option: wpseo_social => opengraph => true / false
-
 defined('ABSPATH') || exit; // Exit if accessed directly
 
 class Facebook {

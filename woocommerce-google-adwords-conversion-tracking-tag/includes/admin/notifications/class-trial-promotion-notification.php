@@ -2,6 +2,7 @@
 
 namespace SweetCode\Pixel_Manager\Admin\Notifications;
 
+use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Documentation;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Helpers;
@@ -45,13 +46,33 @@ class Trial_Promotion_Notification extends Notification {
 			return true;
 		}
 
-		// Don't show on development installs
-		if (Environment::is_development_install()) {
+		// Only show on dashboard or PMW settings page
+		if (!Helpers::is_dashboard() && !Environment::is_pmw_settings_page()) {
 			return false;
 		}
 
-		// Only show on dashboard or PMW settings page
-		if (!Helpers::is_dashboard() && !Environment::is_pmw_settings_page()) {
+		// The Nova admin UI renders its own trial promotion card on the
+		// Dashboard tab, so suppress the top-of-page banner there.
+		if (Environment::is_pmw_settings_page() && Admin::is_wp_admin_active()) {
+			return false;
+		}
+
+		return self::is_eligible();
+	}
+
+	/**
+	 * Page-independent eligibility checks for the trial promotion.
+	 *
+	 * Shared between the classic admin notice (should_notify) and the Nova
+	 * admin UI, which renders the promotion as a card on its Dashboard tab.
+	 *
+	 * @return bool
+	 * @since 1.60.0
+	 */
+	public static function is_eligible() {
+
+		// Don't show on development installs
+		if (Environment::is_development_install()) {
 			return false;
 		}
 
@@ -133,6 +154,32 @@ class Trial_Promotion_Notification extends Notification {
 	 */
 	private static function is_force_show() {
 		return defined('PMW_FORCE_SHOW_TRIAL_NOTIFICATION') && PMW_FORCE_SHOW_TRIAL_NOTIFICATION;
+	}
+
+	/**
+	 * Payload for the Nova admin UI, which renders the trial promotion as a
+	 * dismissible card on its Dashboard tab instead of an admin notice.
+	 *
+	 * @return array
+	 * @since 1.60.0
+	 */
+	public static function get_data_for_nova() {
+
+		if (!function_exists('wpm_fs')) {
+			return [ 'show' => false ];
+		}
+
+		$show = self::is_force_show() || ( self::is_eligible() && self::is_not_dismissed() );
+
+		if (!$show) {
+			return [ 'show' => false ];
+		}
+
+		return [
+			'show'         => true,
+			'trialUrl'     => wpm_fs()->get_trial_url(),
+			'learnMoreUrl' => Documentation::get_link('trial_promotion'),
+		];
 	}
 
 	/**

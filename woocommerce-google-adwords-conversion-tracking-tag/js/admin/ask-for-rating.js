@@ -10,6 +10,13 @@ jQuery(function () {
 	// Handle secondary action buttons (Already reviewed, Maybe later)
 	// Prevents the no-JS fallback link and uses AJAX instead for smooth UX.
 	jQuery(document).on("click", ".pmw-rating-dismiss-button", function (e) {
+
+		// If the localized AJAX config is unavailable, let the browser follow
+		// the nonce URL in the href, which persists the action server-side.
+		if (!window.pmwRatingAjax) {
+			return
+		}
+
 		e.preventDefault()
 		const action = jQuery(this).data("action")
 		sendRatingAction(action)
@@ -22,9 +29,14 @@ jQuery(function () {
 	 * @param {string} action - The action to perform: 'rating_done' or 'later'
 	 */
 	function sendRatingAction(action) {
-		jQuery.post(ajax_var.url, {
+
+		if (!window.pmwRatingAjax) {
+			return
+		}
+
+		jQuery.post(window.pmwRatingAjax.url, {
 			action: "pmw_dismissed_notice_handler",
-			nonce : ajax_var.nonce,
+			nonce : window.pmwRatingAjax.nonce,
 			set   : action,
 		})
 	}

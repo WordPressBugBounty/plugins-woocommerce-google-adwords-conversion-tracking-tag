@@ -285,12 +285,19 @@ class Product {
 	// get an array with all product categories
 	public static function get_product_category( $product_id ) {
 
+		$product = wc_get_product($product_id);
+
+		// Bail if the product no longer exists (e.g. it was deleted but is still referenced by an order item).
+		if (self::is_not_wc_product($product)) {
+			return [];
+		}
+
 		/**
 		 * On some installs the categories don't sync down to the variations.
 		 * Therefore, we get the categories from the parent product.
 		 */
-		if ('variation' === wc_get_product($product_id)->get_type()) {
-			$product_id = wc_get_product($product_id)->get_parent_id();
+		if ('variation' === $product->get_type()) {
+			$product_id = $product->get_parent_id();
 		}
 
 		$prod_cats        = get_the_terms($product_id, 'product_cat');
@@ -314,6 +321,10 @@ class Product {
 	public static function is_variable_product_by_id( $product_id ) {
 
 		$product = wc_get_product($product_id);
+
+		if (self::is_not_wc_product($product)) {
+			return false;
+		}
 
 		return $product->get_type() === 'variable';
 	}
@@ -371,10 +382,14 @@ class Product {
 			// Add the name of the parent product if the product is a variation
 			if ($product->get_type() === 'variation') {
 				// get the parent product
-				$parent_product               = wc_get_product($product->get_parent_id());
-				$product_data['brand']        = self::get_brand_name($parent_product->get_id());
-				$product_data['name_variant'] = $product_data['name'];
-				$product_data['name']         = $parent_product->get_name();
+				$parent_product = wc_get_product($product->get_parent_id());
+
+				// Only override with parent data if the parent product still exists.
+				if (self::is_wc_product($parent_product)) {
+					$product_data['brand']        = self::get_brand_name($parent_product->get_id());
+					$product_data['name_variant'] = $product_data['name'];
+					$product_data['name']         = $parent_product->get_name();
+				}
 			}
 
 			// Filter to add custom item parameters

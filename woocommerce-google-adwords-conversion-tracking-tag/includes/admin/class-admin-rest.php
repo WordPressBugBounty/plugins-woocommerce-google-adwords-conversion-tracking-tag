@@ -7,6 +7,7 @@ use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunities;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -69,9 +70,45 @@ class Admin_REST {
 					wp_send_json_success();
 				}
 
+				if ('restore_opportunity' === $data['type']) {
+					Opportunities::restore_opportunity($data['id']);
+					wp_send_json_success();
+				}
+
 				if ('dismiss_notification' === $data['type']) {
 					Notifications::dismiss_notification($data['id']);
 					wp_send_json_success();
+				}
+
+				// Onboarding checklist actions from the Nova dashboard.
+				if ('onboarding' === $data['type']) {
+
+					if ('dismiss' === $data['id']) {
+						Onboarding::dismiss();
+						wp_send_json_success();
+					}
+
+					if (Onboarding::complete_step($data['id'])) {
+						wp_send_json_success();
+					}
+
+					wp_send_json_error('Unknown onboarding step');
+				}
+
+				// Rating card actions from the Nova admin UI.
+				if ('rating' === $data['type']) {
+
+					if ('rating_done' === $data['id']) {
+						Ask_For_Rating::mark_rating_done();
+						wp_send_json_success();
+					}
+
+					if ('later' === $data['id']) {
+						Ask_For_Rating::postpone_rating();
+						wp_send_json_success();
+					}
+
+					wp_send_json_error('Unknown rating action');
 				}
 
 				wp_send_json_error('Unknown notification action');
@@ -326,16 +363,16 @@ class Admin_REST {
 			],
 		]);
 
-		// ─── Mantine Admin UI: Granular option update ───────────
-		$this->register_mantine_routes();
+		// ─── Nova Admin UI: Granular option update ───────────
+		$this->register_nova_routes();
 	}
 
 	/**
-	 * Register REST routes for the Mantine admin UI.
+	 * Register REST routes for the Nova admin UI.
 	 *
 	 * @since 1.59.0
 	 */
-	private function register_mantine_routes() {
+	private function register_nova_routes() {
 
 		// PATCH /options — update a single option by dot-notation path
 		register_rest_route(self::$rest_namespace, '/options', [
@@ -352,6 +389,106 @@ class Admin_REST {
 			},
 			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
+
+		// GET /diagnostics/gateway-accuracy — daily payment-gateway tracking
+		// accuracy time-series for the Diagnostics chart (history + comparison).
+		register_rest_route(self::$rest_namespace, '/diagnostics/gateway-accuracy', [
+			'methods'             => 'GET',
+			'callback'            => [ $this, 'handle_gateway_accuracy_timeseries' ],
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+
+		// GET /diagnostics/debug-info — the copy-paste debug report for support.
+		// Generated on demand (runs outbound connectivity tests), never on page load.
+		register_rest_route(self::$rest_namespace, '/diagnostics/debug-info', [
+			'methods'             => 'GET',
+			'callback'            => function () {
+				return new \WP_REST_Response([ 'text' => Debug_Info::get_debug_info() ], 200);
+			},
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+	}
+
+	/**
+	 * Handle GET /pmw/v1/diagnostics/gateway-accuracy.
+	 *
+	 * Returns the daily, per-gateway tracking-accuracy rows within a date range,
+	 * the available data bounds, and friendly gateway titles. All reads are cheap
+	 * (indexed lookups on the pmw_tracking_accuracy table).
+	 *
+	 * Query params: start (Y-m-d), end (Y-m-d), gateways (comma-separated ids, optional).
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return \WP_REST_Response
+	 *
+	 * @since 1.59.0
+	 */
+	public function handle_gateway_accuracy_timeseries( $request ) {
+
+		$bounds = Tracking_Accuracy_DB::get_data_date_bounds();
+
+		// Default range: bounds (all available) when present, else last 30 days.
+		$end   = $request->get_param('end');
+		$start = $request->get_param('start');
+
+		if (!is_string($end) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
+			$end = $bounds['max'] ? $bounds['max'] : gmdate('Y-m-d');
+		}
+
+		if (!is_string($start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) {
+			$start = $bounds['min'] ? $bounds['min'] : gmdate('Y-m-d', strtotime('-30 days'));
+		}
+
+		$gateway_ids = null;
+		$gw_param    = $request->get_param('gateways');
+		if (is_string($gw_param) && '' !== $gw_param) {
+			$gateway_ids = array_values(array_filter(array_map('sanitize_text_field', explode(',', $gw_param))));
+			if (empty($gateway_ids)) {
+				$gateway_ids = null;
+			}
+		}
+
+		$rows = Tracking_Accuracy_DB::get_accuracy_timeseries($start, $end, $gateway_ids);
+
+		// Friendly gateway titles: map stored ids → method_title where the gateway
+		// still exists; fall back to the id for removed/legacy gateways.
+		$titles = [];
+		foreach (Debug_Info::get_payment_gateways() as $gateway) {
+			$titles[(string) $gateway->id] = (string) $gateway->method_title;
+		}
+
+		$seen     = [];
+		$gateways = [];
+		$out_rows = [];
+		foreach ($rows as $row) {
+			$id = (string) $row['gateway_id'];
+
+			if (!isset($seen[$id])) {
+				$seen[$id]  = true;
+				$gateways[] = [
+					'id'          => $id,
+					'methodTitle' => isset($titles[$id]) ? $titles[$id] : $id,
+				];
+			}
+
+			$out_rows[] = [
+				'date'      => (string) $row['date'],
+				'gatewayId' => $id,
+				'total'     => (int) $row['orders_total'],
+				'measured'  => (int) $row['orders_measured'],
+				'acr'       => (int) $row['orders_acr'],
+				'delaySum'  => (int) $row['delay_sum'],
+			];
+		}
+
+		return new \WP_REST_Response([
+			'bounds'    => $bounds,
+			'start'     => $start,
+			'end'       => $end,
+			'canUseAcr' => function_exists('wpm_fs') && wpm_fs()->can_use_premium_code__premium_only(),
+			'gateways'  => $gateways,
+			'rows'      => $out_rows,
+		], 200);
 	}
 
 	/**
@@ -368,6 +505,14 @@ class Admin_REST {
 	public function handle_option_patch( $request ) {
 
 		$data = $request->get_json_params();
+
+		// Batch form: { "patches": [ { "path": ..., "value": ... }, ... ] }.
+		// The whole batch is applied in a single read-modify-write so concurrent
+		// multi-field saves cannot clobber each other (last-writer-wins on the
+		// full options tree).
+		if (isset($data['patches']) && is_array($data['patches'])) {
+			return $this->handle_option_patch_batch($data['patches']);
+		}
 
 		if (empty($data['path']) || !is_string($data['path'])) {
 			return new \WP_REST_Response([
@@ -386,28 +531,214 @@ class Admin_REST {
 		$path  = sanitize_text_field($data['path']);
 		$value = Helpers::generic_sanitization($data['value']);
 
-		// Run field-specific validation (trim, preprocess, regex)
-		$validation = Validations::validate_single_option($path, $value);
+		$check = self::authorize_and_validate_option_patch($path, $value);
 
-		if (!$validation['valid']) {
+		if (!$check['ok']) {
 			return new \WP_REST_Response([
 				'success' => false,
-				'message' => $validation['message'],
-			], 400);
+				'message' => $check['message'],
+			], $check['status']);
 		}
 
 		// Use the preprocessed value (trimmed, prefix-stripped, etc.)
-		$value = $validation['value'];
+		$value = $check['value'];
 
 		$options = Options::get_options();
 		$options = self::set_nested_value($options, $path, $value);
 
-		Options::save_options_with_timestamp($options);
+		$this->persist_option_changes($options, [ $path ]);
 
 		return new \WP_REST_Response([
 			'success' => true,
 			'value'   => $value,
 		], 200);
+	}
+
+	/**
+	 * Apply a batch of option patches in a single read-modify-write.
+	 *
+	 * Each patch is authorized + validated independently; the valid ones are
+	 * applied to one in-memory copy of the options tree, which is saved once.
+	 * This makes a multi-field save atomic from the client's perspective, so
+	 * overlapping single-field requests can no longer clobber each other.
+	 *
+	 * @param array $patches List of [ 'path' => string, 'value' => mixed ] entries.
+	 *
+	 * @return \WP_REST_Response
+	 *
+	 * @since 1.59.0
+	 */
+	private function handle_option_patch_batch( $patches ) {
+
+		$options       = Options::get_options();
+		$results       = [];
+		$applied_paths = [];
+
+		foreach ($patches as $patch) {
+
+			if (!is_array($patch) || empty($patch['path']) || !is_string($patch['path']) || !array_key_exists('value', $patch)) {
+				$results[] = [
+					'path'    => ( isset($patch['path']) && is_string($patch['path']) ) ? sanitize_text_field($patch['path']) : '',
+					'success' => false,
+					'message' => 'Missing or invalid "path"/"value".',
+				];
+				continue;
+			}
+
+			$path  = sanitize_text_field($patch['path']);
+			$value = Helpers::generic_sanitization($patch['value']);
+
+			$check = self::authorize_and_validate_option_patch($path, $value);
+
+			if (!$check['ok']) {
+				$results[] = [
+					'path'    => $path,
+					'success' => false,
+					'message' => $check['message'],
+				];
+				continue;
+			}
+
+			$options         = self::set_nested_value($options, $path, $check['value']);
+			$applied_paths[] = $path;
+
+			$results[] = [
+				'path'    => $path,
+				'success' => true,
+				'value'   => $check['value'],
+			];
+		}
+
+		if (!empty($applied_paths)) {
+			$this->persist_option_changes($options, $applied_paths);
+		}
+
+		return new \WP_REST_Response([
+			'success' => true,
+			'results' => $results,
+		], 200);
+	}
+
+	/**
+	 * Persist a set of option changes: write once, coalesce backups, and run
+	 * the per-field save side effects.
+	 *
+	 * Backups are coalesced to one per short editing window (instead of one per
+	 * field save) so a burst of edits no longer churns the recent-backups list;
+	 * a multi-field session still produces a restore point. The auto-revert
+	 * timers that the Classic form-save arms (dedup re-enable, HTTP-log
+	 * deactivate) are mirrored here so the Nova path stays at parity.
+	 *
+	 * @param array $options       The full, updated options tree.
+	 * @param array $changed_paths Dot-notation paths included in this save.
+	 *
+	 * @return void
+	 *
+	 * @since 1.59.0
+	 */
+	private function persist_option_changes( $options, $changed_paths ) {
+
+		$cooldown_key  = 'pmw_options_backup_cooldown';
+		$create_backup = !get_transient($cooldown_key);
+
+		Options::save_options_with_timestamp($options, $create_backup);
+
+		if ($create_backup) {
+			/**
+			 * Filters the cooldown window during which further per-field option
+			 * saves reuse the current automatic backup instead of creating a new
+			 * one, coalescing a burst of edits into a single restore point.
+			 *
+			 * @since 1.59.0
+			 *
+			 * @param int $seconds Cooldown window in seconds. Default 5 minutes.
+			 */
+			$cooldown = apply_filters('pmw_options_backup_cooldown_seconds', 5 * MINUTE_IN_SECONDS);
+			set_transient($cooldown_key, 1, $cooldown);
+		}
+
+		Validations::apply_setting_change_side_effects($options, $changed_paths);
+	}
+
+	/**
+	 * Authorize and validate a single option patch before it is written.
+	 *
+	 * Enforces the gates the legacy form-POST path enforced implicitly:
+	 *  - the path must be a real, known setting (present in the default options
+	 *    tree) so callers cannot inject arbitrary keys into the options record;
+	 *  - premium-only paths are rejected on the free tier (the UI renders them
+	 *    disabled, and the legacy save discarded them via preserve_premium_only_options);
+	 *  - the value must pass the field's format validator.
+	 *
+	 * @param string $path  Dot-notation option path.
+	 * @param mixed  $value Sanitized value.
+	 *
+	 * @return array ['ok' => bool, 'value' => mixed, 'message' => string, 'status' => int]
+	 *
+	 * @since 1.59.0
+	 */
+	private static function authorize_and_validate_option_patch( $path, $value ) {
+
+		// Reject unknown paths: every legitimate setting exists in the default
+		// options tree (Options::update_with_defaults backfills it on init).
+		if (!self::option_path_exists($path)) {
+			return [
+				'ok'      => false,
+				'status'  => 400,
+				'message' => __('Unknown setting.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			];
+		}
+
+		// Reject premium-only paths on the free tier, mirroring the disabled UI
+		// fields and the legacy preserve_premium_only_options() behavior.
+		if (in_array($path, Validations::premium_only_option_paths(), true)
+			&& !Helpers::is_pmw_pro_version_active()
+			&& !Options::is_pro_version_demo_active()) {
+			return [
+				'ok'      => false,
+				'status'  => 403,
+				'message' => __('This setting requires an active Pro license.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			];
+		}
+
+		// Run field-specific validation (trim, preprocess, regex).
+		$validation = Validations::validate_single_option($path, $value);
+
+		if (!$validation['valid']) {
+			return [
+				'ok'      => false,
+				'status'  => 400,
+				'message' => $validation['message'],
+			];
+		}
+
+		return [
+			'ok'    => true,
+			'value' => $validation['value'],
+		];
+	}
+
+	/**
+	 * Whether a dot-notation path resolves to a key in the default options tree.
+	 *
+	 * @param string $path
+	 *
+	 * @return bool
+	 *
+	 * @since 1.59.0
+	 */
+	private static function option_path_exists( $path ) {
+
+		$node = Options::get_default_options();
+
+		foreach (explode('.', $path) as $key) {
+			if (!is_array($node) || !array_key_exists($key, $node)) {
+				return false;
+			}
+			$node = $node[ $key ];
+		}
+
+		return true;
 	}
 
 	/**

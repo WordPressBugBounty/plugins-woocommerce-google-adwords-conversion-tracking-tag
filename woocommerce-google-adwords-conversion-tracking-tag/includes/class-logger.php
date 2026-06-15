@@ -93,10 +93,12 @@ class Logger {
 
 			// For development environment, log to error_log as well.
 			if (Helpers::is_pmw_debug_mode_active()) {
+				// phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound -- Intentional debug-mode logging.
 				error_log($source . ' [' . $type . '] ' . $message);
 			}
 
 		} else {
+			// phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound -- Fallback when WooCommerce logger is unavailable.
 			error_log($source . ' [' . $type . '] ' . $message);
 		}
 	}

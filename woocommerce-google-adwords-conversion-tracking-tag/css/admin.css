@@ -985,12 +985,6 @@ body.pmw-chatbot-open #wpfooter {
     box-sizing: border-box;
 }
 
-/* Notification badge styling for admin menu - inherits from awaiting-mod but ensures consistent styling */
-.pmw-menu-badge {
-    /* Uses WordPress's awaiting-mod base styles */
-    /* Additional styling if needed */
-}
-
 /* Rating notice styles */
 .pmw.pmw-rating-notice {
     border-left-width: 4px;

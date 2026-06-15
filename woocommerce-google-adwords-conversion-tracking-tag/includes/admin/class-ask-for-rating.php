@@ -50,9 +50,11 @@ class Ask_For_Rating {
 			true
 		);
 
+		// Namespaced object name: generic names like "ajax_var" get overwritten
+		// by other plugins, which silently breaks the dismiss AJAX (wrong nonce).
 		wp_localize_script(
 			'pmw-ask-for-rating',
-			'ajax_var', [
+			'pmwRatingAjax', [
 			'url'   => admin_url('admin-ajax.php'),
 			'nonce' => wp_create_nonce('ajax-nonce'),
 		]);
@@ -125,7 +127,7 @@ class Ask_For_Rating {
 		exit;
 	}
 
-	private function show_admin_notifications() {
+	private static function show_admin_notifications() {
 
 		$show_admin_notifications = apply_filters_deprecated('wooptpm_show_admin_notifications', [ true ], '1.13.0', 'pmw_show_admin_notifications');
 		$show_admin_notifications = apply_filters_deprecated('wpm_show_admin_notifications', [ $show_admin_notifications ], '1.31.2', 'pmw_show_admin_notifications');
@@ -145,13 +147,19 @@ class Ask_For_Rating {
 			return;
 		}
 
+		// The Nova admin UI renders its own rating card on the Dashboard tab,
+		// so suppress the top-of-page notice there.
+		if (Environment::is_pmw_settings_page() && Admin::is_wp_admin_active()) {
+			return;
+		}
+
 		// Don't show if the user lacks the required capabilities.
 		if (!Environment::can_current_user_edit_options()) {
 			return;
 		}
 
 		// Don't show if admin notifications have been deactivated.
-		if (!$this->show_admin_notifications()) {
+		if (!self::show_admin_notifications()) {
 			return;
 		}
 
@@ -205,8 +213,100 @@ class Ask_For_Rating {
 		$this->ask_for_rating_notices($conversions_count);
 	}
 
-	private function get_next_threshold( $conversions_count ) {
+	private static function get_next_threshold( $conversions_count ) {
 		return $conversions_count * 10;
+	}
+
+	/**
+	 * Payload for the Nova admin UI, which renders the rating request as a
+	 * dismissible card on its Dashboard tab instead of an admin notice.
+	 *
+	 * @return array
+	 * @since 1.60.0
+	 */
+	public static function get_data_for_nova() {
+
+		if (!Environment::can_current_user_edit_options()) {
+			return [ 'show' => false ];
+		}
+
+		if (!self::show_admin_notifications()) {
+			return [ 'show' => false ];
+		}
+
+		$pmw_ratings = get_option(PMW_DB_RATINGS);
+
+		if (!isset($pmw_ratings['conversions_count'])) {
+			return [ 'show' => false ];
+		}
+
+		$conversions_count = (int) $pmw_ratings['conversions_count'];
+
+		// For testing purposes
+		$force_rating_notice =
+			( defined('PMW_ALWAYS_ASK_FOR_RATING') && PMW_ALWAYS_ASK_FOR_RATING )
+			|| ( defined('PMW_ALWAYS_AKS_FOR_RATING') && PMW_ALWAYS_AKS_FOR_RATING );
+
+		if (!$force_rating_notice) {
+
+			if (!empty($pmw_ratings['rating_done'])) {
+				return [ 'show' => false ];
+			}
+
+			$rating_threshold = isset($pmw_ratings['rating_threshold']) ? (int) $pmw_ratings['rating_threshold'] : 10;
+
+			if ($conversions_count < $rating_threshold) {
+				return [ 'show' => false ];
+			}
+		}
+
+		return [
+			'show'             => true,
+			'conversionsCount' => $conversions_count,
+		];
+	}
+
+	/**
+	 * Mark the rating as given. Used by the Nova admin UI via REST.
+	 *
+	 * @return void
+	 * @since 1.60.0
+	 */
+	public static function mark_rating_done() {
+
+		$options = get_option(PMW_DB_RATINGS);
+
+		// get_option() returns false when the option does not exist yet; writing
+		// an array offset to a scalar is a fatal Error on PHP 8.
+		if (!is_array($options)) {
+			$options = [];
+		}
+
+		$options['rating_done'] = true;
+		update_option(PMW_DB_RATINGS, $options);
+	}
+
+	/**
+	 * Postpone the rating request until ten times the current conversion
+	 * count has been reached. Used by the Nova admin UI via REST.
+	 *
+	 * @return void
+	 * @since 1.60.0
+	 */
+	public static function postpone_rating() {
+
+		$options = get_option(PMW_DB_RATINGS);
+
+		// get_option() returns false when the option does not exist yet; writing
+		// an array offset to a scalar is a fatal Error on PHP 8.
+		if (!is_array($options)) {
+			$options = [];
+		}
+
+		$conversions_count = isset($options['conversions_count']) ? (int) $options['conversions_count'] : 0;
+
+		$options['rating_threshold'] = self::get_next_threshold($conversions_count);
+		update_option(PMW_DB_RATINGS, $options);
 	}
 
 	private function get_default_settings() {

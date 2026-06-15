@@ -44,8 +44,14 @@ class Google_Helpers {
          */
         if ( $product->get_type() === 'variation' ) {
             $parent_product = wc_get_product( $product->get_parent_id() );
-            $name = $parent_product->get_name();
-            $brand = Product::get_brand_name( $parent_product->get_id() );
+            // Fall back to the variation itself if the parent product no longer exists.
+            if ( Product::is_wc_product( $parent_product ) ) {
+                $name = $parent_product->get_name();
+                $brand = Product::get_brand_name( $parent_product->get_id() );
+            } else {
+                $name = $product->get_name();
+                $brand = Product::get_brand_name( $product->get_id() );
+            }
         } else {
             $name = $product->get_name();
             $brand = Product::get_brand_name( $product->get_id() );

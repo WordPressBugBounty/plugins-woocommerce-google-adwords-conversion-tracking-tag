@@ -271,7 +271,7 @@ class Tracking_Accuracy_DB {
 		if (null !== $gateway_ids && is_array($gateway_ids) && !empty($gateway_ids)) {
 			$placeholders = implode( ',', array_fill( 0, count( $gateway_ids ), '%s' ) );
 
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$results = $wpdb->get_results(
 				$wpdb->prepare(
 					'SELECT gateway_id,
@@ -288,7 +288,7 @@ class Tracking_Accuracy_DB {
 				),
 				ARRAY_A
 			);
-			// phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			// phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		} else {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			$results = $wpdb->get_results(
@@ -321,6 +321,100 @@ class Tracking_Accuracy_DB {
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Get raw daily accuracy rows within a date range, for time-series charting.
+	 *
+	 * Each (date, gateway_id) is a single stored row, so no aggregation is needed —
+	 * this returns the per-day, per-gateway breakdown ordered by date ascending.
+	 *
+	 * @param string     $start_date  Inclusive start date (Y-m-d).
+	 * @param string     $end_date    Inclusive end date (Y-m-d).
+	 * @param array|null $gateway_ids Optional list of gateway IDs to filter. Null = all.
+	 *
+	 * @return array Array of rows: { date, gateway_id, orders_total, orders_measured, orders_acr, delay_sum }.
+	 * @since 1.59.0
+	 */
+	public static function get_accuracy_timeseries( $start_date, $end_date, $gateway_ids = null ) {
+
+		if (!self::table_exists()) {
+			return [];
+		}
+
+		// Guard against malformed dates.
+		if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $start_date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $end_date)) {
+			return [];
+		}
+
+		global $wpdb;
+
+		$select = 'SELECT `date`, gateway_id, orders_total, orders_measured, orders_acr, delay_sum
+			FROM ' . esc_sql( self::get_table_name() ) . '
+			WHERE `date` BETWEEN %s AND %s';
+
+		if (null !== $gateway_ids && is_array($gateway_ids) && !empty($gateway_ids)) {
+			$placeholders = implode( ',', array_fill( 0, count( $gateway_ids ), '%s' ) );
+
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+			$results = $wpdb->get_results(
+				$wpdb->prepare(
+					$select . " AND gateway_id IN ({$placeholders}) ORDER BY `date` ASC",
+					$start_date,
+					$end_date,
+					...$gateway_ids
+				),
+				ARRAY_A
+			);
+			// phpcs:enable
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$results = $wpdb->get_results(
+				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+					$select . ' ORDER BY `date` ASC',
+					$start_date,
+					$end_date
+				),
+				ARRAY_A
+			);
+		}
+
+		if (!is_array($results)) {
+			return [];
+		}
+
+		foreach ($results as &$row) {
+			$row['orders_total']    = intval($row['orders_total']);
+			$row['orders_measured'] = intval($row['orders_measured']);
+			$row['orders_acr']      = intval($row['orders_acr']);
+			$row['delay_sum']       = intval($row['delay_sum']);
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Earliest and latest dates that have any stored accuracy data.
+	 *
+	 * @return array { min: 'Y-m-d'|null, max: 'Y-m-d'|null }
+	 * @since 1.59.0
+	 */
+	public static function get_data_date_bounds() {
+
+		if (!self::table_exists()) {
+			return [ 'min' => null, 'max' => null ];
+		}
+
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$row = $wpdb->get_row( 'SELECT MIN(`date`) AS min_date, MAX(`date`) AS max_date FROM ' . esc_sql( self::get_table_name() ), ARRAY_A );
+
+		return [
+			'min' => ( is_array($row) && !empty($row['min_date']) ) ? $row['min_date'] : null,
+			'max' => ( is_array($row) && !empty($row['max_date']) ) ? $row['max_date'] : null,
+		];
 	}
 
 	/**

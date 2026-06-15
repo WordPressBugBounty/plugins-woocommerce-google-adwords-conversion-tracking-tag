@@ -352,7 +352,6 @@ class WCPM {
     }
 
     public function inject_pixels() {
-        // TODO Remove the cookie prevention filters by January 2023
         $cookie_prevention = apply_filters_deprecated(
             'wgact_cookie_prevention',
             [false],

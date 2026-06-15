@@ -1,10 +1,10 @@
 === Pixel Manager for WooCommerce – Conversion Tracking, Google Ads, GA4, TikTok, Dynamic Remarketing ===
 Contributors: alekv, wolfbaer, freemius
 Tags: conversion tracking, google ads, google analytics, facebook pixel, woocommerce
-Requires at least: 3.7
-Tested up to: 6.9
+Requires at least: 6.2
+Tested up to: 7.0
 Requires PHP: 7.3
-Stable tag: 1.58.10
+Stable tag: 1.59.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -127,6 +127,7 @@ Compatible consent management plugins:
 * [Cookie Notice](https://wordpress.org/plugins/cookie-notice/)
 * [Cookie Notice & Compliance for GDPR / CCPA](https://wordpress.org/plugins/cookie-notice/)
 * [Cookie Law Info](https://wordpress.org/plugins/cookie-law-info/)
+* [FAZ Cookie Manager](https://wordpress.org/plugins/faz-cookie-manager/)
 * [GDPR Cookie Compliance](https://wordpress.org/plugins/gdpr-cookie-compliance/)
 * [WP AutoTerms](https://wordpress.org/plugins/auto-terms-of-service-and-privacy-policy/)
 * [CookiePro by OneTrust](https://wordpress.org/plugins/cookiepro/)
@@ -297,6 +298,23 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 1. Settings page
 
 == Changelog ==
+
+= 1.59.0  =
+*Release date - 15.06.2026*
+
+* New: Added Nova, a rebuilt Pixel Manager admin interface that is faster and cleaner and is now the default on new installs; existing sites keep the Classic UI and can switch to Nova in one click
+* New: Added support for the FAZ Cookie Manager Consent Management Platform
+* New: Added a getting-started checklist to the dashboard for new installs (set up the first pixel, review consent and general settings, verify tracking on the Diagnostics page, and meet Pixie, the AI assistant) with saved progress and the option to hide it
+* New: Expanded the Abilities API with a machine-readable settings catalog so AI agents can discover, read, and safely update Pixel Manager settings (pmw/get-settings-schema, pmw/get-settings, pmw/get-setup-status, pmw/update-settings, pmw/configure-pixel); writes are validated sparse patches that redact secret tokens, back up settings on every save, and can be disabled with the pmw_abilities_allow_write filter
+* Tweak: Removed a delay of up to two seconds on the first page view (while waiting for the Facebook pixel cookie); browser tracking now fires immediately and the Facebook cookie is added to server-side events as soon as it is available
+* Tweak: Bumped up WooCommerce version to 10.7
+* Tweak: Bumped up WordPress version to 7.0
+* Fix: Fixed fatal errors that could occur when an order or variation referenced a product or parent product that no longer exists
+
+= 1.58.11  =
+*Release date - 12.05.2026*
+
+* Tweak: Improved code quality and resolved static analysis findings
 
 = 1.58.10  =
 *Release date - 12.05.2026*

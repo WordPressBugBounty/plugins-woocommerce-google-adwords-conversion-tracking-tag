@@ -22,7 +22,13 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  * Class Abilities
  *
  * Registers PMW abilities with the WordPress Abilities API.
- * All abilities are read-only and require manage_options capability.
+ *
+ * Read abilities (tracking status, plugin info, debug info, settings schema,
+ * settings values, setup status) expose the plugin state to AI agents. Write
+ * abilities (update settings, configure pixel) apply validated sparse patches
+ * to the options tree and can be disabled site-wide via the
+ * pmw_abilities_allow_write filter. All abilities require the same capability
+ * as the settings UI (manage_options or manage_woocommerce).
  *
  * @since 1.57.0
  */
@@ -71,6 +77,16 @@ class Abilities {
 		self::register_get_tracking_status();
 		self::register_get_plugin_info();
 		self::register_get_debug_info();
+		self::register_get_settings_schema();
+		self::register_get_settings();
+		self::register_get_setup_status();
+
+		// Write abilities can be disabled site-wide:
+		// add_filter('pmw_abilities_allow_write', '__return_false');
+		if (Abilities_Settings::is_write_enabled()) {
+			self::register_update_settings();
+			self::register_configure_pixel();
+		}
 	}
 
 	/**
@@ -278,6 +294,331 @@ class Abilities {
 			'meta'                => [
 				'annotations' => [
 					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				],
+				'show_in_rest' => true,
+			],
+		]);
+	}
+
+	/**
+	 * Register the get-settings-schema ability.
+	 *
+	 * Returns the machine-readable catalog of all agent-operable settings:
+	 * paths, types, descriptions, defaults, tier and secret flags. This is
+	 * the discovery surface that makes the plugin configurable by AI agents.
+	 *
+	 * @since 1.59.0
+	 * @return void
+	 */
+	private static function register_get_settings_schema() {
+		\wp_register_ability('pmw/get-settings-schema', [
+			'label'               => __('Get Settings Schema', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Retrieves the machine-readable catalog of all configurable Pixel Manager for WooCommerce settings, grouped by tracking destination (pixel) and plugin area. Each setting includes its dot-notation path, type, description (including where to find the value), default, whether it is required to activate the pixel, whether it is an advanced feature and what its benefit is, whether it requires the Pro version, and whether it is a secret. Use this before reading or updating settings.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'category'            => 'tracking',
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'groups'        => [
+						'type'        => 'array',
+						'description' => 'Setting groups: tracking destinations (is_pixel true) and plugin-level groups',
+						'items'       => [
+							'type'       => 'object',
+							'properties' => [
+								'key'      => [ 'type' => 'string', 'description' => 'Group identifier (e.g. google_ads, facebook, consent)' ],
+								'label'    => [ 'type' => 'string', 'description' => 'Human-readable group name' ],
+								'category' => [ 'type' => 'string', 'description' => 'marketing, statistics, optimization or plugin' ],
+								'is_pixel' => [ 'type' => 'boolean', 'description' => 'Whether the group is a tracking destination configurable via pmw/configure-pixel' ],
+								'settings' => [
+									'type'  => 'array',
+									'items' => [
+										'type'       => 'object',
+										'properties' => [
+											'key'         => [ 'type' => 'string', 'description' => 'Short setting key within the group' ],
+											'path'        => [ 'type' => 'string', 'description' => 'Dot-notation path used by pmw/update-settings' ],
+											'type'        => [ 'type' => 'string', 'description' => 'string, boolean, integer, number or array' ],
+											'label'       => [ 'type' => 'string' ],
+											'description' => [ 'type' => 'string' ],
+											'required'    => [ 'type' => 'boolean', 'description' => 'Required for the pixel to become active' ],
+											'advanced'    => [ 'type' => 'boolean', 'description' => 'Optional feature on top of the base setup' ],
+											'benefit'     => [ 'type' => 'string', 'description' => 'Why a shop would enable the advanced feature' ],
+											'pro'         => [ 'type' => 'boolean', 'description' => 'Only takes effect with the Pro version' ],
+											'secret'      => [ 'type' => 'boolean', 'description' => 'Value is never returned in reads' ],
+											'enum'        => [ 'type' => 'array', 'description' => 'Allowed values, when the setting is an enumeration' ],
+											'format_hint' => [ 'type' => 'string', 'description' => 'Hint about the expected value format' ],
+											'default'     => [ 'description' => 'Default value' ],
+										],
+									],
+								],
+							],
+						],
+					],
+					'tier'          => [ 'type' => 'string', 'description' => 'Current license tier: free or pro' ],
+					'write_enabled' => [ 'type' => 'boolean', 'description' => 'Whether settings writes through the Abilities API are enabled on this site' ],
+				],
+			],
+			'execute_callback'    => [ Abilities_Settings::class, 'execute_get_settings_schema' ],
+			'permission_callback' => function () {
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations' => [
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				],
+				'show_in_rest' => true,
+			],
+		]);
+	}
+
+	/**
+	 * Register the get-settings ability.
+	 *
+	 * Returns the current values of all catalog settings. Secrets are
+	 * redacted to a set/not-set flag.
+	 *
+	 * @since 1.59.0
+	 * @return void
+	 */
+	private static function register_get_settings() {
+		\wp_register_ability('pmw/get-settings', [
+			'label'               => __('Get Settings', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Retrieves the current values of all configurable Pixel Manager for WooCommerce settings. Secret values such as API tokens are never returned; for those only a set/not-set flag is included. Use pmw/get-settings-schema first to understand what each setting does.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'category'            => 'tracking',
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'settings'      => [
+						'type'  => 'array',
+						'items' => [
+							'type'       => 'object',
+							'properties' => [
+								'path'   => [ 'type' => 'string', 'description' => 'Dot-notation setting path' ],
+								'group'  => [ 'type' => 'string', 'description' => 'Group key the setting belongs to' ],
+								'label'  => [ 'type' => 'string' ],
+								'secret' => [ 'type' => 'boolean', 'description' => 'Whether the value is redacted' ],
+								'is_set' => [ 'type' => 'boolean', 'description' => 'Whether the setting has a non-empty value' ],
+								'value'  => [ 'description' => 'Current value, null for secrets' ],
+							],
+						],
+					],
+					'tier'          => [ 'type' => 'string', 'description' => 'Current license tier: free or pro' ],
+					'write_enabled' => [ 'type' => 'boolean', 'description' => 'Whether settings writes through the Abilities API are enabled on this site' ],
+				],
+			],
+			'execute_callback'    => [ Abilities_Settings::class, 'execute_get_settings' ],
+			'permission_callback' => function () {
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations' => [
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				],
+				'show_in_rest' => true,
+			],
+		]);
+	}
+
+	/**
+	 * Register the get-setup-status ability.
+	 *
+	 * Returns a derived setup checklist: per-pixel configuration state,
+	 * missing required settings, available advanced features, and ordered
+	 * recommendations for the next setup step. This is the data foundation
+	 * for setup wizards and guided onboarding.
+	 *
+	 * @since 1.59.0
+	 * @return void
+	 */
+	private static function register_get_setup_status() {
+		\wp_register_ability('pmw/get-setup-status', [
+			'label'               => __('Get Setup Status', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Retrieves a setup checklist for Pixel Manager for WooCommerce: which tracking pixels are configured and active, which required settings are missing, which advanced features are available but not enabled (including their benefits), and prioritized recommendations for the next setup step. Designed to drive guided setup conversations.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'category'            => 'tracking',
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'pixels'          => [
+						'type'        => 'array',
+						'description' => 'Per-pixel setup status',
+						'items'       => [
+							'type'       => 'object',
+							'properties' => [
+								'pixel'                => [ 'type' => 'string', 'description' => 'Pixel group key' ],
+								'label'                => [ 'type' => 'string' ],
+								'category'             => [ 'type' => 'string', 'description' => 'marketing, statistics or optimization' ],
+								'pro'                  => [ 'type' => 'boolean', 'description' => 'Whether the pixel requires the Pro version' ],
+								'available_in_tier'    => [ 'type' => 'boolean', 'description' => 'Whether the pixel can be used with the current license tier' ],
+								'configured'           => [ 'type' => 'boolean', 'description' => 'All required settings are set' ],
+								'partially_configured' => [ 'type' => 'boolean', 'description' => 'Some but not all required settings are set' ],
+								'active'               => [ 'type' => 'boolean', 'description' => 'The pixel is currently tracking' ],
+								'missing_required'     => [ 'type' => 'array', 'description' => 'Required settings that are not set yet, with descriptions of where to find the values' ],
+								'advanced_available'   => [ 'type' => 'array', 'description' => 'Advanced features that are not enabled yet, with their benefits' ],
+								'advanced_enabled'     => [ 'type' => 'array', 'description' => 'Advanced features that are already enabled' ],
+							],
+						],
+					],
+					'plugin_settings' => [
+						'type'        => 'array',
+						'description' => 'Current values of plugin-level setting groups (consent, shop, general)',
+					],
+					'summary'         => [
+						'type'       => 'object',
+						'properties' => [
+							'woocommerce_active'   => [ 'type' => 'boolean' ],
+							'pixels_configured'    => [ 'type' => 'integer' ],
+							'pixels_active'        => [ 'type' => 'integer' ],
+							'has_marketing_pixel'  => [ 'type' => 'boolean' ],
+							'has_statistics_pixel' => [ 'type' => 'boolean' ],
+							'tier'                 => [ 'type' => 'string' ],
+							'write_enabled'        => [ 'type' => 'boolean' ],
+						],
+					],
+					'recommendations' => [
+						'type'        => 'array',
+						'description' => 'Ordered, human-readable recommendations for the next setup step',
+						'items'       => [ 'type' => 'string' ],
+					],
+				],
+			],
+			'execute_callback'    => [ Abilities_Settings::class, 'execute_get_setup_status' ],
+			'permission_callback' => function () {
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations' => [
+					'readonly'    => true,
+					'destructive' => false,
+					'idempotent'  => true,
+				],
+				'show_in_rest' => true,
+			],
+		]);
+	}
+
+	/**
+	 * Register the update-settings ability.
+	 *
+	 * Applies a sparse patch of settings: only the submitted dot-notation
+	 * paths are validated and merged into the full options tree, everything
+	 * else is preserved. Every save creates an automatic options backup.
+	 *
+	 * @since 1.59.0
+	 * @return void
+	 */
+	private static function register_update_settings() {
+		\wp_register_ability('pmw/update-settings', [
+			'label'               => __('Update Settings', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Updates one or more Pixel Manager for WooCommerce settings by dot-notation path. Only the submitted settings are changed, all other settings are preserved. Each value is validated with the same rules as the admin UI (including format checks for IDs and tokens), and every save creates an automatic settings backup. Use pmw/get-settings-schema to discover the available paths, types and value formats.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'category'            => 'tracking',
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'settings' => [
+						'type'                 => 'object',
+						'description'          => 'Map of dot-notation setting paths to new values, e.g. {"google.ads.conversion_id": "123456789", "google.ads.conversion_label": "AbC-D_efG"}',
+						'additionalProperties' => true,
+					],
+				],
+				'required'   => [ 'settings' ],
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'saved'         => [ 'type' => 'boolean', 'description' => 'Whether any settings were saved' ],
+					'updated_count' => [ 'type' => 'integer', 'description' => 'Number of settings that were changed' ],
+					'results'       => [
+						'type'        => 'array',
+						'description' => 'Per-setting result',
+						'items'       => [
+							'type'       => 'object',
+							'properties' => [
+								'path'    => [ 'type' => 'string' ],
+								'status'  => [ 'type' => 'string', 'description' => 'updated, unchanged, invalid or unknown' ],
+								'message' => [ 'type' => 'string', 'description' => 'Validation error message, when invalid' ],
+								'value'   => [ 'description' => 'The saved (normalized) value, null for secrets' ],
+								'note'    => [ 'type' => 'string', 'description' => 'Additional information, e.g. that the setting requires a Pro license to take effect' ],
+							],
+						],
+					],
+				],
+			],
+			'execute_callback'    => [ Abilities_Settings::class, 'execute_update_settings' ],
+			'permission_callback' => function () {
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations' => [
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				],
+				'show_in_rest' => true,
+			],
+		]);
+	}
+
+	/**
+	 * Register the configure-pixel ability.
+	 *
+	 * Intent-level ability for setting up a tracking destination in one call.
+	 * Returns the pixel's new setup status including missing required
+	 * settings and available advanced features, so an agent can guide the
+	 * user through the next step.
+	 *
+	 * @since 1.59.0
+	 * @return void
+	 */
+	private static function register_configure_pixel() {
+
+		$pixel_keys = [];
+
+		foreach (Abilities_Settings::get_catalog() as $group_key => $group) {
+			if (!empty($group['is_pixel'])) {
+				$pixel_keys[] = $group_key;
+			}
+		}
+
+		\wp_register_ability('pmw/configure-pixel', [
+			'label'               => __('Configure Pixel', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Configures a tracking pixel (destination) in Pixel Manager for WooCommerce in one call. Accepts the pixel key and a map of setting keys to values (e.g. for google_ads: conversion_id and conversion_label). Validates and saves the values, then returns the pixel\'s setup status: whether it is active, which required settings are still missing, and which advanced features are available with their benefits. Ideal for guided setup conversations.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'category'            => 'tracking',
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'pixel'    => [
+						'type'        => 'string',
+						'description' => 'The pixel to configure',
+						'enum'        => $pixel_keys,
+					],
+					'settings' => [
+						'type'                 => 'object',
+						'description'          => 'Map of setting keys (relative to the pixel, as returned by pmw/get-settings-schema) to new values, e.g. {"conversion_id": "123456789", "conversion_label": "AbC-D_efG"}',
+						'additionalProperties' => true,
+					],
+				],
+				'required'   => [ 'pixel', 'settings' ],
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'pixel'   => [ 'type' => 'string' ],
+					'saved'   => [ 'type' => 'boolean', 'description' => 'Whether any settings were saved' ],
+					'results' => [ 'type' => 'array', 'description' => 'Per-setting result with status updated, unchanged, invalid or unknown' ],
+					'status'  => [ 'type' => 'object', 'description' => 'The pixel\'s setup status after the update: configured, active, missing_required, advanced_available with benefits' ],
+				],
+			],
+			'execute_callback'    => [ Abilities_Settings::class, 'execute_configure_pixel' ],
+			'permission_callback' => function () {
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations' => [
+					'readonly'    => false,
 					'destructive' => false,
 					'idempotent'  => true,
 				],

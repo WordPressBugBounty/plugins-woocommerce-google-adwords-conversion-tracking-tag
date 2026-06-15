@@ -26,7 +26,6 @@
  *  TODO: Detect MonsterInsights
  *  TODO: Detect Tatvic
  *  TODO: Detect WooCommerce Conversion Tracking
- *  TODO: Opportunity to use the SweetCode Google Automated Discounts plugin
  *
  */
 
@@ -339,14 +338,14 @@ class Opportunities {
 	}
 
 	/**
-	 * Public accessor for the Mantine admin UI to trigger class loading.
+	 * Public accessor for the Nova admin UI to trigger class loading.
 	 *
 	 * This is safe because it delegates to the private loader that only
 	 * scans hardcoded directories (free/ and pro/ under this file's dir).
 	 *
 	 * @since 1.58.8
 	 */
-	public static function load_all_opportunity_classes_for_mantine() {
+	public static function load_all_opportunity_classes_for_nova() {
 		self::load_all_opportunity_classes();
 	}
 
@@ -576,6 +575,18 @@ class Opportunities {
 		$option[$opportunity_id]['dismissed'] = time();
 
 		update_option(self::$pmw_opportunities_option, $option);
+
+		wp_send_json_success();
+	}
+
+	public static function restore_opportunity( $opportunity_id ) {
+
+		$option = get_option(self::$pmw_opportunities_option);
+
+		if (is_array($option) && isset($option[$opportunity_id]['dismissed'])) {
+			unset($option[$opportunity_id]['dismissed']);
+			update_option(self::$pmw_opportunities_option, $option);
+		}
 
 		wp_send_json_success();
 	}

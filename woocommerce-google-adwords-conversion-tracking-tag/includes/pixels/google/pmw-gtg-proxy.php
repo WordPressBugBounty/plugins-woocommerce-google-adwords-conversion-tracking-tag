@@ -1018,6 +1018,7 @@ final class PMW_GTG_Proxy_Standalone {
 		if ( $log_file ) {
 			@file_put_contents( $log_file, $log_entry, FILE_APPEND | LOCK_EX );
 		} else {
+			// phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound -- Intentional fallback log when no writable log file is found.
 			error_log( rtrim( $log_entry ) );
 		}
 	}

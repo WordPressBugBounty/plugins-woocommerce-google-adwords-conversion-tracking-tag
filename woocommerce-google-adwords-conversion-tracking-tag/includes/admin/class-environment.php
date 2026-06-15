@@ -307,7 +307,7 @@ class Environment {
 			self::purge_proxy_cache_purge_cache();
 		}                                                                           // TODO test
 
-		//        if (self::is_hosting_pagely()) $this->purge_pagely_cache();       // TODO test
+		//        if (self::is_hosting_pagely()) $this->purge_pagely_cache();
 
 		// TODO add generic varnish purge
 	}
@@ -563,7 +563,6 @@ class Environment {
 	}
 
 	public static function is_litespeed_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('litespeed-cache/litespeed-cache.php');
 	}
@@ -586,31 +585,26 @@ class Environment {
 	}
 
 	public static function is_autoptimize_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('autoptimize/autoptimize.php');
 	}
 
 	public static function is_hummingbird_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('hummingbird-performance/wp-hummingbird.php');
 	}
 
 	public static function is_nitropack_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('nitropack/main.php');
 	}
 
 	public static function is_yoast_seo_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('wordpress-seo/wp-seo.php');
 	}
 
 	public static function is_borlabs_cookie_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('borlabs-cookie/borlabs-cookie.php');
 	}
@@ -702,7 +696,6 @@ class Environment {
 	}
 
 	public static function is_termly_active() {
-		// TODO find out if there is a pro version with different folder and file name and check if uk-cookie-consent-premium is the correct slug
 
 		return is_plugin_active('uk-cookie-consent/uk-cookie-consent.php')
 			|| is_plugin_active('uk-cookie-consent-premium/uk-cookie-consent-premium.php');
@@ -712,6 +705,17 @@ class Environment {
 	// https://wordpress.org/plugins/beautiful-and-responsive-cookie-consent/
 	public static function is_beautiful_cookie_consent_active() {
 		return is_plugin_active('beautiful-and-responsive-cookie-consent/nsc_bar-cookie-consent.php');
+	}
+
+	/**
+	 * FAZ Cookie Manager
+	 * https://wordpress.org/plugins/faz-cookie-manager/
+	 *
+	 * @return bool
+	 * @since 1.58.12
+	 */
+	public static function is_faz_cookie_manager_active() {
+		return is_plugin_active('faz-cookie-manager/faz-cookie-manager.php');
 	}
 
 // WooCommerce Cost of Goods
@@ -760,6 +764,7 @@ class Environment {
 			|| self::is_cookieyes_active()
 			|| self::is_cookie_notice_active()
 			|| self::is_cookie_script_active()
+			|| self::is_faz_cookie_manager_active()
 			|| self::is_moove_gdpr_active()
 			|| self::is_real_cookie_banner_active()
 			|| self::is_termly_active()
@@ -775,7 +780,6 @@ class Environment {
 	}
 
 	public static function is_wp_super_cache_active() {
-		// TODO find out if there is a pro version with different folder and file name
 
 		return is_plugin_active('wp-super-cache/wp-cache.php');
 	}
@@ -835,17 +839,14 @@ class Environment {
 	}
 
 	public static function is_optimocha_active() {
-		// TODO find out if there is a pro version with different folder and file name
 		return is_plugin_active('speed-booster-pack/speed-booster-pack.php');
 	}
 
 	public static function is_async_javascript_active() {
-		// TODO find out if there is a pro version with different folder and file name
 		return is_plugin_active('async-javascript/async-javascript.php');
 	}
 
 	public static function is_flying_press_active() {
-		// TODO find out if there is a pro version with different folder and file name
 		return is_plugin_active('flying-press/flying-press.php');
 	}
 
@@ -1151,6 +1152,24 @@ class Environment {
 				}
 				return $should_block;
 			}, 10, 3);
+		}
+
+		/**
+		 * FAZ Cookie Manager
+		 *
+		 * Whitelist PMW scripts so FAZ's script blocker leaves them alone.
+		 * PMW handles consent internally and must not be blocked before consent.
+		 *
+		 * @since 1.58.12
+		 */
+
+		if (self::is_faz_cookie_manager_active()) {
+			add_filter('faz_whitelisted_scripts', function ( $whitelist ) {
+				$whitelist[] = 'pmwDataLayer';
+				$whitelist[] = '/wp-content/plugins/woocommerce-pixel-manager';
+				$whitelist[] = '/wp-content/plugins/woocommerce-pixel-manager-pro';
+				return $whitelist;
+			});
 		}
 
 		/**

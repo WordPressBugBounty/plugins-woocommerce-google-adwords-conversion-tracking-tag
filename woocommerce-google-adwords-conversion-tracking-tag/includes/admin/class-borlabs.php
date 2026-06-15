@@ -1,7 +1,5 @@
 <?php
 
-// TODO: Go through all comments and make sure they are correct
-// TODO: Go through all function names and optimize them
 // TODO: Add PHPDoc comments to all functions
 
 namespace SweetCode\Pixel_Manager\Admin;

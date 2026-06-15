@@ -5,13 +5,6 @@
 
 // TODO Move Facebook Advanced Matching down to to ['facebook']['advanced_matching']
 
-// TODO Strategy for saving backup versions:
-// 1. Save version with version and timestamp ['db_version']['timestamp']
-// On downgrade maybe take the latest version before the downgrade version from the backup
-// Give the user the option to restore other timestamps of the same running version (if there are more than one)
-// When upgrading again up to the newer version, either run the updater, or take the backup version for the higher version
-// On downgrade, run pre install hook to save the current version as backup
-
 namespace SweetCode\Pixel_Manager;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
@@ -36,7 +29,6 @@ class Database {
 			self::up_from_2_to_3();
 		}
 
-		// TODO implement in Q1 2023
 //      if (version_compare(4, $db_version, '>')) {
 //          self::up_from_3_to_4();
 //      }
@@ -113,7 +105,10 @@ class Database {
 
 		self::save_options_backup('1');
 
-		$options_old = Options::get_options();
+		// Read straight from the DB: Options::get_options() returns the array
+		// cached before the upgrade chain started, so on a multi-step upgrade
+		// (e.g. db 1 → 3 in one request) it would not contain this step's input.
+		$options_old = get_option(PMW_DB_OPTIONS_NAME);
 
 		$options_new = [
 			'gads'       => [
@@ -137,7 +132,12 @@ class Database {
 
 		self::save_options_backup('2');
 
-		$options_old = Options::get_options();
+		// Fresh DB read — see up_from_1_to_2(). Before this fix, a db 1 → 3
+		// upgrade read the stale pre-chain array here: ['gads'] was undefined,
+		// google.ads ended up empty (the user's conversion settings were lost),
+		// and the leftover top-level keys made get_mysql_db_version() report
+		// '1' forever, re-running this broken chain on every page load.
+		$options_old = get_option(PMW_DB_OPTIONS_NAME);
 
 		$options_new = $options_old;
 
@@ -161,11 +161,10 @@ class Database {
 
 	private static function up_from_3_to_4() {
 
-		error_log('db up_from_3_to_4');
-
 		self::save_options_backup('3');
 
-		$options_old = Options::get_options();
+		// Fresh DB read — see up_from_1_to_2().
+		$options_old = get_option(PMW_DB_OPTIONS_NAME);
 
 		$options_new = $options_old;
 
@@ -222,7 +221,9 @@ class Database {
 			$options_backup[$version][time()] = $settings;
 		}
 
-		$options_backup[$version][time()] = Options::get_options();
+		// Back up what is actually stored, not the request-cached array — during
+		// a multi-step upgrade the cache lags behind the chain's DB writes.
+		$options_backup[$version][time()] = get_option(PMW_DB_OPTIONS_NAME);
 
 		update_option(Options::$options_backup_name, $options_backup, false);
 	}

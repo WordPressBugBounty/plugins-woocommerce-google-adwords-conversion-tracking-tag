@@ -2,6 +2,7 @@
 
 namespace SweetCode\Pixel_Manager\Admin\Notifications;
 
+use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Options;
@@ -35,6 +36,12 @@ class SSP_Quota_Exceeded_Notification extends Notification {
 
 		// Only show on dashboard or PMW settings page
 		if ( ! Helpers::is_dashboard() && ! Environment::is_pmw_settings_page() ) {
+			return false;
+		}
+
+		// The Nova admin UI renders its own quota cards (Dashboard tab and
+		// Server-Side tab), so suppress the top-of-page banner there.
+		if ( Environment::is_pmw_settings_page() && Admin::is_wp_admin_active() ) {
 			return false;
 		}
 

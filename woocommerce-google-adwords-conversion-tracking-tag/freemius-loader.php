@@ -77,6 +77,21 @@ if ( function_exists( 'wpm_fs' ) ) {
         wpm_fs()->add_filter( 'after_connect_url', 'pmw_fs_settings_url' );
         wpm_fs()->add_filter( 'after_pending_connect_url', 'pmw_fs_settings_url' );
         wpm_fs()->add_filter( 'show_deactivation_subscription_cancellation', '__return_false' );
+        /**
+         * Uninstall cleanup for the Freemius distribution.
+         *
+         * Freemius does not allow an uninstall.php in the plugin root (it would
+         * prevent the SDK from tracking the uninstall event), so the routine
+         * runs through the SDK's after_uninstall hook instead.
+         *
+         * @since 1.59.0
+         */
+        function pmw_fs_uninstall_cleanup() {
+            require_once __DIR__ . '/includes/uninstall-functions.php';
+            pmw_run_uninstall();
+        }
+
+        wpm_fs()->add_action( 'after_uninstall', 'pmw_fs_uninstall_cleanup' );
     }
     // Run the PMW loader
     require_once 'pmw-loader.php';

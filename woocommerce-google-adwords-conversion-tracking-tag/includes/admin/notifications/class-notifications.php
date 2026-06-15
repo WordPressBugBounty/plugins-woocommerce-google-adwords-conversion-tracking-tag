@@ -2,6 +2,7 @@
 
 namespace SweetCode\Pixel_Manager\Admin\Notifications;
 
+use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Documentation;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunities;
@@ -23,7 +24,11 @@ class Notifications {
         add_action( 'admin_enqueue_scripts', [__CLASS__, 'wpm_admin_css'] );
         add_action( 'admin_notices', function () {
             if ( Environment::is_allowed_notification_page() || Environment::is_pmw_settings_page() ) {
-                self::opportunities_notification();
+                // The Nova admin UI renders the opportunities summary inside its own
+                // Dashboard, so suppress the top-of-page banner there.
+                if ( !Admin::is_wp_admin_active() ) {
+                    self::opportunities_notification();
+                }
                 self::show_notifications();
             }
         } );
