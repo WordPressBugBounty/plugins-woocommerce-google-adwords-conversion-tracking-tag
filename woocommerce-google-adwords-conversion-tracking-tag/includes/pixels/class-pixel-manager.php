@@ -1086,9 +1086,6 @@ class Pixel_Manager {
         if ( Options::is_hotjar_enabled() ) {
             $data['hotjar'] = $this->get_hotjar_pixel_data();
         }
-        if ( Options::is_crazyegg_enabled() ) {
-            $data['crazyegg'] = $this->get_crazyegg_pixel_data();
-        }
         return $data;
     }
 

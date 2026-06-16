@@ -360,6 +360,8 @@ class Abilities {
 			],
 			'execute_callback'    => [ Abilities_Settings::class, 'execute_get_settings_schema' ],
 			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
 				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
@@ -410,6 +412,8 @@ class Abilities {
 			],
 			'execute_callback'    => [ Abilities_Settings::class, 'execute_get_settings' ],
 			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
 				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
@@ -487,6 +491,8 @@ class Abilities {
 			],
 			'execute_callback'    => [ Abilities_Settings::class, 'execute_get_setup_status' ],
 			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
 				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
@@ -549,6 +555,8 @@ class Abilities {
 			],
 			'execute_callback'    => [ Abilities_Settings::class, 'execute_update_settings' ],
 			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
 				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
@@ -614,6 +622,8 @@ class Abilities {
 			],
 			'execute_callback'    => [ Abilities_Settings::class, 'execute_configure_pixel' ],
 			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
 				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [

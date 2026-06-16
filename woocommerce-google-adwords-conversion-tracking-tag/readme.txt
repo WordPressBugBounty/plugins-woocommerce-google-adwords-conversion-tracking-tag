@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.3
-Stable tag: 1.59.0
+Stable tag: 1.59.2
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -160,7 +160,7 @@ We are committed to ensuring the security of our customers and their data. If yo
 
 3. Get the Google Ads conversion ID and the conversion label. You will find both values in the Google Ads conversion tracking code. [Get the conversion ID and the conversion label](https://www.youtube.com/watch?v=p9gY3JSrNHU)
 
-4. In the WordPress admin panel go to WooCommerce and then into the 'Google Ads Conversion Tracking' menu. Please enter the conversion ID and the conversion label into their respective fields.
+4. In the WordPress admin panel go to WooCommerce → Pixel Manager, open the 'Tracking Pixels' tab and expand the 'Google (Ads & GA4)' section. Please enter the conversion ID and the conversion label into their respective fields.
 
 5. Head over to our documentation and follow our installation guides. Here are some of our most popular guides:
  * [Google Ads](https://sweetcode.com/docs/pmw/plugin-configuration/google-ads)
@@ -295,9 +295,22 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Screenshots ==
 
-1. Settings page
+1. Dashboard – an at-a-glance overview of your tracking health, optimization score, and active pixels
+2. Tracking Pixels – set up Google Ads, GA4, Meta, Hotjar and more from a single screen
+3. Pixel setup – just enter your conversion IDs, no coding required
+4. Consent – Google Consent Mode v2 with automatic integration for the major consent management platforms (GDPR & CCPA ready)
+5. Payment Gateway Accuracy Report – spot which payment gateways are dropping your conversion tracking
+6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.59.2  =
+*Release date - 16.06.2026*
+
+= 1.59.1  =
+*Release date - 15.06.2026*
+
+* Tweak: Internal code quality improvements; no functional changes since 1.59.0
 
 = 1.59.0  =
 *Release date - 15.06.2026*

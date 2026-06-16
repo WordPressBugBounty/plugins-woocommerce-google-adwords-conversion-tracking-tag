@@ -212,14 +212,6 @@ class Abilities_Settings {
 						'description' => 'Meta (Facebook) pixel ID, 12 to 22 digits. Found in Meta Events Manager under Data sources.',
 						'required'    => true,
 					],
-					'microdata'              => [
-						'path'        => 'facebook.microdata',
-						'type'        => 'boolean',
-						'label'       => 'Microdata output',
-						'description' => 'Outputs Schema.org microdata on product pages.',
-						'advanced'    => true,
-						'benefit'     => 'Lets the Meta catalog crawler match shop products to the Meta product catalog.',
-					],
 					'domain_verification_id' => [
 						'path'        => 'facebook.domain_verification_id',
 						'type'        => 'string',

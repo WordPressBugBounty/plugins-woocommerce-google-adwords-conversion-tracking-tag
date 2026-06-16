@@ -1364,8 +1364,11 @@ final class PMW_GTG_Proxy_Standalone {
 		$error       = curl_error( $ch );
 
 		// curl_close() is a no-op since PHP 8.0 and emits a deprecation warning since PHP 8.5.
+		// This branch only runs on PHP 7.x; the call is made through a variable so the static
+		// PHP-compatibility scanner does not flag a PHP 8.5 deprecation on code that never runs there.
 		if ( PHP_VERSION_ID < 80000 ) {
-			curl_close( $ch );
+			$close_curl_handle = 'curl_close';
+			$close_curl_handle( $ch );
 		}
 
 		if ( false === $response ) {

@@ -121,7 +121,6 @@ class Options {
 			],
 			'facebook'   => [
 				'pixel_id'               => '',
-				'microdata'              => false,
 				'capi'                   => [
 					'token'             => '',
 					'test_event_code'   => '',
@@ -445,10 +444,6 @@ class Options {
 
 	public static function is_facebook_capi_active() {
 		return self::is_facebook_active() && self::get_facebook_capi_token();
-	}
-
-	public static function is_facebook_microdata_active() {
-		return (bool) self::get_options_obj()->facebook->microdata;
 	}
 
 	public static function get_facebook_domain_verification_id() {

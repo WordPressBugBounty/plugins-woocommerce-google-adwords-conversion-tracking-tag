@@ -1011,13 +1011,18 @@ class Validations {
 	 * The dot notation paths of all settings whose form fields are only rendered
 	 * while Pro features are available (valid license or active Pro demo).
 	 *
-	 * Keep this list in sync with the license gated fields in Admin
-	 * (wpm_fs()->can_use_premium_code__premium_only() and
-	 * Helpers::is_pmw_pro_version_active() checks around add_settings_field calls
-	 * and within the HTML output callbacks).
+	 * Keep this list in sync with every setting the UI renders as premium-only:
+	 * the Nova admin pixel registry (src/admin-ui-wp/src/shared/data/pixels.ts —
+	 * a pixel flagged `premium` locks ALL its fields, including the primary ID,
+	 * plus individually `premium` fields on the free pixels) and the Classic
+	 * admin's license-gated add_settings_field / HTML output callbacks. Custom
+	 * components with their own gated endpoints (e.g. the GA4 Data API
+	 * credentials import) are intentionally excluded — they never go through the
+	 * generic options patch.
 	 *
-	 * Also consumed by the Abilities API settings catalog to flag premium-only
-	 * settings for AI agents.
+	 * This gates the REST options patch (class-admin-rest.php), preserves saved
+	 * premium values on downgrade (preserve_premium_only_options), and is consumed
+	 * by the Abilities API settings catalog to flag premium-only settings for AI agents.
 	 *
 	 * @return array The premium-only option paths.
 	 *
@@ -1030,6 +1035,7 @@ class Validations {
 			// Bing / Microsoft Ads
 			'bing.consent_mode.is_active',
 			'bing.enhanced_conversions',
+			'bing.uet_tag_id',
 
 			// Facebook / Meta
 			'facebook.capi.test_event_code',
@@ -1044,6 +1050,7 @@ class Validations {
 			'general.scroll_tracker_thresholds',
 
 			// Google
+			'google.ads.aw_merchant_id',
 			'google.ads.conversion_adjustments.conversion_name',
 			'google.ads.enhanced_conversions',
 			'google.ads.google_business_vertical',
@@ -1060,6 +1067,7 @@ class Validations {
 			'pinterest.advanced_matching',
 			'pinterest.apic.token',
 			'pinterest.enhanced_match',
+			'pinterest.pixel_id',
 
 			// Various pixels
 			'pixels.ab_tasty.account_id',
@@ -1069,10 +1077,14 @@ class Validations {
 			'pixels.linkedin.conversion_ids.add_to_cart',
 			'pixels.linkedin.conversion_ids.purchase',
 			'pixels.linkedin.conversion_ids.view_content',
+			'pixels.linkedin.partner_id',
 			'pixels.optimizely.project_id',
+			'pixels.outbrain.advertiser_id',
 			'pixels.reddit.advanced_matching',
+			'pixels.reddit.advertiser_id',
 			'pixels.reddit.capi.test_event_code',
 			'pixels.reddit.capi.token',
+			'pixels.taboola.account_id',
 			'pixels.vwo.account_id',
 
 			// Shop
@@ -1082,11 +1094,13 @@ class Validations {
 			// Snapchat
 			'snapchat.advanced_matching',
 			'snapchat.capi.token',
+			'snapchat.pixel_id',
 
 			// TikTok
 			'tiktok.advanced_matching',
 			'tiktok.eapi.test_event_code',
 			'tiktok.eapi.token',
+			'tiktok.pixel_id',
 
 			// Twitter / X
 			'twitter.event_ids.add_payment_info',
@@ -1096,6 +1110,7 @@ class Validations {
 			'twitter.event_ids.purchase',
 			'twitter.event_ids.search',
 			'twitter.event_ids.view_content',
+			'twitter.pixel_id',
 		];
 	}
 

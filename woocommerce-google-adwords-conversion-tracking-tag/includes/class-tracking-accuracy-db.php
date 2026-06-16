@@ -371,7 +371,7 @@ class Tracking_Accuracy_DB {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 			$results = $wpdb->get_results(
 				$wpdb->prepare(
-					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
 					$select . ' ORDER BY `date` ASC',
 					$start_date,
 					$end_date

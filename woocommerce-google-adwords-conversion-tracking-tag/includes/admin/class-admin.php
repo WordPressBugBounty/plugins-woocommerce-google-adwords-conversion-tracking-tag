@@ -486,14 +486,16 @@ class Admin {
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
-        // add the field for the CrazyEgg pixel
-        add_settings_field(
-            'wpm_plugin_crazyegg_account_number',
-            esc_html__( 'CrazyEgg account number', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-            [__CLASS__, 'option_html_crazyegg_account_number'],
-            'wpm_plugin_options_page',
-            $section_ids['settings_name']
-        );
+        // add the field for the CrazyEgg pixel (Pro feature)
+        if ( wpm_fs()->can_use_premium_code__premium_only() || Options::is_pro_version_demo_active() ) {
+            add_settings_field(
+                'wpm_plugin_crazyegg_account_number',
+                esc_html__( 'CrazyEgg account number', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+                [__CLASS__, 'option_html_crazyegg_account_number'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+        }
         // add the field for the Contentsquare pixel (Pro feature)
         if ( wpm_fs()->can_use_premium_code__premium_only() || Options::is_pro_version_demo_active() ) {
             add_settings_field(
@@ -2069,6 +2071,7 @@ class Admin {
             'ga4DataApiClientEmail'            => ( isset( $ga4_credentials['client_email'] ) ? (string) $ga4_credentials['client_email'] : '' ),
             'freemiusUpgradeUrl'               => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_upgrade_url() : '' ),
             'freemiusAccountUrl'               => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_account_url() : '' ),
+            'freemiusTrialUrl'                 => Trial_Promotion_Notification::get_available_trial_url(),
         ] );
         ?>
 		<style>

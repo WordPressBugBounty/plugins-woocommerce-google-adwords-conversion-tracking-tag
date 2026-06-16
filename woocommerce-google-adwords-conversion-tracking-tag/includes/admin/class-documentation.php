@@ -47,8 +47,6 @@ class Documentation {
 			'facebook_advanced_matching'                        => '/docs/pmw/plugin-configuration/meta#meta-facebook-advanced-matching',
 			'facebook_capi_token'                               => '/docs/pmw/plugin-configuration/meta/#meta-facebook-conversion-api-capi',
 			'facebook_domain_verification_id'                   => '/docs/pmw/plugin-configuration/meta#domain-verification',
-			'facebook_microdata'                                => '/docs/pmw/plugin-configuration/meta#microdata-tags-for-catalogues',
-			'facebook_microdata_deprecation'                    => '/blog/facebook-microdata-for-catalog-deprecation-notice',
 			'facebook_pixel_id'                                 => '/docs/pmw/plugin-configuration/meta#find-the-pixel-id',
 			'ga4_data_api'                                      => '/docs/pmw/plugin-configuration/google-analytics#ga4-data-api',
 			'ga4_data_api_credentials'                          => '/docs/pmw/plugin-configuration/google-analytics#ga4-data-api-credentials',

@@ -183,6 +183,47 @@ class Trial_Promotion_Notification extends Notification {
 	}
 
 	/**
+	 * Trial checkout URL for the contextual "start a free trial" links shown next
+	 * to the in-app upgrade CTAs (the per-field/section lock notes and the locked
+	 * Pro pixel group header).
+	 *
+	 * Unlike get_data_for_nova(), this is NOT gated by the 24h first-show delay or
+	 * the dismissal of the Dashboard promo card — those are specific to that card.
+	 * It returns a URL only when a trial can actually be started right now and the
+	 * admin hasn't switched trial promotion off.
+	 *
+	 * @return string The trial URL, or '' when no trial is available to start.
+	 * @since 1.60.0
+	 */
+	public static function get_available_trial_url() {
+
+		if (!function_exists('wpm_fs')) {
+			return '';
+		}
+
+		// Respect the site's master "disable trial promotion" toggle.
+		if (!self::is_admin_trial_promo_active()) {
+			return '';
+		}
+
+		$fs = wpm_fs();
+
+		// Nothing to offer once they're already paying or trialing, or once the
+		// trial has been used up.
+		if ($fs->is_paying_or_trial()) {
+			return '';
+		}
+		if ($fs->is_registered() && $fs->get_site() && $fs->get_site()->is_trial_utilized()) {
+			return '';
+		}
+		if (!$fs->has_trial_plan()) {
+			return '';
+		}
+
+		return (string) $fs->get_trial_url();
+	}
+
+	/**
 	 * Get the notification data.
 	 *
 	 * @return array
