@@ -247,6 +247,13 @@ class Options {
 						'test_event_code' => '',
 					],
 				],
+				'openai'     => [
+					'pixel_id'          => '',
+					'advanced_matching' => false,
+					'capi'              => [
+						'token' => '',
+					],
+				],
 				'taboola'    => [
 					'account_id' => '',
 				],
@@ -826,6 +833,30 @@ class Options {
 	}
 
 	/**
+	 * OpenAI
+	 */
+
+	public static function get_openai_pixel_id() {
+		return self::get_options_obj()->pixels->openai->pixel_id;
+	}
+
+	public static function is_openai_active() {
+		return (bool) self::get_openai_pixel_id();
+	}
+
+	public static function is_openai_advanced_matching_enabled() {
+		return (bool) self::get_options_obj()->pixels->openai->advanced_matching;
+	}
+
+	public static function get_openai_capi_token() {
+		return self::get_options_obj()->pixels->openai->capi->token;
+	}
+
+	public static function is_openai_capi_active() {
+		return self::is_openai_active() && (bool) self::get_openai_capi_token();
+	}
+
+	/**
 	 * Taboola
 	 */
 
@@ -1174,6 +1205,10 @@ class Options {
 			$pixels[] = 'reddit';
 		}
 
+		if (self::is_openai_active()) {
+			$pixels[] = 'openai';
+		}
+
 		return $pixels;
 	}
 
@@ -1207,6 +1242,10 @@ class Options {
 
 		if (self::is_reddit_capi_active()) {
 			$pixels[] = 'reddit';
+		}
+
+		if (self::is_openai_capi_active()) {
+			$pixels[] = 'openai';
 		}
 
 		return $pixels;

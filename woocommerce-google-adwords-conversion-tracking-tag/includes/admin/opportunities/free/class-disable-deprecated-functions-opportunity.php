@@ -43,10 +43,7 @@ class Disable_Deprecated_Functions extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'      => esc_html__(
-				'low',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'      => 'low',
 			'setup_link'  => Documentation::get_link('load_deprecated_functions'),
 			'since'       => 1733529600, // timestamp: December 7, 2025
 		];

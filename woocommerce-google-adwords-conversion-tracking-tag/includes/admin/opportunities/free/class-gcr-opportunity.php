@@ -55,10 +55,7 @@ class Google_Customer_Reviews extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'          => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'          => 'high',
 			'learn_more_link' => 'https://sweetcode.com/plugins/gcr/?utm_source=pmw&utm_medium=opportunity&utm_campaign=gcr-cross-sell',
 			'custom_buttons'  => [
 				[

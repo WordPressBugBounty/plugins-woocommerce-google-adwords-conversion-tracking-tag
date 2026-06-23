@@ -60,10 +60,7 @@ class Microsoft_Ads_Consent_Mode extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'          => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'          => 'high',
 			'setup_link'      => Documentation::get_link('microsoft_ads_consent_mode'),
 			'learn_more_link' => 'https://help.ads.microsoft.com/apex/index/3/en/60119',
 			'since'           => 1733529600, // timestamp: December 7, 2025

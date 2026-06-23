@@ -621,6 +621,36 @@ class Validations {
 			}
 		}
 
+		// Validate OpenAI pixel ID
+		if (isset($input['pixels']['openai']['pixel_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['openai']['pixel_id'] = Helpers::trim_string($input['pixels']['openai']['pixel_id']);
+
+			if (!self::is_openai_pixel_id($input['pixels']['openai']['pixel_id'])) {
+				$input['pixels']['openai']['pixel_id']
+					= Options::get_openai_pixel_id()
+					? Options::get_openai_pixel_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-openai-pixel-id', esc_html__('You have entered an invalid OpenAI pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate OpenAI CAPI token
+		if (isset($input['pixels']['openai']['capi']['token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['openai']['capi']['token'] = Helpers::trim_string($input['pixels']['openai']['capi']['token']);
+
+			if (!self::is_openai_capi_token($input['pixels']['openai']['capi']['token'])) {
+				$input['pixels']['openai']['capi']['token']
+					= Options::get_openai_capi_token()
+					? Options::get_openai_capi_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-openai-capi-token', esc_html__('You have entered an invalid OpenAI CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Validate the VWO account ID
 		if (isset($input['pixels']['vwo']['account_id'])) {
 
@@ -1080,6 +1110,9 @@ class Validations {
 			'pixels.linkedin.partner_id',
 			'pixels.optimizely.project_id',
 			'pixels.outbrain.advertiser_id',
+			'pixels.openai.advanced_matching',
+			'pixels.openai.capi.token',
+			'pixels.openai.pixel_id',
 			'pixels.reddit.advanced_matching',
 			'pixels.reddit.advertiser_id',
 			'pixels.reddit.capi.test_event_code',
@@ -1299,6 +1332,25 @@ class Validations {
 
 		// Reddit test event code format: t2_ followed by alphanumeric characters
 		$re = '/^t2_[a-z0-9]{4,12}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_openai_pixel_id( $string ) {
+
+		// OpenAI does not publish a strict pixel ID format. Keep the validation
+		// permissive so valid IDs are never rejected, while still blocking
+		// obviously malformed input (whitespace, markup, control characters).
+		$re = '/^[A-Za-z0-9._-]{6,64}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_openai_capi_token( $string ) {
+
+		// OpenAI Conversions API key (Bearer token). Format is not strictly
+		// published, so validate permissively while excluding whitespace/markup.
+		$re = '/^[A-Za-z0-9._-]{20,500}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1788,6 +1840,10 @@ class Validations {
 			'pixels.reddit.advertiser_id'                       => [ 'is_reddit_advertiser_id', __('Invalid Reddit advertiser ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.reddit.capi.token'                          => [ 'is_reddit_capi_token', __('Invalid Reddit CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.reddit.capi.test_event_code'                => [ 'is_reddit_capi_test_event_code', __('Invalid Reddit CAPI test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// OpenAI
+			'pixels.openai.pixel_id'                            => [ 'is_openai_pixel_id', __('Invalid OpenAI pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.openai.capi.token'                          => [ 'is_openai_capi_token', __('Invalid OpenAI CAPI token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
 			// Hotjar
 			'hotjar.site_id'                                    => [ 'is_hotjar_site_id', __('Invalid Hotjar site ID. It should contain 6 to 9 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],

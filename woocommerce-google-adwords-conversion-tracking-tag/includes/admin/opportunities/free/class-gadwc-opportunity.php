@@ -61,10 +61,7 @@ class Google_Automated_Discounts extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'          => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'          => 'high',
 			'learn_more_link' => $learn_more_link,
 			'custom_buttons'  => [
 				[

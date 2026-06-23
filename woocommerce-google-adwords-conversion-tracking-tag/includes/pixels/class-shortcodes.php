@@ -88,6 +88,7 @@ class Shortcodes {
 			'ms-ads-event-value'    => 0,
 			'outbrain-event'        => '',
 			'reddit-event'          => 'Lead',
+			'openai-event'          => 'lead_created',
 			'snap-event'            => 'SIGN_UP',
 			'taboola-event'         => '',
 			'tiktok-event'          => 'SubmitForm',
@@ -168,6 +169,14 @@ class Shortcodes {
 			&& Options::is_reddit_active()
 		) {
 			self::conversion_html_reddit_ads($shortcode_attributes);
+		}
+
+		// OpenAI
+		if (
+			self::should_tracking_event_be_injected($shortcode_attributes, 'openai')
+			&& Options::is_openai_active()
+		) {
+			self::conversion_html_openai($shortcode_attributes);
 		}
 
 		// Snapchat
@@ -456,6 +465,18 @@ class Shortcodes {
 		<script>
 			pmwFunctionExists("rdt").then(function () {
 					rdt("track", "<?php echo esc_js($shortcode_attributes['reddit-event']); ?>");
+				},
+			);
+		</script>
+		<?php
+	}
+
+	private static function conversion_html_openai( $shortcode_attributes ) {
+		?>
+
+		<script>
+			pmwFunctionExists("oaiq").then(function () {
+					oaiq("measure", "<?php echo esc_js($shortcode_attributes['openai-event']); ?>", {type: "customer_action"});
 				},
 			);
 		</script>

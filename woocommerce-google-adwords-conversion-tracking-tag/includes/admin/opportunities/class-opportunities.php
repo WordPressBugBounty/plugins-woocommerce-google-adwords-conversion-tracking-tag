@@ -147,6 +147,46 @@ class Opportunities {
 	}
 
 	/**
+	 * Normalize an impact value to a canonical key.
+	 *
+	 * Opportunity classes are expected to declare 'high', 'medium' or 'low'
+	 * verbatim, but this guards against any non-canonical value (a translated
+	 * string, a typo, or a future tier) reaching consumers that render or
+	 * weight by exact key. Anything unrecognized falls back to 'low', matching
+	 * the behaviour of the by-impact counter and the optimization score.
+	 *
+	 * @param mixed $impact The raw impact value from card_data().
+	 * @return string One of 'high', 'medium', 'low'.
+	 * @since 1.59.4
+	 */
+	public static function normalize_impact( $impact ) {
+		$impact = strtolower((string) $impact);
+		return in_array($impact, [ 'high', 'medium', 'low' ], true) ? $impact : 'low';
+	}
+
+	/**
+	 * Localized, human-readable label for an impact key.
+	 *
+	 * The impact key itself is a non-translatable machine value; the visible
+	 * label is translated here at display time so it can be localized without
+	 * corrupting the key used for grouping, sorting and scoring.
+	 *
+	 * @param string $impact The impact key (high, medium, low).
+	 * @return string The translated label.
+	 * @since 1.59.4
+	 */
+	private static function get_impact_label( $impact ) {
+		switch (self::normalize_impact($impact)) {
+			case 'high':
+				return __('High', 'woocommerce-google-adwords-conversion-tracking-tag');
+			case 'medium':
+				return __('Medium', 'woocommerce-google-adwords-conversion-tracking-tag');
+			default:
+				return __('Low', 'woocommerce-google-adwords-conversion-tracking-tag');
+		}
+	}
+
+	/**
 	 * Get emoji based on impact level.
 	 *
 	 * @param string $impact The impact level (high, medium, low).
@@ -215,7 +255,7 @@ class Opportunities {
 							style="display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 3px; font-size: 12px; font-weight: 500;">
 						<?php
 						/* translators: %s: the impact level (High, Medium, Low) */
-						printf(esc_html__('Impact: %s', 'woocommerce-google-adwords-conversion-tracking-tag'), esc_html(ucfirst($impact)));
+						printf(esc_html__('Impact: %s', 'woocommerce-google-adwords-conversion-tracking-tag'), esc_html(self::get_impact_label($impact)));
 						?>
 					</span>
 				</div>

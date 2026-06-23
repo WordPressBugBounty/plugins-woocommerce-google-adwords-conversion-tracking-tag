@@ -148,10 +148,7 @@ class Payment_Gateway_Accuracy extends Opportunity {
 				'woocommerce-google-adwords-conversion-tracking-tag'
 			),
 			'description'    => $descriptions,
-			'impact'         => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'         => 'high',
 			'custom_buttons' => [
 				[
 					'label'           => esc_html__('Diagnostics', 'woocommerce-google-adwords-conversion-tracking-tag'),

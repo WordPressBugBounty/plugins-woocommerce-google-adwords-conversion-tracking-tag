@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.3
-Stable tag: 1.59.2
+Stable tag: 1.60.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -304,8 +304,35 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.60.0  =
+*Release date - 23.06.2026*
+
+* New: Added a "Request a tracking pixel" link to the Tracking Pixels page so you can suggest a tracking pixel you would like us to add
+* Tweak: The Tracking Pixels page now separates active and inactive pixels with a labelled divider, so it is clear at a glance which pixels are currently tracking
+* Tweak: Turning on a consent gate (Explicit Consent Mode, or Google TCF support) now asks for confirmation first, because these settings stop all pixels from firing until your consent management platform grants consent
+* Tweak: Updated the development dependencies and vendor libraries to current releases; development tooling only, with no changes to the shipped plugin
+
+
+= 1.59.4  =
+*Release date - 19.06.2026*
+
+* Fix: The Opportunities tab could show a count in its badge while displaying no opportunity cards on sites running a non-English language; the opportunity impact level is now a stable internal value, so cards always render regardless of the active site language
+
+= 1.59.3  =
+*Release date - 17.06.2026*
+
+* Tweak: Updated the development dependencies to current patched releases; development tooling only, with no changes to the shipped plugin
+* Fix: Fixed the AddToCart event not firing for variable products rendered outside a native product page, such as through the [product_page] shortcode or a page builder's single-product widget; the selected variation is now detected from the add-to-cart form
+* Fix: WooCommerce.com distribution: the upgrade, account, and support links in the admin interface now point to WooCommerce.com
+* Fix: WooCommerce.com distribution: fixed the paid version showing the Pro tracking pixels as locked instead of unlocked
+
+
 = 1.59.2  =
 *Release date - 16.06.2026*
+
+* Tweak: Made the Nova admin UI clearly distinguish Pro from free features on unlicensed sites: Pro tracking pixels now group under a locked "Pixel Manager Pro" section instead of showing a misleading "active" badge, the Dashboard "Active pixels" count includes only pixels that are actually tracking, and locked fields explain whether a saved value is inactive without a Pro license or is a Pro-only feature
+* Tweak: Surfaced the 14-day free trial next to the in-app "Upgrade to Pro" links and the locked Tracking Pixels group, shown only when a trial can actually be started
+* Tweak: Removed the deprecated Meta Microdata output feature and its leftover setting, which no longer emitted any tracking code
 
 = 1.59.1  =
 *Release date - 15.06.2026*

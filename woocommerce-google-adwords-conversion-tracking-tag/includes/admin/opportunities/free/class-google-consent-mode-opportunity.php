@@ -52,10 +52,7 @@ class Google_Consent_Mode extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'          => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'          => 'high',
 			'setup_link'      => Documentation::get_link('google_consent_mode'),
 			'learn_more_link' => 'https://support.google.com/google-ads/answer/10000067',
 			'since'           => 1733529600, // timestamp: December 7, 2025

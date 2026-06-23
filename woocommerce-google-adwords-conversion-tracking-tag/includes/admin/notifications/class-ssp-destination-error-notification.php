@@ -128,6 +128,7 @@ class SSP_Destination_Error_Notification extends Notification {
 			'pinterest'  => 'Pinterest',
 			'snapchat'   => 'Snapchat',
 			'reddit'     => 'Reddit',
+			'openai'     => 'OpenAI',
 			'google_ga4' => 'Google Analytics 4',
 		];
 

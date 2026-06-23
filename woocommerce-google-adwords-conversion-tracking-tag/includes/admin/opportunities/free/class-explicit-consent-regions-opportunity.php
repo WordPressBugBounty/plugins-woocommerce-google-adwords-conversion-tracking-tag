@@ -52,10 +52,7 @@ class Explicit_Consent_Regions extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'          => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'          => 'high',
 			'setup_link'      => Documentation::get_link('restricted_consent_regions'),
 			'since'           => 1733529600, // timestamp: December 7, 2025
 		];

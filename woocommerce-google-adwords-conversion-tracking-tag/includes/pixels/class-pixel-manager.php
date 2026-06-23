@@ -18,6 +18,7 @@ use SweetCode\Pixel_Manager\Pixels\TikTok\TikTok_EAPI;
 use SweetCode\Pixel_Manager\Pixels\Pinterest\Pinterest_APIC;
 use SweetCode\Pixel_Manager\Pixels\Snapchat\Snapchat_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_CAPI;
+use SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_CAPI;
 use SweetCode\Pixel_Manager\Pixels\VWO\VWO;
 use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Helpers;
@@ -48,19 +49,6 @@ class Pixel_Manager {
      * Initializes the class and sets up options, states, additional classes, and pixel managers. Also registers actions and filters.
      */
     private function __construct() {
-        /**
-         * Inject optimization scripts
-         */
-        add_action( 'wp_head', function () {
-            if ( Options::is_ab_tasty_active() ) {
-                AB_Tasty::inject_script();
-            }
-        }, 1 );
-        add_action( 'wp_enqueue_scripts', function () {
-            if ( Options::is_optimizely_active() ) {
-                Optimizely::enqueue_scripts();
-            }
-        }, 10 );
         /**
          * Initialize Google Tag Gateway Proxy
          *
@@ -744,6 +732,9 @@ class Pixel_Manager {
                 if ( Options::is_reddit_capi_active() ) {
                     Reddit_CAPI::set_identifiers_on_session();
                 }
+                if ( Options::is_openai_capi_active() ) {
+                    OpenAI_CAPI::set_identifiers_on_session();
+                }
             }
             // TODO: That function should probably not go into the Google_MP_GA4 class
             if ( Shop::pmw_is_order_received_page() ) {
@@ -1326,6 +1317,16 @@ class Pixel_Manager {
         ];
     }
 
+    private function get_openai_pixel_data() {
+        return [
+            'pixel_id'            => Options::get_openai_pixel_id(),
+            'advanced_matching'   => Options::is_openai_advanced_matching_enabled(),
+            'dynamic_remarketing' => [
+                'id_type' => Product::get_dyn_r_id_type( 'openai' ),
+            ],
+        ];
+    }
+
     private function get_snapchat_pixel_data() {
         return [
             'pixel_id'            => Options::get_snapchat_pixel_id(),
@@ -1387,6 +1388,18 @@ class Pixel_Manager {
     private static function get_vwo_pixel_data() {
         return [
             'account_id' => Options::get_vwo_account_id(),
+        ];
+    }
+
+    private static function get_optimizely_pixel_data() {
+        return [
+            'project_id' => Options::get_optimizely_project_id(),
+        ];
+    }
+
+    private static function get_ab_tasty_pixel_data() {
+        return [
+            'account_id' => Options::get_ab_tasty_account_id(),
         ];
     }
 

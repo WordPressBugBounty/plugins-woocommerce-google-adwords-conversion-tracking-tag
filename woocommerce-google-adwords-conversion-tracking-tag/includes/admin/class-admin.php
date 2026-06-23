@@ -608,6 +608,14 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // Add the field for the OpenAI pixel
+            add_settings_field(
+                'pmw_plugin_openai_pixel_id',
+                esc_html__( 'OpenAI pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_openai_pixel_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             // add the field for the Snapchat pixel
             add_settings_field(
                 'wpm_plugin_snapchat_pixel_id',
@@ -657,22 +665,20 @@ class Admin {
         /**
          * Add the settings fields
          */
-        if ( Helpers::is_experiment() ) {
-            add_settings_field(
-                'pmw_plugin_ab_tasty_account_id',
-                esc_html__( 'AB Tasty', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-                [__CLASS__, 'option_html_ab_tasty_account_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-            add_settings_field(
-                'pmw_plugin_optimizely_project_id',
-                esc_html__( 'Optimizely', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-                [__CLASS__, 'option_html_optimizely_project_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-        }
+        add_settings_field(
+            'pmw_plugin_ab_tasty_account_id',
+            esc_html__( 'AB Tasty', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            [__CLASS__, 'option_html_ab_tasty_account_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        add_settings_field(
+            'pmw_plugin_optimizely_project_id',
+            esc_html__( 'Optimizely', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            [__CLASS__, 'option_html_optimizely_project_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
         add_settings_field(
             'pmw_plugin_vwo_account_id',
             esc_html__( 'VWO', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
@@ -706,6 +712,7 @@ class Admin {
             self::add_section_advanced_subsection_pinterest( $section_ids );
             self::add_section_advanced_subsection_snapchat( $section_ids );
             self::add_section_advanced_subsection_reddit( $section_ids );
+            self::add_section_advanced_subsection_openai( $section_ids );
             self::add_section_advanced_subsection_tiktok( $section_ids );
             if ( Environment::is_woocommerce_active() ) {
                 self::add_section_advanced_subsection_twitter( $section_ids );
@@ -1164,6 +1171,30 @@ class Admin {
             'plugin_reddit_advanced_matching',
             esc_html__( 'Reddit Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'option_html_reddit_advanced_matching'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
+    public static function add_section_advanced_subsection_openai( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'OpenAI',
+            'slug'  => 'openai',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the OpenAI CAPI token
+        add_settings_field(
+            'pmw_setting_openai_capi_token',
+            esc_html__( 'OpenAI Conversions API: token', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_openai_capi_token'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the OpenAI advanced matching
+        add_settings_field(
+            'plugin_openai_advanced_matching',
+            esc_html__( 'OpenAI Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_openai_advanced_matching'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -2034,10 +2065,13 @@ class Admin {
             true
         );
         // Pass data to the React app (same payload as the Nova UI).
-        $can_use_premium = false;
-        if ( function_exists( 'wpm_fs' ) ) {
-            $can_use_premium = wpm_fs()->can_use_premium_code__premium_only();
-        }
+        // Use the canonical helper, not an inline wpm_fs() check: the WooCommerce
+        // Marketplace builds ship without the Freemius SDK, so function_exists('wpm_fs')
+        // is false there and the gulp `can_use_premium_code__premium_only() -> true`
+        // rewrite is dead code (it sits inside the guard). is_pmw_pro_version_active()
+        // resolves the paid wcm distribution via PMW_PLUGIN_BASENAME, so Pro pixels are
+        // correctly unlocked in the WooCommerce Pro build instead of shown as gated.
+        $can_use_premium = Helpers::is_pmw_pro_version_active();
         // Expired means: this is the premium code base, but the license no
         // longer validates. The Dashboard shows a prominent renewal card.
         $license_expired = false;
@@ -2069,9 +2103,11 @@ class Admin {
             'gadsConversionAdjustmentsFeedUrl' => get_site_url() . Pixel_Manager::get_instance()->get_google_ads_conversion_adjustments_endpoint(),
             'recentLogUrl'                     => (string) Helpers::get_admin_url_link_to_recent_wc_log( 'pmw' ),
             'ga4DataApiClientEmail'            => ( isset( $ga4_credentials['client_email'] ) ? (string) $ga4_credentials['client_email'] : '' ),
-            'freemiusUpgradeUrl'               => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_upgrade_url() : '' ),
-            'freemiusAccountUrl'               => ( function_exists( 'wpm_fs' ) ? wpm_fs()->get_account_url() : '' ),
-            'freemiusTrialUrl'                 => Trial_Promotion_Notification::get_available_trial_url(),
+            'upgradeUrl'                       => Commercial_Links::upgrade_url(),
+            'accountUrl'                       => Commercial_Links::account_url(),
+            'supportUrl'                       => Commercial_Links::support_url(),
+            'pixelRequestUrl'                  => Commercial_Links::pixel_request_url(),
+            'trialUrl'                         => Trial_Promotion_Notification::get_available_trial_url(),
         ] );
         ?>
 		<style>
@@ -2305,7 +2341,7 @@ class Admin {
                 'id'          => ( isset( $card['id'] ) ? $card['id'] : '' ),
                 'title'       => html_entity_decode( wp_strip_all_tags( ( isset( $card['title'] ) ? $card['title'] : '' ) ), ENT_QUOTES, 'UTF-8' ),
                 'description' => $description,
-                'impact'      => strtolower( ( isset( $card['impact'] ) ? $card['impact'] : 'low' ) ),
+                'impact'      => Opportunities::normalize_impact( ( isset( $card['impact'] ) ? $card['impact'] : 'low' ) ),
                 'setupLink'   => ( isset( $card['setup_link'] ) ? $card['setup_link'] : '' ),
                 'learnMore'   => ( isset( $card['learn_more_link'] ) ? $card['learn_more_link'] : '' ),
                 'setupVideo'  => ( isset( $card['setup_video'] ) ? $card['setup_video'] : '' ),
@@ -2354,8 +2390,8 @@ class Admin {
                 continue;
             }
             $card = $class::card_data();
-            $impact = strtolower( ( isset( $card['impact'] ) ? $card['impact'] : 'low' ) );
-            $total += ( isset( $weights[$impact] ) ? $weights[$impact] : 1 );
+            $impact = Opportunities::normalize_impact( ( isset( $card['impact'] ) ? $card['impact'] : 'low' ) );
+            $total += $weights[$impact];
         }
         return $total;
     }
@@ -2667,7 +2703,9 @@ class Admin {
 							<?php 
         esc_html_e( 'Get the pro version of the Pixel Manager for WooCommerce over here', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
-							: <a href="//sweetcode.com/pricing"
+							: <a href="<?php 
+        echo esc_url( ( Helpers::is_pmw_wcm_distro() ? Commercial_Links::WC_PRODUCT_URL : 'https://sweetcode.com/pricing' ) );
+        ?>"
 								target="_blank"><?php 
         esc_html_e( 'Go Pro', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?></a>
@@ -4259,6 +4297,106 @@ class Admin {
 				<span class="dashicons dashicons-info"></span>
 				<?php 
             esc_html_e( 'You need to activate the Reddit pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
+    }
+
+    public static function option_html_openai_pixel_id() {
+        ?>
+		<input class="pmw mono"
+				id="plugin_openai_pixel_id"
+				name="wgact_plugin_options[pixels][openai][pixel_id]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_openai_pixel_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::get_openai_pixel_id(), true, true );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'openai_pixel_id' );
+        ?>
+		<?php 
+        self::output_advanced_section_cog_html( 'openai' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<p style="margin-top:16px">
+			<?php 
+        esc_html_e( 'Create your OpenAI pixel ID in the conversions tab of OpenAI Ads Manager.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</p>
+		<?php 
+    }
+
+    public static function option_html_openai_advanced_matching() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][openai][advanced_matching]">
+			<input type="checkbox"
+					id="plugin_openai_advanced_matching"
+					name="wgact_plugin_options[pixels][openai][advanced_matching]"
+					value="1"
+				<?php 
+        checked( Options::is_openai_advanced_matching_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable OpenAI advanced matching', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_openai_advanced_matching_enabled(), Options::is_openai_active(), true );
+        self::get_documentation_html_by_key( 'openai_advanced_matching' );
+        self::html_pro_feature();
+    }
+
+    public static function option_html_openai_capi_token() {
+        ?>
+		<textarea class="pmw mono"
+					id="plugin_openai_capi_token"
+					name="wgact_plugin_options[pixels][openai][capi][token]"
+					cols="60"
+					rows="6"
+					onfocus="this.select();"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>><?php 
+        echo esc_html( Options::get_openai_capi_token() );
+        ?></textarea>
+		<?php 
+        self::display_status_icon( Options::get_openai_capi_token(), Options::is_openai_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'openai_capi_token' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_openai_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the OpenAI pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
             ?>
 			</p>
 		<?php 
@@ -6776,7 +6914,7 @@ class Admin {
         }
         if ( 'wcm' === Helpers::get_pmw_distro() ) {
             // Affiliate links are not allowed
-            $link = 'https://woocommerce.com/products/pixel-manager-pro-for-woocommerce/';
+            $link = Commercial_Links::WC_PRODUCT_URL;
             $button_text = __( 'Get Pro', 'woocommerce-google-adwords-conversion-tracking-tag' );
         } else {
             $link = 'https://sweetcode.com/plugins/pmw/?open-checkout=&trial=&billing-cycle=annual&utm_source=plugin&utm_medium=start-free-trial-button&utm_campaign=show-pro-version-settings#pricing-section';

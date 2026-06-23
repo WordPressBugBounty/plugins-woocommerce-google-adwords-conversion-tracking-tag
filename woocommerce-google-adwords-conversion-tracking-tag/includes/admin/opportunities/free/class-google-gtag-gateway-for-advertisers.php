@@ -63,10 +63,7 @@ class Google_Gtag_Gateway_For_Advertisers extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'          => esc_html__(
-				'high',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'          => 'high',
 			'setup_link'      => Documentation::get_link('google_tag_gateway_measurement_path'),
 			'learn_more_link' => 'https://support.google.com/google-ads/answer/16214371',
 			'since'           => 1747353600, // timestamp

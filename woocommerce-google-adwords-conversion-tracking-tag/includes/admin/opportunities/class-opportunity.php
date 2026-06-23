@@ -23,6 +23,18 @@ abstract class Opportunity {
 		return !static::available();
 	}
 
+	/**
+	 * Return the card data for this opportunity.
+	 *
+	 * IMPORTANT: the 'impact' value is a canonical machine key and MUST be one
+	 * of the literal lowercase strings 'high', 'medium' or 'low'. Do NOT wrap it
+	 * in esc_html__()/__(): the Nova admin UI groups and renders cards by exact
+	 * impact key, so a translated value (e.g. 'hoch' on a German site) would be
+	 * counted in the tab badge but never rendered. Human-readable, localized
+	 * impact labels are derived for display by the consuming UI.
+	 *
+	 * @return array
+	 */
 	abstract public static function card_data();
 
 	public static function custom_middle_cart_html() {

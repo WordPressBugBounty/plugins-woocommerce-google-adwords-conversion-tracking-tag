@@ -48,10 +48,7 @@ class Google_Ads_Conversion_Cart_Data extends Opportunity {
 					'woocommerce-google-adwords-conversion-tracking-tag'
 				),
 			],
-			'impact'      => esc_html__(
-				'medium',
-				'woocommerce-google-adwords-conversion-tracking-tag'
-			),
+			'impact'      => 'medium',
 			'setup_link'  => Documentation::get_link('aw_merchant_id'),
 			//          'learn_more_link' => '#',
 			'since'       => 1672895375, // timestamp

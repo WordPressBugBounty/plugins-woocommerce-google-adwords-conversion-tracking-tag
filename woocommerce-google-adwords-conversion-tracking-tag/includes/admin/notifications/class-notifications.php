@@ -3,6 +3,7 @@
 namespace SweetCode\Pixel_Manager\Admin\Notifications;
 
 use SweetCode\Pixel_Manager\Admin\Admin;
+use SweetCode\Pixel_Manager\Admin\Commercial_Links;
 use SweetCode\Pixel_Manager\Admin\Documentation;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunities;
