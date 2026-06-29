@@ -42,7 +42,35 @@ class Product {
 		 *
 		 * @since 1.31.2
 		 */
-		return apply_filters('pmw_order_items', $order_items, $order);
+		$order_items = apply_filters('pmw_order_items', $order_items, $order);
+
+		/**
+		 * Collapse bundle/composite containers into a single reported line by
+		 * dropping the bundled/composited child items. A bundle is then counted
+		 * once (as its container, repriced via pmw_get_order_item_price) instead
+		 * of as container + N children, which inflated item counts and produced
+		 * 0-priced phantom rows. No-op when neither WooCommerce Product Bundles
+		 * nor Composite Products is active.
+		 */
+		return self::remove_container_child_order_items($order_items, $order);
+	}
+
+	/**
+	 * Total quantity of the reported (bundle-collapsed) order items. Use instead
+	 * of $order->get_item_count() so bundle children don't inflate the count.
+	 *
+	 * @param \WC_Abstract_Order $order
+	 * @return int
+	 */
+	public static function get_order_item_count( $order ) {
+
+		$count = 0;
+
+		foreach (self::pmw_get_order_items($order) as $order_item) {
+			$count += (int) $order_item->get_quantity();
+		}
+
+		return $count;
 	}
 
 	public static function get_variation_or_product_id( $item, $variations_output = true ) {
@@ -145,13 +173,74 @@ class Product {
 
 	public static function get_product_price_for_datalayer( $product ) {
 
-		// https://stackoverflow.com/a/37231033/4688612
-		// This also works with WPML Multicurrency
-		if (self::output_product_prices_with_tax()) {
-			return wc_get_price_including_tax($product);
-		} else {
-			return wc_get_price_excluding_tax($product);
+		// Container products (WooCommerce Product Bundles / Composite Products)
+		// don't expose their assembled price through get_price(), which the
+		// wc_get_price_* helpers read, so they would report 0 for "priced
+		// individually" configurations. Resolve the assembled price first.
+		$price = self::get_container_product_price_for_datalayer($product);
+
+		if (null === $price) {
+			// https://stackoverflow.com/a/37231033/4688612
+			// This also works with WPML Multicurrency
+			if (self::output_product_prices_with_tax()) {
+				$price = wc_get_price_including_tax($product);
+			} else {
+				$price = wc_get_price_excluding_tax($product);
+			}
 		}
+
+		/**
+		 * Filter the per-product price written to the data layer (add_to_cart,
+		 * view_item, view_item_list, cart).
+		 *
+		 * @since 1.61.0
+		 *
+		 * @param float|string $price   The resolved product price.
+		 * @param \WC_Product  $product The product being priced.
+		 */
+		return apply_filters('pmw_product_price_for_datalayer', $price, $product);
+	}
+
+	/**
+	 * Resolve the assembled price for container products whose get_price() does
+	 * not reflect their real value.
+	 *
+	 * WooCommerce Product Bundles: a "priced individually" bundle keeps its value
+	 * on the bundled child items, so the container's get_price() is 0/empty. The
+	 * assembled minimum price lives in get_bundle_price_including/excluding_tax().
+	 * WooCommerce Composite Products behaves the same way. For static bundles the
+	 * bundle-price getters return the same value get_price() would, so calling
+	 * them unconditionally is safe for both modes.
+	 *
+	 * Returns null for regular products (and when the relevant plugin is not
+	 * active), so the caller falls back to the standard wc_get_price_* path.
+	 *
+	 * @param \WC_Product $product
+	 * @return float|null
+	 */
+	private static function get_container_product_price_for_datalayer( $product ) {
+
+		if (!is_callable([ $product, 'is_type' ])) {
+			return null;
+		}
+
+		$incl_tax = self::output_product_prices_with_tax();
+
+		if ($product->is_type('bundle') && method_exists($product, 'get_bundle_price_including_tax')) {
+			$price = $incl_tax
+				? $product->get_bundle_price_including_tax('min')
+				: $product->get_bundle_price_excluding_tax('min');
+			return ( '' === $price || null === $price ) ? null : (float) $price;
+		}
+
+		if ($product->is_type('composite') && method_exists($product, 'get_composite_price_including_tax')) {
+			$price = $incl_tax
+				? $product->get_composite_price_including_tax('min')
+				: $product->get_composite_price_excluding_tax('min');
+			return ( '' === $price || null === $price ) ? null : (float) $price;
+		}
+
+		return null;
 	}
 
 	public static function get_product_details_for_datalayer( $product ) {
@@ -379,6 +468,18 @@ class Product {
 				'variant_description' => (string) ( $product->get_type() === 'variation' ) ? self::get_formatted_variant_text($product) : '',
 			];
 
+			// For a bundle/composite container, roll the children's amounts into
+			// the single reported line so subtotal/total reflect the whole bundle
+			// (the container's own line is 0 in "priced individually" mode). The
+			// price fields above are already container-aware via pmw_get_order_item_price().
+			$container_totals = self::get_container_order_item_totals($order_item, $order);
+			if (null !== $container_totals) {
+				$product_data['subtotal']     = $container_totals['subtotal'];
+				$product_data['subtotal_tax'] = $container_totals['subtotal_tax'];
+				$product_data['total']        = $container_totals['total'];
+				$product_data['total_tax']    = $container_totals['total_tax'];
+			}
+
 			// Add the name of the parent product if the product is a variation
 			if ($product->get_type() === 'variation') {
 				// get the parent product
@@ -492,6 +593,20 @@ class Product {
 	 */
 	public static function pmw_get_order_item_price( $order_item, $include_tax = null ) {
 
+		if (null === $include_tax) {
+			$include_tax = self::output_product_prices_with_tax();
+		}
+
+		// Bundle/Composite container: its own line is 0 ("priced individually")
+		// or carries the whole price (static), while the children carry the rest.
+		// Report the assembled per-unit price so the single collapsed line matches
+		// what was paid for the bundle. Must run before the get_item_total() path,
+		// which would return the container's own (possibly 0) line amount.
+		$container_price = self::maybe_get_container_order_item_unit_price($order_item, $include_tax);
+		if (null !== $container_price) {
+			return $container_price;
+		}
+
 		if (Environment::is_woo_discount_rules_active()) {
 
 			$item_value = $order_item->get_meta('_advanced_woo_discount_item_total_discount');
@@ -505,10 +620,259 @@ class Product {
 			}
 		}
 
+		return (float) wc_format_decimal($order_item->get_order()->get_item_total($order_item, $include_tax), 2);
+	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Container products (WooCommerce Product Bundles / Composite Products)
+	|--------------------------------------------------------------------------
+	|
+	| A bundle/composite is stored as a container line item plus one line item
+	| per child. PMW reports the bundle once (the container) and prices it as the
+	| sum of the container and its children, so item counts and per-item revenue
+	| stay correct in both pricing modes. Every helper is a no-op when the
+	| relevant plugin is inactive (the function_exists guards return false), so
+	| behaviour is unchanged on stores without bundles/composites.
+	*/
+
+	private static function remove_container_child_order_items( $order_items, $order ) {
+
+		if (
+			!function_exists('wc_pb_is_bundled_order_item')
+			&& !function_exists('wc_cp_is_composited_order_item')
+		) {
+			return $order_items;
+		}
+
+		foreach ($order_items as $key => $order_item) {
+			if (self::is_container_child_order_item($order_item, $order)) {
+				unset($order_items[$key]);
+			}
+		}
+
+		return $order_items;
+	}
+
+	public static function is_container_child_order_item( $order_item, $order ) {
+
+		if (function_exists('wc_pb_is_bundled_order_item') && wc_pb_is_bundled_order_item($order_item, $order)) {
+			return true;
+		}
+
+		if (function_exists('wc_cp_is_composited_order_item') && wc_cp_is_composited_order_item($order_item, $order)) {
+			return true;
+		}
+
+		return false;
+	}
+
+	public static function is_container_order_item( $order_item ) {
+
+		if (function_exists('wc_pb_is_bundle_container_order_item') && wc_pb_is_bundle_container_order_item($order_item)) {
+			return true;
+		}
+
+		if (function_exists('wc_cp_is_composite_container_order_item') && wc_cp_is_composite_container_order_item($order_item)) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private static function get_container_child_order_items( $container_order_item, $order ) {
+
+		if (
+			function_exists('wc_pb_get_bundled_order_items')
+			&& function_exists('wc_pb_is_bundle_container_order_item')
+			&& wc_pb_is_bundle_container_order_item($container_order_item)
+		) {
+			return (array) wc_pb_get_bundled_order_items($container_order_item, $order);
+		}
+
+		if (
+			function_exists('wc_cp_get_composited_order_items')
+			&& function_exists('wc_cp_is_composite_container_order_item')
+			&& wc_cp_is_composite_container_order_item($container_order_item)
+		) {
+			return (array) wc_cp_get_composited_order_items($container_order_item, $order);
+		}
+
+		return [];
+	}
+
+	/**
+	 * The assembled total amount of a bundle/composite container order item
+	 * (container line + all child lines, every unit). Returns null when the item
+	 * is not a container.
+	 *
+	 * @param object   $order_item
+	 * @param bool|null $include_tax
+	 * @return float|null
+	 */
+	public static function maybe_get_container_order_item_line_amount( $order_item, $include_tax = null ) {
+
+		if (!is_callable([ $order_item, 'get_order' ]) || !self::is_container_order_item($order_item)) {
+			return null;
+		}
+
+		$order = $order_item->get_order();
+
+		if (!$order) {
+			return null;
+		}
+
 		if (null === $include_tax) {
 			$include_tax = self::output_product_prices_with_tax();
 		}
 
-		return (float) wc_format_decimal($order_item->get_order()->get_item_total($order_item, $include_tax), 2);
+		$line_total = self::get_order_item_line_amount($order_item, $include_tax);
+
+		foreach (self::get_container_child_order_items($order_item, $order) as $child) {
+			$line_total += self::get_order_item_line_amount($child, $include_tax);
+		}
+
+		return (float) Helpers::format_decimal($line_total, 2);
+	}
+
+	/**
+	 * The assembled per-unit price of a bundle/composite container order item,
+	 * i.e. the rolled-up line amount divided by the container quantity. Returns
+	 * null when the item is not a container.
+	 *
+	 * @param object   $order_item
+	 * @param bool|null $include_tax
+	 * @return float|null
+	 */
+	public static function maybe_get_container_order_item_unit_price( $order_item, $include_tax = null ) {
+
+		$line_amount = self::maybe_get_container_order_item_line_amount($order_item, $include_tax);
+
+		if (null === $line_amount) {
+			return null;
+		}
+
+		$quantity = max(1, (int) $order_item->get_quantity());
+
+		return (float) Helpers::format_decimal($line_amount / $quantity, 2);
+	}
+
+	/**
+	 * Rolled-up subtotal/total figures for a container order item (container plus
+	 * its children). Returns null when the item is not a container.
+	 *
+	 * @param object             $order_item
+	 * @param \WC_Abstract_Order $order
+	 * @return array|null
+	 */
+	private static function get_container_order_item_totals( $order_item, $order ) {
+
+		if (!self::is_container_order_item($order_item)) {
+			return null;
+		}
+
+		$items = array_merge([ $order_item ], self::get_container_child_order_items($order_item, $order));
+
+		$totals = [
+			'subtotal'     => 0.0,
+			'subtotal_tax' => 0.0,
+			'total'        => 0.0,
+			'total_tax'    => 0.0,
+		];
+
+		foreach ($items as $item) {
+			$totals['subtotal']     += (float) $item->get_subtotal();
+			$totals['subtotal_tax'] += (float) $item->get_subtotal_tax();
+			$totals['total']        += (float) $item->get_total();
+			$totals['total_tax']    += (float) $item->get_total_tax();
+		}
+
+		foreach ($totals as $key => $value) {
+			$totals[$key] = (float) Helpers::format_decimal($value, 2);
+		}
+
+		return $totals;
+	}
+
+	private static function get_order_item_line_amount( $order_item, $include_tax ) {
+
+		$amount = (float) $order_item->get_total();
+
+		if ($include_tax) {
+			$amount += (float) $order_item->get_total_tax();
+		}
+
+		return $amount;
+	}
+
+	public static function is_container_child_cart_item( $cart_item ) {
+
+		if (function_exists('wc_pb_is_bundled_cart_item') && wc_pb_is_bundled_cart_item($cart_item)) {
+			return true;
+		}
+
+		if (function_exists('wc_cp_is_composited_cart_item') && wc_cp_is_composited_cart_item($cart_item)) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * The assembled per-unit price of a bundle/composite container cart item,
+	 * computed from the configured cart line subtotals (container + children).
+	 * Returns null when the item is not a container.
+	 *
+	 * @param array     $cart_item
+	 * @param array     $cart_contents
+	 * @param bool|null $include_tax
+	 * @return float|null
+	 */
+	public static function maybe_get_container_cart_item_unit_price( $cart_item, $cart_contents, $include_tax = null ) {
+
+		$children = null;
+
+		if (
+			function_exists('wc_pb_is_bundle_container_cart_item')
+			&& function_exists('wc_pb_get_bundled_cart_items')
+			&& wc_pb_is_bundle_container_cart_item($cart_item)
+		) {
+			$children = wc_pb_get_bundled_cart_items($cart_item, $cart_contents);
+		} elseif (
+			function_exists('wc_cp_is_composite_container_cart_item')
+			&& function_exists('wc_cp_get_composited_cart_items')
+			&& wc_cp_is_composite_container_cart_item($cart_item)
+		) {
+			$children = wc_cp_get_composited_cart_items($cart_item, $cart_contents);
+		}
+
+		if (null === $children) {
+			return null;
+		}
+
+		if (null === $include_tax) {
+			$include_tax = self::output_product_prices_with_tax();
+		}
+
+		$subtotal = self::get_cart_item_line_amount($cart_item, $include_tax);
+
+		foreach ((array) $children as $child) {
+			$subtotal += self::get_cart_item_line_amount($child, $include_tax);
+		}
+
+		$quantity = max(1, (int) $cart_item['quantity']);
+
+		return (float) Helpers::format_decimal($subtotal / $quantity, 2);
+	}
+
+	private static function get_cart_item_line_amount( $cart_item, $include_tax ) {
+
+		$amount = isset($cart_item['line_subtotal']) ? (float) $cart_item['line_subtotal'] : 0.0;
+
+		if ($include_tax && isset($cart_item['line_subtotal_tax'])) {
+			$amount += (float) $cart_item['line_subtotal_tax'];
+		}
+
+		return $amount;
 	}
 }

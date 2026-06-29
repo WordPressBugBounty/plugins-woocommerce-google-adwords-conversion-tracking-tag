@@ -263,6 +263,9 @@ class Options {
 				'contentsquare' => [
 					'tag_id' => '',
 				],
+				'clarity'    => [
+					'project_id' => '',
+				],
 			],
 			'shop'       => [
 				'order_total_logic'             => 0,
@@ -914,6 +917,18 @@ class Options {
 
 	public static function is_contentsquare_active() {
 		return (bool) self::get_contentsquare_tag_id();
+	}
+
+	/**
+	 * Microsoft Clarity
+	 */
+
+	public static function get_clarity_project_id() {
+		return self::get_options_obj()->pixels->clarity->project_id;
+	}
+
+	public static function is_clarity_active() {
+		return (bool) self::get_clarity_project_id();
 	}
 
 	/**

@@ -711,6 +711,21 @@ class Validations {
 			}
 		}
 
+		// Validate the Microsoft Clarity project ID
+		if (isset($input['pixels']['clarity']['project_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['clarity']['project_id'] = Helpers::trim_string($input['pixels']['clarity']['project_id']);
+
+			if (!self::is_clarity_project_id($input['pixels']['clarity']['project_id'])) {
+				$input['pixels']['clarity']['project_id']
+					= Options::get_clarity_project_id()
+					? Options::get_clarity_project_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-clarity-project-id', esc_html__('You have entered an invalid Microsoft Clarity project ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Sanitize and validate scroll tracker thresholds
 		if (isset($input['general']['scroll_tracker_thresholds'])) {
 
@@ -1103,6 +1118,7 @@ class Validations {
 			'pixels.ab_tasty.account_id',
 			'pixels.adroll.advertiser_id',
 			'pixels.adroll.pixel_id',
+			'pixels.clarity.project_id',
 			'pixels.contentsquare.tag_id',
 			'pixels.linkedin.conversion_ids.add_to_cart',
 			'pixels.linkedin.conversion_ids.purchase',
@@ -1380,6 +1396,16 @@ class Validations {
 
 		// Contentsquare tag ID format: alphanumeric string like b457e22cc0c6e
 		$re = '/^[a-z0-9]{10,20}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_clarity_project_id( $string ) {
+
+		// Microsoft Clarity project ID format: lowercase base36 string, typically
+		// 10 characters (e.g. q9zk3x7p2w). Kept slightly permissive so valid IDs
+		// are never rejected, while still blocking whitespace, markup and control characters.
+		$re = '/^[a-z0-9]{8,15}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1872,6 +1898,9 @@ class Validations {
 
 			// Contentsquare
 			'pixels.contentsquare.tag_id'                       => [ 'is_contentsquare_tag_id', __('Invalid Contentsquare tag ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Microsoft Clarity
+			'pixels.clarity.project_id'                         => [ 'is_clarity_project_id', __('Invalid Microsoft Clarity project ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 		];
 	}
 }

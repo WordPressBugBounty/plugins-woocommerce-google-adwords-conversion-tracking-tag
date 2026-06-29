@@ -239,6 +239,7 @@ class Environment {
 		 * Delete specific transients.
 		 */
 		delete_transient('pmw_google_tag_id');
+		delete_transient('pmw_google_tag_id_information');
 	}
 
 	private static function purge_first_layer_cache() {

@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.3
-Stable tag: 1.60.0
+Stable tag: 1.61.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -303,6 +303,17 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.61.0  =
+*Release date - 29.06.2026*
+
+* Tweak: When you enable the Google Tag Gateway but your site is not served through a Cloudflare edge, the Pixel Manager now warns you once that the gateway is handled by your own server and adds load, so you can move it behind Cloudflare, keep it as-is, or turn it off
+* Tweak: The confirmation that appears when you turn on a consent gate (Explicit Consent Mode, or Google TCF support) now offers only "Enable anyway" or "Cancel" and can no longer be closed by clicking beside it, pressing Escape, or a close icon, so this consequential choice is not dismissed by accident
+* Tweak: Added a `pmw_product_price_for_datalayer` filter to override the per-product price used in the browser events
+* Tweak: WooCommerce Product Bundles and Composite Products are now counted once at their full bundle price in purchase and cart events, instead of listing the bundle container alongside each of its child products
+* Fix: After you changed your Google tag or conversion ID, the old ID could keep being used for up to an hour because the cached tag ID was not cleared when you saved your settings; the cache is now cleared on save, so the new ID takes effect immediately
+* Fix: When Google Consent Mode was enabled without a cookie banner, Google Analytics and Google Ads could stop receiving data because the consent signal was applied a moment too late; the Pixel Manager now sets it before the Google tag loads, so your data flows in again
+* Fix: WooCommerce Product Bundles and Composite Products that are priced per item reported a price of 0 in the add to cart and view item events; the Pixel Manager now reports the real bundle price
 
 = 1.60.0  =
 *Release date - 23.06.2026*

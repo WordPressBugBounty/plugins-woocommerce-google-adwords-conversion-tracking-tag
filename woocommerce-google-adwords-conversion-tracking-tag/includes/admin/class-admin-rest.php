@@ -95,6 +95,16 @@ class Admin_REST {
 					wp_send_json_error('Unknown onboarding step');
 				}
 
+				// One-time server-load warning acknowledgement (CAPI / Tag Gateway).
+				if ('server_load_warning' === $data['type']) {
+
+					if (Server_Load_Warning::acknowledge($data['id'])) {
+						wp_send_json_success();
+					}
+
+					wp_send_json_error('Unknown server load warning');
+				}
+
 				// Rating card actions from the Nova admin UI.
 				if ('rating' === $data['type']) {
 
@@ -457,6 +467,12 @@ class Admin_REST {
 			$titles[(string) $gateway->id] = (string) $gateway->method_title;
 		}
 
+		// Currently-enabled gateways, so the UI can scope the trend to active ones.
+		$enabled_ids = [];
+		foreach (Debug_Info::get_enabled_payment_gateways() as $gateway) {
+			$enabled_ids[(string) $gateway->id] = true;
+		}
+
 		$seen     = [];
 		$gateways = [];
 		$out_rows = [];
@@ -468,6 +484,7 @@ class Admin_REST {
 				$gateways[] = [
 					'id'          => $id,
 					'methodTitle' => isset($titles[$id]) ? $titles[$id] : $id,
+					'enabled'     => isset($enabled_ids[$id]),
 				];
 			}
 

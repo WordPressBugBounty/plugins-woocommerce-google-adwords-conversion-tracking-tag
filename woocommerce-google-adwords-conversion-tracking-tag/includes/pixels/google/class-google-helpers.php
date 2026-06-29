@@ -592,27 +592,53 @@ class Google_Helpers {
      */
     public static function get_google_tag_id_information() {
         $transient_name = 'pmw_google_tag_id_information';
-        // If saved in transient get from transient
+        /**
+         * The transient only caches the (expensive) Google tag availability probing
+         * done in determine_google_tag_id_information(). The filtered tag id is
+         * intentionally NOT cached, so the `pmw_google_tag_id` filter runs on every
+         * request and can override the tag id even when the cache is warm.
+         */
         $google_tag_id_information = get_transient( $transient_name );
-        if ( $google_tag_id_information ) {
-            return $google_tag_id_information;
+        if ( false === $google_tag_id_information ) {
+            $google_tag_id_information = self::determine_google_tag_id_information();
+            set_transient( $transient_name, $google_tag_id_information, HOUR_IN_SECONDS );
         }
-        $google_tag_id_information = self::determine_google_tag_id_information();
-        $tag_active = $google_tag_id_information['active'];
+        $google_tag_id_information['active'] = self::filter_google_tag_id( $google_tag_id_information['active'] );
+        return $google_tag_id_information;
+    }
+
+    /**
+     * Apply the Google tag id filters.
+     *
+     * Runs on every request (the result is not stored in the transient) so that an
+     * override takes effect immediately, regardless of the cached tag availability
+     * information.
+     *
+     * @param string|null $tag_active
+     *
+     * @return string|null
+     *
+     * @since 1.60.1
+     */
+    private static function filter_google_tag_id( $tag_active ) {
         $tag_active = apply_filters_deprecated(
             'pmw_google_tracking_id',
             [$tag_active],
             '1.48.0',
-            'google_tag_id'
+            'pmw_google_tag_id'
+        );
+        $tag_active = apply_filters_deprecated(
+            'google_tag_id',
+            [$tag_active],
+            '1.60.1',
+            'pmw_google_tag_id'
         );
         /**
-         * Filters Google tag id.
+         * Filters the Google tag id.
          *
-         * @since 1.58.5
+         * @since 1.60.1
          */
-        $google_tag_id_information['active'] = apply_filters( 'google_tag_id', $tag_active );
-        set_transient( $transient_name, $google_tag_id_information, HOUR_IN_SECONDS );
-        return $google_tag_id_information;
+        return apply_filters( 'pmw_google_tag_id', $tag_active );
     }
 
     /**

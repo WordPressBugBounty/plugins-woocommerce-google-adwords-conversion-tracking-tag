@@ -164,7 +164,11 @@ class Dashboard_Widget {
 	}
 
 	/**
-	 * Compute the overall tracking accuracy across all gateways for the last N days.
+	 * Compute the tracking accuracy across active (enabled) gateways for the last N days.
+	 *
+	 * Scoped to currently-enabled gateways so the widget matches the Pixel Manager
+	 * dashboard's gateway-health view; inactive, off-site or legacy gateways that
+	 * cannot reach the order-received page would otherwise drag the number down.
 	 *
 	 * @param int $days Number of days to look back.
 	 *
@@ -177,7 +181,14 @@ class Dashboard_Widget {
 			return null;
 		}
 
-		$rows = Tracking_Accuracy_DB::get_accuracy_data($days);
+		// Scope to enabled gateways; fall back to all gateways if none resolve.
+		$enabled_ids = array_map(function ( $gateway ) {
+			return $gateway->id;
+		}, Debug_Info::get_enabled_payment_gateways());
+
+		$rows = !empty($enabled_ids)
+			? Tracking_Accuracy_DB::get_accuracy_data($days, $enabled_ids)
+			: Tracking_Accuracy_DB::get_accuracy_data($days);
 
 		if (empty($rows)) {
 			return null;

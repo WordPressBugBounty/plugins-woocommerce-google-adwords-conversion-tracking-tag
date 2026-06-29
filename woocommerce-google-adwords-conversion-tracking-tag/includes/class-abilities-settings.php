@@ -674,6 +674,20 @@ class Abilities_Settings {
 					],
 				],
 			],
+			'clarity'       => [
+				'label'    => 'Microsoft Clarity',
+				'category' => 'statistics',
+				'is_pixel' => true,
+				'settings' => [
+					'project_id' => [
+						'path'        => 'pixels.clarity.project_id',
+						'type'        => 'string',
+						'label'       => 'Project ID',
+						'description' => 'Microsoft Clarity project ID. Found in the Clarity project settings under Setup, or in the Clarity tracking-code snippet.',
+						'required'    => true,
+					],
+				],
+			],
 			'consent'       => [
 				'label'    => 'Consent management',
 				'category' => 'plugin',

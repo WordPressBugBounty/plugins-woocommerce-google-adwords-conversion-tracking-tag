@@ -506,6 +506,16 @@ class Admin {
                 $section_ids['settings_name']
             );
         }
+        // add the field for the Microsoft Clarity pixel (Pro feature)
+        if ( wpm_fs()->can_use_premium_code__premium_only() || Options::is_pro_version_demo_active() ) {
+            add_settings_field(
+                'pmw_plugin_clarity_project_id',
+                esc_html__( 'Microsoft Clarity project ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_clarity_project_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+        }
     }
 
     public static function add_section_main_subsection_marketing( $section_ids ) {
@@ -2100,6 +2110,7 @@ class Admin {
             'trialPromotion'                   => Trial_Promotion_Notification::get_data_for_nova(),
             'askForRating'                     => Ask_For_Rating::get_data_for_nova(),
             'onboarding'                       => Onboarding::get_data_for_nova(),
+            'serverLoadWarning'                => Server_Load_Warning::get_data_for_nova(),
             'gadsConversionAdjustmentsFeedUrl' => get_site_url() . Pixel_Manager::get_instance()->get_google_ads_conversion_adjustments_endpoint(),
             'recentLogUrl'                     => (string) Helpers::get_admin_url_link_to_recent_wc_log( 'pmw' ),
             'ga4DataApiClientEmail'            => ( isset( $ga4_credentials['client_email'] ) ? (string) $ga4_credentials['client_email'] : '' ),
@@ -2577,7 +2588,7 @@ class Admin {
             echo esc_html( $gateway_analysis['percentage'] );
             ?>%</td>
 								<td><?php 
-            self::get_gateway_accuracy_warning_status( $gateway_analysis['percentage'] );
+            self::get_gateway_accuracy_warning_status( $gateway_analysis['percentage'], $gateway_analysis['order_count_total'] );
             ?></td>
 							</tr>
 						<?php 
@@ -2640,7 +2651,7 @@ class Admin {
             echo esc_html( $gateway_analysis['percentage'] );
             ?>%</td>
 								<td><?php 
-            self::get_gateway_accuracy_warning_status( $gateway_analysis['percentage'] );
+            self::get_gateway_accuracy_warning_status( $gateway_analysis['percentage'], $gateway_analysis['order_count_total'] );
             ?></td>
 							</tr>
 						<?php 
@@ -2667,7 +2678,7 @@ class Admin {
         ?>
 							</td>
 							<td><?php 
-        self::get_gateway_accuracy_warning_status( $percent );
+        self::get_gateway_accuracy_warning_status( $percent, $order_count_total );
         ?></td>
 
 						</tr>
@@ -2722,17 +2733,19 @@ class Admin {
         Opportunities::html();
     }
 
-    private static function get_gateway_accuracy_warning_status( $percent ) {
-        if ( 0 === intval( $percent ) ) {
+    private static function get_gateway_accuracy_warning_status( $percent, $order_count = 0 ) {
+        if ( intval( $order_count ) <= 0 ) {
+            // No orders for this gateway in the period, so there is nothing to judge.
             echo '';
+        } elseif ( 0 === intval( $percent ) ) {
+            // Orders exist but none were tracked: the worst case, flag it distinctly.
+            echo '<span style="background:#d63638;color:#fff;padding:1px 6px;border-radius:3px">untracked</span>';
         } elseif ( $percent > 0 && $percent < 90 ) {
             echo '<span style="color:red">warning</span>';
         } elseif ( $percent >= 90 && $percent < 95 ) {
             echo '<span style="color:orange">monitor</span>';
-        } elseif ( 0 !== $percent ) {
-            echo '<span style="color:green">good</span>';
         } else {
-            echo '';
+            echo '<span style="color:green">good</span>';
         }
     }
 
@@ -3411,6 +3424,30 @@ class Admin {
         echo '<br><br>';
         esc_html_e( 'The Contentsquare tag ID looks like this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '&nbsp;<code>b457e22cc0c6e</code>&nbsp;';
+    }
+
+    public static function option_html_clarity_project_id() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_clarity_project_id"
+				name="wgact_plugin_options[pixels][clarity][project_id]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_clarity_project_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_clarity_active() );
+        self::get_documentation_html_by_key( 'clarity_project_id' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'The Microsoft Clarity project ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>q9zk3x7p2w</code>&nbsp;';
     }
 
     public static function option_html_facebook_pixel_id() {

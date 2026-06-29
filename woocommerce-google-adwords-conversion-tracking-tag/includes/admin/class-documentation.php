@@ -79,6 +79,7 @@ class Documentation {
 			'google_tcf_support'                                => '/docs/pmw/consent-management/google#google-tcf-support',
 			'hotjar_site_id'                                    => '/docs/pmw/plugin-configuration/hotjar#hotjar-site-id',
 			'contentsquare_tag_id'                              => '/docs/pmw/plugin-configuration/contentsquare',
+			'clarity_project_id'                                => '/docs/pmw/plugin-configuration/clarity',
 			'crazyegg_account_number'                           => '/docs/pmw/plugin-configuration/crazyegg#crazyegg-account-number',
 			'lazy_load_pmw'                                     => '/docs/pmw/plugin-configuration/general-settings#lazy-load-the-pixel-manager',
 			'license_expired_warning'                           => '/docs/pmw/license-management#expired-license-warning',
