@@ -15,6 +15,7 @@ use SweetCode\Pixel_Manager\Abilities;
 use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Admin_REST;
 use SweetCode\Pixel_Manager\Admin\Borlabs;
+use SweetCode\Pixel_Manager\Admin\Broker_Client;
 use SweetCode\Pixel_Manager\Admin\Debug_Info;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\LTV;
@@ -328,6 +329,8 @@ class WCPM {
         // Needs to be under init to avoid issues with filters called in the Options class
         Environment::third_party_plugin_tweaks_on_init();
         Admin_REST::get_instance();
+        // Broker connect (experimental, routes only exist with PMW_EXPERIMENTS)
+        Broker_Client::get_instance();
         if ( is_admin() ) {
             Borlabs::init();
             // display admin views

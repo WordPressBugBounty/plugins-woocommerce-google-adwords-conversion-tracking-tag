@@ -726,6 +726,36 @@ class Validations {
 			}
 		}
 
+		// Validate the GroundTruth GTID
+		if (isset($input['pixels']['groundtruth']['gtid'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['groundtruth']['gtid'] = Helpers::trim_string($input['pixels']['groundtruth']['gtid']);
+
+			if (!self::is_groundtruth_gtid($input['pixels']['groundtruth']['gtid'])) {
+				$input['pixels']['groundtruth']['gtid']
+					= Options::get_groundtruth_gtid()
+					? Options::get_groundtruth_gtid()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-groundtruth-gtid', esc_html__('You have entered an invalid GroundTruth GTID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Triple Whale Orders API key
+		if (isset($input['pixels']['triple_whale']['orders_api']['token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['triple_whale']['orders_api']['token'] = Helpers::trim_string($input['pixels']['triple_whale']['orders_api']['token']);
+
+			if (!self::is_triple_whale_orders_api_token($input['pixels']['triple_whale']['orders_api']['token'])) {
+				$input['pixels']['triple_whale']['orders_api']['token']
+					= Options::get_triple_whale_orders_api_token()
+					? Options::get_triple_whale_orders_api_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-triple-whale-orders-api-token', esc_html__('You have entered an invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Sanitize and validate scroll tracker thresholds
 		if (isset($input['general']['scroll_tracker_thresholds'])) {
 
@@ -1082,6 +1112,9 @@ class Validations {
 			'bing.enhanced_conversions',
 			'bing.uet_tag_id',
 
+			// CrazyEgg
+			'crazyegg.account_number',
+
 			// Facebook / Meta
 			'facebook.capi.test_event_code',
 			'facebook.capi.token',
@@ -1095,7 +1128,6 @@ class Validations {
 			'general.scroll_tracker_thresholds',
 
 			// Google
-			'google.ads.aw_merchant_id',
 			'google.ads.conversion_adjustments.conversion_name',
 			'google.ads.enhanced_conversions',
 			'google.ads.google_business_vertical',
@@ -1120,6 +1152,7 @@ class Validations {
 			'pixels.adroll.pixel_id',
 			'pixels.clarity.project_id',
 			'pixels.contentsquare.tag_id',
+			'pixels.groundtruth.gtid',
 			'pixels.linkedin.conversion_ids.add_to_cart',
 			'pixels.linkedin.conversion_ids.purchase',
 			'pixels.linkedin.conversion_ids.view_content',
@@ -1134,6 +1167,8 @@ class Validations {
 			'pixels.reddit.capi.test_event_code',
 			'pixels.reddit.capi.token',
 			'pixels.taboola.account_id',
+			'pixels.triple_whale.enabled',
+			'pixels.triple_whale.orders_api.token',
 			'pixels.vwo.account_id',
 
 			// Shop
@@ -1406,6 +1441,25 @@ class Validations {
 		// 10 characters (e.g. q9zk3x7p2w). Kept slightly permissive so valid IDs
 		// are never rejected, while still blocking whitespace, markup and control characters.
 		$re = '/^[a-z0-9]{8,15}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_groundtruth_gtid( $string ) {
+
+		// GroundTruth GTIDs are opaque identifiers. The regex mirrors the validation
+		// in GroundTruth's own pixel script (pixel.v2.js), so valid GTIDs are never
+		// rejected, while whitespace, markup and control characters are blocked.
+		$re = '/^[a-zA-Z0-9_\-]{3,50}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_triple_whale_orders_api_token( $string ) {
+
+		// Triple Whale API keys are opaque tokens. Kept permissive so valid keys are
+		// never rejected, while still blocking whitespace, markup and control characters.
+		$re = '/^[a-zA-Z0-9._\-]{16,200}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1901,6 +1955,12 @@ class Validations {
 
 			// Microsoft Clarity
 			'pixels.clarity.project_id'                         => [ 'is_clarity_project_id', __('Invalid Microsoft Clarity project ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// GroundTruth
+			'pixels.groundtruth.gtid'                           => [ 'is_groundtruth_gtid', __('Invalid GroundTruth GTID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Triple Whale
+			'pixels.triple_whale.orders_api.token'              => [ 'is_triple_whale_orders_api_token', __('Invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 		];
 	}
 }

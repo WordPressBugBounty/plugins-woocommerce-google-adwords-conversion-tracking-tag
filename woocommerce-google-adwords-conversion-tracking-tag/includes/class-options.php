@@ -20,9 +20,11 @@ class Options {
 	public static  $options_backup_name = 'wgact_options_backup';
 
 	/**
-	 * Option that records the default admin design system for this install.
-	 * Written once, on fresh installs only (see init()). Installs without it
-	 * existed before Nova and keep the Classic UI during the transition phase.
+	 * Fresh-install marker, written once when Options creates the initial
+	 * defaults (see init()). Installs without it predate Nova. Since 1.62.0
+	 * Nova is the default UI for every install; the marker now identifies
+	 * fresh installs for the onboarding checklist and targets the one-time
+	 * "Nova is now the default" announcement at pre-Nova installs.
 	 *
 	 * @since 1.59.0
 	 */
@@ -58,9 +60,9 @@ class Options {
 			self::$options = self::get_default_options();
 			update_option(PMW_DB_OPTIONS_NAME, self::$options);
 
-			// Fresh install (no stored options yet): Nova is the default admin
-			// UI. Existing installs never get this marker and keep the Classic
-			// UI until Nova is rolled out as the default for everyone.
+			// Fresh-install marker (no stored options yet). Used by the
+			// onboarding checklist and to suppress the "Nova is now the
+			// default" announcement on installs that started on Nova.
 			add_option(self::$default_admin_theme_option_name, 'wp');
 		}
 
@@ -265,6 +267,15 @@ class Options {
 				],
 				'clarity'    => [
 					'project_id' => '',
+				],
+				'groundtruth' => [
+					'gtid' => '',
+				],
+				'triple_whale' => [
+					'enabled'    => false,
+					'orders_api' => [
+						'token' => '',
+					],
 				],
 			],
 			'shop'       => [
@@ -929,6 +940,34 @@ class Options {
 
 	public static function is_clarity_active() {
 		return (bool) self::get_clarity_project_id();
+	}
+
+	/**
+	 * GroundTruth
+	 */
+
+	public static function get_groundtruth_gtid() {
+		return self::get_options_obj()->pixels->groundtruth->gtid;
+	}
+
+	public static function is_groundtruth_active() {
+		return (bool) self::get_groundtruth_gtid();
+	}
+
+	/**
+	 * Triple Whale
+	 */
+
+	public static function is_triple_whale_active() {
+		return (bool) self::get_options_obj()->pixels->triple_whale->enabled;
+	}
+
+	public static function get_triple_whale_orders_api_token() {
+		return self::get_options_obj()->pixels->triple_whale->orders_api->token;
+	}
+
+	public static function is_triple_whale_orders_api_active() {
+		return self::is_triple_whale_active() && self::get_triple_whale_orders_api_token();
 	}
 
 	/**

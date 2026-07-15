@@ -1846,33 +1846,6 @@ class Environment {
 		return function_exists('curl_version');
 	}
 
-
-	/**
-	 * Check if the URL redirects
-	 *
-	 * @param $url
-	 * @return bool
-	 */
-	public static function does_url_redirect( $url ) {
-
-		// Get the response from the URL and don't follow redirects
-		$response = wp_remote_get($url, [
-			'timeout'     => 4,
-			'sslverify'   => !Geolocation::is_localhost(),
-			'redirection' => 0,
-		]);
-
-		// If $repsonse is an error, then return false
-		if (is_wp_error($response)) {
-			return false;
-		}
-
-		$response_code = wp_remote_retrieve_response_code($response);
-
-		// If $response_code is a redirect code (3xx), then it's a redirect and return true, otherwise return false
-		return ( $response_code >= 300 && $response_code < 400 );
-	}
-
 // https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#usage
 	public static function get_last_order_id() {
 

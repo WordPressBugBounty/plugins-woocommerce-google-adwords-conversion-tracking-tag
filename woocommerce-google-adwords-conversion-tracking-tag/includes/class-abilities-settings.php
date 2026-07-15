@@ -41,7 +41,7 @@ class Abilities_Settings {
 	 *
 	 * Group fields:
 	 * - label:    Human-readable group name.
-	 * - category: marketing | statistics | optimization | plugin
+	 * - category: marketing | statistics | attribution | optimization | plugin
 	 * - is_pixel: Whether the group is a tracking destination (configurable
 	 *             through pmw/configure-pixel) or a plugin-level settings group.
 	 * - settings: Map of short setting key to setting definition.
@@ -65,7 +65,7 @@ class Abilities_Settings {
 	 */
 	public static function get_catalog() {
 
-		return [
+		$catalog = [
 			'google_ads'    => [
 				'label'    => 'Google Ads',
 				'category' => 'marketing',
@@ -618,6 +618,20 @@ class Abilities_Settings {
 					],
 				],
 			],
+			'groundtruth'   => [
+				'label'    => 'GroundTruth',
+				'category' => 'marketing',
+				'is_pixel' => true,
+				'settings' => [
+					'gtid' => [
+						'path'        => 'pixels.groundtruth.gtid',
+						'type'        => 'string',
+						'label'       => 'GTID',
+						'description' => 'GroundTruth unique identifier (GTID). Provided by a GroundTruth representative. One GTID covers all campaigns of an Ads Manager account.',
+						'required'    => true,
+					],
+				],
+			],
 			'vwo'           => [
 				'label'    => 'VWO',
 				'category' => 'optimization',
@@ -685,6 +699,29 @@ class Abilities_Settings {
 						'label'       => 'Project ID',
 						'description' => 'Microsoft Clarity project ID. Found in the Clarity project settings under Setup, or in the Clarity tracking-code snippet.',
 						'required'    => true,
+					],
+				],
+			],
+			'triple_whale'  => [
+				'label'    => 'Triple Whale',
+				'category' => 'attribution',
+				'is_pixel' => true,
+				'settings' => [
+					'enabled'          => [
+						'path'        => 'pixels.triple_whale.enabled',
+						'type'        => 'boolean',
+						'label'       => 'Enable Triple Whale',
+						'description' => 'Enables the Triple Whale pixel. The shop is identified by its domain, which must match the Shop URL configured in Triple Whale under Settings > Store. No pixel ID is required.',
+						'required'    => true,
+					],
+					'orders_api_token' => [
+						'path'        => 'pixels.triple_whale.orders_api.token',
+						'type'        => 'string',
+						'label'       => 'Orders API key',
+						'description' => 'Triple Whale API key with the "Orders: Write" scope. Created in Triple Whale under Data > APIs. Enables server-side order sync to the Triple Whale Orders API.',
+						'advanced'    => true,
+						'benefit'     => 'Sends order records (including refunds) directly to Triple Whale, so attribution works without connecting the store\'s REST API to Triple Whale.',
+						'secret'      => true,
 					],
 				],
 			],
@@ -777,6 +814,8 @@ class Abilities_Settings {
 				],
 			],
 		];
+
+		return $catalog;
 	}
 
 	/**
@@ -1052,6 +1091,7 @@ class Abilities_Settings {
 		$active_count     = 0;
 		$has_marketing    = false;
 		$has_statistics   = false;
+		$has_attribution  = false;
 
 		foreach ($pixels as $pixel) {
 
@@ -1069,6 +1109,10 @@ class Abilities_Settings {
 				if ('statistics' === $pixel['category']) {
 					$has_statistics = true;
 				}
+
+				if ('attribution' === $pixel['category']) {
+					$has_attribution = true;
+				}
 			}
 		}
 
@@ -1081,6 +1125,7 @@ class Abilities_Settings {
 				'pixels_active'         => $active_count,
 				'has_marketing_pixel'   => $has_marketing,
 				'has_statistics_pixel'  => $has_statistics,
+				'has_attribution_pixel' => $has_attribution,
 				'tier'                  => $is_pro ? 'pro' : 'free',
 				'write_enabled'         => self::is_write_enabled(),
 			],

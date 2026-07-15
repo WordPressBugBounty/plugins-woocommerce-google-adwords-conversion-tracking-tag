@@ -4,17 +4,21 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.3
-Stable tag: 1.61.0
+Stable tag: 1.63.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
-Conversion tracking for WooCommerce. Google Ads, GA4, Meta/Facebook Pixel, TikTok & more. Recover 30% more conversions with server-side tracking!
+Conversion tracking for WooCommerce. Google Ads, GA4, Meta, TikTok, OpenAI (ChatGPT) & more. Recover 30% more conversions with server-side tracking!
 
 == Description ==
 
 The Pixel Manager is the most complete conversion tracking plugin for WooCommerce. Set up Google Ads conversion tracking, Google Analytics GA4 e-commerce tracking, Meta/Facebook Pixel, TikTok Pixel, and more – in minutes, not hours. No coding required.
 
 Unlike Google Tag Manager (GTM), which requires significant technical expertise to configure WooCommerce e-commerce tracking correctly, the Pixel Manager provides a turnkey solution with over 12 years of development. It automatically handles edge cases like payment gateway redirects, order duplication prevention, and consent mode – all the things that take hours to get right with manual tag management.
+
+🆕 **New: Conversion tracking for OpenAI ads on ChatGPT**
+
+OpenAI is rolling out advertising on ChatGPT, and the Pixel Manager is one of the first WooCommerce plugins to support it. The Pro version tracks your OpenAI ads with the browser pixel, a server-side Conversions API connection, and Advanced Matching – so you can measure exactly which purchases your ChatGPT ads drive, from day one. Also new: Microsoft Clarity heatmaps and session recordings (Pro, beta), and the rebuilt, faster Nova admin interface (free).
 
 🚀 **Endorsed by Google's Tag Team**
 
@@ -51,6 +55,8 @@ The Pro version adds server-side tracking (Conversion API / CAPI) that sends con
 &#9989; Lightweight – won't slow down your WooCommerce store.
 &#9989; Payment Gateway Accuracy Report – diagnose conversion tracking drops.
 &#9989; Automatic Conversion Recovery (ACR) – recover lost conversions (Pro).
+&#9989; OpenAI ads (ChatGPT) conversion tracking, browser and server-side (Pro).
+&#9989; AI-ready – AI agents can safely configure the plugin through the WordPress Abilities API.
 
 **Free Tracking Pixels**
 
@@ -72,6 +78,9 @@ The Pro version adds server-side tracking (Conversion API / CAPI) that sends con
 * Customizable filters – fine-tune tracking output for your specific setup
 * Lazy-loaded product list support – works with infinite scroll and AJAX product loading
 * [Payment Gateway Accuracy Report](https://sweetcode.com/docs/pmw/diagnostics?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=payment-gateway-accuracy-report#payment-gateway-tracking-accuracy-report) – identify which payment gateways cause conversion tracking drops
+* Nova admin interface – rebuilt from the ground up, faster and cleaner, with a getting-started checklist for new installs
+* Abilities API integration – AI agents (Claude, ChatGPT, and others) can discover, read, and safely update your tracking settings
+* Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/features).
 
@@ -80,21 +89,25 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 * Adroll Ads
 * Contentsquare Statistics
 * CrazyEgg Analytics
+* GroundTruth Ads – omnichannel engagement and conversion tracking (beta)
 * LinkedIn Ads
 * Microsoft Ads (Bing Ads)
+* Microsoft Clarity – heatmaps and session recordings with e-commerce events (beta)
+* OpenAI Ads – conversion tracking for ads on ChatGPT
 * Outbrain Ads
 * Pinterest Ads
 * Reddit Ads
 * Snapchat Ads
 * Taboola Ads
 * TikTok Ads
+* Triple Whale – visitor journey tracking and marketing attribution (beta)
 * X (Twitter) Ads
 * VWO (Visual Website Optimizer) – A/B testing
 
 **Premium Features**
 
 * [Automatic Conversion Recovery (ACR)](https://sweetcode.com/docs/pmw/features/acr?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=acr) – automatically recover missed conversions nightly
-* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, GA4 Measurement Protocol
+* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, OpenAI, GA4 Measurement Protocol
 * Advanced Order Duplication Prevention
 * Google Ads Enhanced Conversions – first-party data for improved attribution
 * Google Ads Conversion Adjustments – send refund data back to Google Ads
@@ -177,7 +190,11 @@ While Google Tag Manager is free, it requires significant technical expertise an
 
 = What is server-side tracking (Conversion API / CAPI) and why does it matter? =
 
-Server-side tracking sends conversion data directly from your WooCommerce server to advertising platforms like Meta (Facebook), TikTok, Pinterest, Snapchat, Reddit, and Google Analytics 4 – rather than relying solely on browser-based pixels. This results in more reliable, accurate tracking because it works even when browser tracking is limited by ad blockers, Safari ITP cookie restrictions, browser privacy settings, VPNs, or network issues. Our Pro version typically recovers up to 30% more conversions compared to browser-only tracking, directly improving your campaign optimization and ROAS calculations.
+Server-side tracking sends conversion data directly from your WooCommerce server to advertising platforms like Meta (Facebook), TikTok, Pinterest, Snapchat, Reddit, OpenAI, and Google Analytics 4 – rather than relying solely on browser-based pixels. This results in more reliable, accurate tracking because it works even when browser tracking is limited by ad blockers, Safari ITP cookie restrictions, browser privacy settings, VPNs, or network issues. Our Pro version typically recovers up to 30% more conversions compared to browser-only tracking, directly improving your campaign optimization and ROAS calculations.
+
+= Can I track conversions from OpenAI ads on ChatGPT? =
+
+Yes. The Pro version includes an OpenAI tracking pixel with browser-side conversion tracking, a server-side Conversions API connection, and Advanced Matching for improved event matching. You only need to enter your OpenAI pixel ID and, for server-side tracking, a Conversions API token. Purchase conversions are always sent server-side for maximum reliability, so you can accurately measure which sales your ads on ChatGPT generate.
 
 = How does Automatic Conversion Recovery (ACR) work? =
 
@@ -304,9 +321,62 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.63.0  =
+*Release date - 15.07.2026*
+
+* New: Added GroundTruth as a new tracking pixel (Pro, beta), loading the GroundTruth Web Engagement Pixel for omnichannel ad attribution across mobile, desktop, CTV, and audio, and sending add to cart and purchase events with order values; just enter the GTID provided by your GroundTruth representative
+* New: Added Triple Whale as a new tracking pixel (Pro, beta) under a new Attribution category; a single toggle loads the Triple Pixel for visitor journey tracking (no pixel ID needed, the shop is identified by its domain), and an optional Orders API key syncs order records including refunds server-side to Triple Whale, which completes the attribution without connecting the store's REST API to Triple Whale
+* New: Added an Attribution pixel category, which appears as its own group in the settings and follows the statistics consent category for consent management
+
+= 1.62.1  =
+*Release date - 14.07.2026*
+
+* Tweak: The begin_checkout event now also fires when a shopper lands on the checkout page with items in the cart, covering flows that never click a proceed-to-checkout button, such as funnel builders, buy-now links, direct checkout links, and block-based carts; the event waits for the cart to be synced so it carries the products, value, and currency, fires only once per checkout session, skips the order-pay page, and can be disabled with the `pmw_fire_begin_checkout_on_checkout_page` filter
+* Fix: The Conversion Cart Data setting could not be saved on the free version even though it is a free feature; the classic interface silently discarded the value and the Nova interface rejected it with a Pro license error
+* Fix: Calling pmw.addProductToCart() on pages whose data layer contains no products, such as funnel checkout pages that are populated server-side, threw an error instead of loading the product details from the backend, so the add to cart event went out without product data
+* Tweak: The purchase confirmation redirect check in the debug info no longer warns about benign canonical redirects, such as http to https, www, trailing slash, or language redirects that end on the order confirmation page; the check now follows the redirect chain like a browser and only warns when the chain actually leaves the order confirmation page
+* Tweak: The Tag Gateway local proxy now identifies itself to Google's first-party serving infrastructure with a dedicated developer ID header, which Google's tag platform team requested so their support teams can recognize the Pixel Manager proxy setup when merchants contact them with measurement questions
+* Tweak: Added the `pmw_output_product_data_layer_script` and `pmw_defer_product_data_layer_to_footer` filters, which keep product list tracking (view_item_list and select_item) working inside page builders that strip inline scripts from product loops, such as the Elementor Products widget
+* Tweak: The Nova interface now recovers automatically when the WordPress session security token expires after the admin page has been open for a long time, instead of failing to save settings
+* Tweak: Replaced the support chat agent in the admin interface with the new Engadin chat, which also supports voice input
+* Tweak: Confirmed compatibility with WordPress 7.0 and WooCommerce 10.9.4
+* Tweak: Updated the bundled third-party libraries to their current releases
+* Tweak: Updated the translation template (.pot file)
+
+= 1.62.0  =
+*Release date - 04.07.2026*
+
+* New: Nova is now the default Pixel Manager interface for all installs. Installs that were still on the Classic interface are switched automatically and see a one-time notice; all settings and tracking remain exactly as they were, and one click switches back to the Classic interface at any time
+* Fix: On stores with a persistent object cache, such as Redis, creating a subscription renewal order in the background could fail with a fatal error while the Pixel Manager marked the new order for tracking, which in turn caused the scheduled renewal payment to fail; the Pixel Manager now uses the order object that WooCommerce hands over directly and skips the marking gracefully if the order cannot be loaded
+* Fix: On the Pro version distributed through the WooCommerce.com marketplace, the storefront was served the free JavaScript bundle even though the plugin correctly reported Pro everywhere in the admin, so Pro-only browser pixels silently did not fire; the storefront now receives the Pro bundle
+* Fix: On the Pro version distributed through the WooCommerce.com marketplace, the payment gateway accuracy report presented the Automatic Conversion Recovery columns as a locked Pro feature even though they are included in that version
+* Tweak: The interface choice (Nova or Classic) is now remembered per user account instead of per browser session, so it persists across sessions, browsers, and devices
+
+= 1.61.2  =
+*Release date - 02.07.2026*
+
+* Fix: Orders that are created without a customer browser session, such as automatic subscription renewals and orders created in the WP Admin, are no longer counted in the payment gateway tracking accuracy statistics, where they previously dragged down the reported accuracy on stores with many renewals
+* Fix: When the consent module fails to load, for example because an optimization plugin serves stale script chunks, the Pixel Manager now reliably enforces its deny-by-default state; previously, with Google Consent Mode enabled, the gtag.js library could still be requested in this state even though no consent signals could be delivered to it
+* Tweak: Added a `pmw_count_order_for_tracking_accuracy` filter to exclude additional order types from the tracking accuracy statistics, for example renewal orders created by third-party subscription plugins that the Pixel Manager cannot detect generically
+* Tweak: The Tracking Pixels page now leads with the most popular platforms, so a fresh install sees Google and Meta first, while the complete catalog remains listed right below
+* Tweak: On fresh installs the optimization score now starts at zero and grows as the getting-started checklist is completed, instead of reporting a perfect score before the first pixel is even configured
+* Tweak: The Pixel Manager menu badge now also counts the remaining getting-started steps on fresh installs, so an interrupted setup is easy to spot and resume
+* New: Fresh installs now get an immediate "it works" confirmation: after setting up the first pixel, the dashboard invites you to open your shop and turns green the moment your pixels are confirmed live on the storefront, and it celebrates the first order that was tracked end to end; the storefront reports this exactly once through a one-shot beacon that disables itself afterwards and never sends any visitor data
+* Tweak: The getting-started checklist is one step shorter: the general settings review step was removed, and the "See what Pro unlocks" step only appears when an upgrade or trial link is actually available
+* Tweak: The Pro trial promotion card now waits until the getting-started checklist is completed or dismissed, so fresh installs see the value of the plugin first and the upsell after
+* New: A "Did you know?" card on the dashboard surfaces a different Pixel Manager feature on every visit, each with a direct link to try it or read more; features you already use are skipped, and Pro features carry a small Pro label with a trial link on the free tier
+
+= 1.61.1  =
+*Release date - 02.07.2026*
+
+* Fix: Products that entered the cart server-side, for example through funnel builders such as CartFlows, a persistent cart restored on login, or a coupon that automatically adds a free product, were invisible to the browser events, so the begin checkout, add shipping info, and add payment info events could report an empty cart with a value of 0; the Pixel Manager now notices these changes through the WooCommerce cart hash and re-syncs its tracked cart from the store
+* Fix: When the tracked cart is empty at the moment a checkout event fires, the Google Analytics and TikTok events no longer claim a value of 0 with an empty product list; like the Meta pixel, they now send the event without the commerce fields, so the funnel step is still counted without skewing your revenue and item reports with false zeros
+* Tweak: Event parameters that are unavailable, such as the currency on pages without a shop context, are now cleanly omitted from all pixel payloads instead of aborting the event or reaching the pixel as an invalid empty value
+
 = 1.61.0  =
 *Release date - 29.06.2026*
 
+* New: Added Microsoft Clarity as a new tracking pixel (Pro, beta), loading the Clarity tag for heatmaps and session recordings and sending add to cart, begin checkout, and purchase events so you can analyze the full shopping experience; just enter your Clarity project ID
 * Tweak: When you enable the Google Tag Gateway but your site is not served through a Cloudflare edge, the Pixel Manager now warns you once that the gateway is handled by your own server and adds load, so you can move it behind Cloudflare, keep it as-is, or turn it off
 * Tweak: The confirmation that appears when you turn on a consent gate (Explicit Consent Mode, or Google TCF support) now offers only "Enable anyway" or "Cancel" and can no longer be closed by clicking beside it, pressing Escape, or a close icon, so this consequential choice is not dismissed by accident
 * Tweak: Added a `pmw_product_price_for_datalayer` filter to override the per-product price used in the browser events
@@ -318,6 +388,7 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 = 1.60.0  =
 *Release date - 23.06.2026*
 
+* New: Added OpenAI as a new tracking pixel (Pro), with browser-side conversion tracking, a server-side Conversions API connection, and Advanced Matching for improved event matching; you only need to enter your OpenAI pixel ID and, for server-side tracking, a Conversions API token. Purchase conversions are sent server-side either way: routed through SweetCode Cloud when it is active, and sent directly to OpenAI from your store otherwise
 * New: Added a "Request a tracking pixel" link to the Tracking Pixels page so you can suggest a tracking pixel you would like us to add
 * Tweak: The Tracking Pixels page now separates active and inactive pixels with a labelled divider, so it is clear at a glance which pixels are currently tracking
 * Tweak: Turning on a consent gate (Explicit Consent Mode, or Google TCF support) now asks for confirmation first, because these settings stop all pixels from firing until your consent management platform grants consent

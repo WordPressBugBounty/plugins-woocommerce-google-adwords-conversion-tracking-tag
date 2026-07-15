@@ -507,6 +507,23 @@ class Product {
 		return $order_items_formatted;
 	}
 
+	/**
+	 * Product IDs whose data layer output has been deferred to the footer
+	 * through the pmw_defer_product_data_layer_to_footer filter.
+	 *
+	 * @var array
+	 */
+	private static $deferred_product_ids = [];
+
+	/**
+	 * True while the deferred scripts are being printed in the footer,
+	 * so the defer filter is bypassed and the .pmwProductId marker is
+	 * skipped (markers are re-injected into the loop items via JS).
+	 *
+	 * @var bool
+	 */
+	private static $printing_deferred = false;
+
 	// OB is needed for the Gutenberg block
 	public static function ob_print_get_product_data_layer_script( $product, $set_position = true, $meta_tag = false ) {
 
@@ -521,6 +538,48 @@ class Product {
 
 		if (self::is_not_wc_product($product)) {
 			Logger::debug('get_product_data_layer_script received an invalid product');
+			return '';
+		}
+
+		/**
+		 * This filter allows suppressing the product data layer output
+		 * (the hidden .pmwProductId marker and the inline script) for
+		 * individual products or render contexts. Some page builders,
+		 * like the Elementor Products widget, sanitize the output of
+		 * woocommerce_after_shop_loop_item and leak the script as
+		 * visible text. Returning false skips the output entirely,
+		 * which also disables view_item_list and select_item tracking
+		 * for the affected products.
+		 *
+		 * @param bool        $output   Whether to output the product data layer script. Default true.
+		 * @param \WC_Product $product  The product being output.
+		 * @param bool        $meta_tag True when output as a meta tag in the head (product pages), false in loop context.
+		 *
+		 * @since 1.62.1
+		 */
+		if (!apply_filters('pmw_output_product_data_layer_script', true, $product, $meta_tag)) {
+			return '';
+		}
+
+		/**
+		 * This filter defers the product data layer output to wp_footer
+		 * instead of printing it inline. Unlike suppressing the output
+		 * entirely, this keeps view_item_list and select_item tracking
+		 * working: the data scripts are printed in the footer, out of
+		 * reach of sanitizing page builders, and the .pmwProductId
+		 * markers are re-injected into the loop items (matched by the
+		 * WooCommerce post-{id} loop item class) with a small script.
+		 * Only applies in loop context, not to the head meta tags on
+		 * product pages. Products loaded later via AJAX (load more,
+		 * AJAX pagination) are not covered by the footer pass.
+		 *
+		 * @param bool        $defer   Whether to defer the output to the footer. Default false.
+		 * @param \WC_Product $product The product being output.
+		 *
+		 * @since 1.62.1
+		 */
+		if (!$meta_tag && !self::$printing_deferred && apply_filters('pmw_defer_product_data_layer_to_footer', false, $product)) {
+			self::defer_product_data_layer_script($product);
 			return '';
 		}
 
@@ -540,7 +599,9 @@ class Product {
 			<meta name="pm-dataLayer-meta" content="<?php echo esc_html($product->get_id()); ?>" class="pmwProductId"
 					data-id="<?php echo esc_html($product->get_id()); ?>">
 			<?php
-		} else {
+		} elseif (!self::$printing_deferred) {
+			// The marker is skipped for deferred output. It gets re-injected
+			// into the loop items by print_deferred_product_data_layer_scripts.
 			?>
 			<input type="hidden" class="pmwProductId" data-id="<?php echo esc_html($product->get_id()); ?>">
 			<?php
@@ -559,6 +620,72 @@ class Product {
 		?>
 		window.pmw_product_position = window.pmw_product_position || 1;
 		window.pmwDataLayer.products[<?php echo esc_html($product->get_id()); ?>]['position'] = window.pmw_product_position++;
+		<?php
+	}
+
+	/**
+	 * Collect a product for deferred data layer output in wp_footer.
+	 *
+	 * @param \WC_Product $product
+	 * @since 1.62.1
+	 */
+	private static function defer_product_data_layer_script( $product ) {
+
+		if (empty(self::$deferred_product_ids)) {
+			add_action('wp_footer', [ __CLASS__, 'print_deferred_product_data_layer_scripts' ]);
+		}
+
+		self::$deferred_product_ids[] = $product->get_id();
+	}
+
+	/**
+	 * Print the data layer scripts for all deferred products in the footer
+	 * and re-inject the .pmwProductId markers into the loop items so that
+	 * view_item_list and select_item tracking keep working.
+	 *
+	 * @since 1.62.1
+	 */
+	public static function print_deferred_product_data_layer_scripts() {
+
+		if (empty(self::$deferred_product_ids)) {
+			return;
+		}
+
+		$product_ids                = array_values(array_unique(array_map('intval', self::$deferred_product_ids)));
+		self::$deferred_product_ids = [];
+
+		self::$printing_deferred = true;
+
+		foreach ($product_ids as $product_id) {
+
+			$product = wc_get_product($product_id);
+
+			if (self::is_not_wc_product($product)) {
+				self::log_problematic_product_id($product_id);
+				continue;
+			}
+
+			self::print_product_data_layer_script($product);
+		}
+
+		self::$printing_deferred = false;
+
+		?>
+		<script<?php echo wp_kses(Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html()); ?>>
+			(function () {
+				var ids = <?php echo wp_json_encode($product_ids); ?>;
+				ids.forEach(function (id) {
+					document.querySelectorAll(".product.post-" + id).forEach(function (item) {
+						if (item.querySelector(".pmwProductId")) return;
+						var marker = document.createElement("input");
+						marker.type = "hidden";
+						marker.className = "pmwProductId";
+						marker.setAttribute("data-id", id);
+						item.appendChild(marker);
+					});
+				});
+			})();
+		</script>
 		<?php
 	}
 

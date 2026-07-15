@@ -343,6 +343,66 @@ class Shop {
         }
     }
 
+    /**
+     * Whether an order should be counted in the tracking accuracy statistics.
+     *
+     * Only orders placed through a customer browser checkout (classic checkout
+     * or the Store API used by the block checkout) can ever reach the purchase
+     * confirmation page, so only those may be counted. Everything else
+     * (admin-created orders, subscription renewals, migration imports, REST
+     * orders, upsell child orders with a custom created_via) would only
+     * deflate the per-gateway accuracy because PMW can never measure them.
+     *
+     * @param \WC_Order $order
+     * @return bool
+     * @since 1.61.2
+     */
+    public static function should_count_order_for_tracking_accuracy( $order ) {
+        $should_count = in_array( $order->get_created_via(), self::get_tracking_accuracy_created_via_allowlist(), true );
+        // Orders where the visitor denied all consent categories can't fire
+        // any pixel on the purchase confirmation page and their server-side
+        // events are consent-suppressed, so counting them would only deflate
+        // the accuracy. If at least one category was granted, some pixels can
+        // still fire and the measurement stays meaningful.
+        if ( $should_count ) {
+            $snapshot = $order->get_meta( '_pmw_consent_snapshot', true );
+            if ( is_array( $snapshot ) && empty( $snapshot['marketing'] ) && empty( $snapshot['statistics'] ) ) {
+                $should_count = false;
+            }
+        }
+        /**
+         * Filters whether an order counts toward the tracking accuracy statistics.
+         *
+         * Return false for orders that are created without a customer browser
+         * session, e.g. renewal orders of third-party subscription plugins that
+         * PMW cannot detect generically, so they don't deflate the payment
+         * gateway accuracy report. Return true to force-include orders from a
+         * custom checkout flow that uses its own created_via value but does
+         * reach the purchase confirmation page.
+         *
+         * @since 1.61.2
+         *
+         * @param bool      $should_count Whether the order counts toward tracking accuracy.
+         * @param \WC_Order $order        The order being evaluated.
+         */
+        return (bool) apply_filters( 'pmw_count_order_for_tracking_accuracy', $should_count, $order );
+    }
+
+    /**
+     * The created_via values of orders placed through a customer browser checkout.
+     *
+     * 'checkout' is the classic shortcode checkout, 'store-api' is the block
+     * checkout. These are the only order sources that reach the purchase
+     * confirmation page, so they are the only ones the tracking accuracy
+     * statistics may count.
+     *
+     * @return array
+     * @since 1.62.0
+     */
+    public static function get_tracking_accuracy_created_via_allowlist() {
+        return ['checkout', 'store-api'];
+    }
+
     // https://wordpress.stackexchange.com/a/95440/68337
     // https://wordpress.stackexchange.com/a/31435/68337
     // https://developer.wordpress.org/reference/functions/get_the_title/

@@ -86,14 +86,26 @@ class Debug_Info {
                     $html .= PHP_EOL;
                     $last_order_url_contains_order_received_page_url = ( strpos( Environment::get_last_order_url(), $order_received_page_url ) !== false ? 'yes' : 'no' );
                     $html .= 'Purchase confirmation uses is_order_received(): ' . $last_order_url_contains_order_received_page_url . PHP_EOL;
-                    $url_response = self::pmw_remote_get_response( $last_order_url );
-                    if ( 200 === $url_response ) {
-                        $html .= 'Purchase confirmation page redirect:            ' . $url_response . ' (OK)' . PHP_EOL;
-                    } elseif ( $url_response >= 300 && $url_response < 400 ) {
-                        $html .= self::show_warning( true ) . 'Purchase confirmation redirect:            ' . $url_response . ' (ERROR)' . PHP_EOL;
-                        $html .= self::show_warning( true ) . 'Redirect URL:                              ' . self::pmw_get_final_url( Environment::get_last_order_url() ) . PHP_EOL;
+                    $redirect_report = self::get_purchase_confirmation_redirect_report( $last_order_url );
+                    $redirect_hops = [];
+                    foreach ( $redirect_report['chain'] as $hop ) {
+                        $redirect_hops[] = $hop['code'];
+                    }
+                    if ( $redirect_report['error'] ) {
+                        $html .= 'Purchase confirmation page redirect:            could not be tested (' . $redirect_report['error'] . ')' . PHP_EOL;
+                    } elseif ( empty( $redirect_report['chain'] ) ) {
+                        if ( 200 === $redirect_report['final_code'] ) {
+                            $html .= 'Purchase confirmation page redirect:            200 (OK)' . PHP_EOL;
+                        } else {
+                            $html .= self::show_warning( true ) . 'Purchase confirmation page HTTP status:         ' . $redirect_report['final_code'] . ' (ERROR)' . PHP_EOL;
+                        }
+                    } elseif ( 200 === $redirect_report['final_code'] && self::is_order_confirmation_url( $redirect_report['final_url'], Environment::get_last_order() ) ) {
+                        $html .= 'Purchase confirmation page redirect:            ' . implode( ' -> ', $redirect_hops ) . ' -> ' . $redirect_report['final_code'] . ' (OK, ends on the order confirmation page)' . PHP_EOL;
+                        $html .= 'Final URL:                                      ' . $redirect_report['final_url'] . PHP_EOL;
                     } else {
-                        $html .= 'Purchase confirmation redirect:            ' . $url_response . ' (ERROR)' . PHP_EOL;
+                        $html .= self::show_warning( true ) . 'Purchase confirmation page redirect:            ' . implode( ' -> ', $redirect_hops ) . ' -> ' . $redirect_report['final_code'] . ' (ERROR, redirects away from the order confirmation page)' . PHP_EOL;
+                        $html .= self::show_warning( true ) . 'Redirect URL:                                   ' . $redirect_report['final_url'] . PHP_EOL;
+                        $html .= 'Note: Tested server side. Verify in a private browser window before concluding that customers get redirected.' . PHP_EOL;
                     }
                 }
                 //        $html                                .= 'wc_get_page_permalink(\'checkout\'): ' . wc_get_page_permalink('checkout') . PHP_EOL;
@@ -543,23 +555,102 @@ class Debug_Info {
         return self::show_warning( true ) . $response_code;
     }
 
-    private static function pmw_get_final_url( $url ) {
-        $response = wp_remote_get( $url, [
-            'timeout'             => 4,
-            'sslverify'           => !Geolocation::is_localhost(),
-            'limit_response_size' => 5000,
-            'blocking'            => true,
-            'redirection'         => 10,
-        ] );
-        if ( is_wp_error( $response ) ) {
-            return $response->get_error_message();
-        } else {
-            // If $response['http_response']->get_response_object()->url is set, return it, else return 'error'
-            if ( isset( $response['http_response']->get_response_object()->url ) ) {
-                return $response['http_response']->get_response_object()->url;
+    /**
+     * Follow the redirect chain of the purchase confirmation URL hop by hop.
+     *
+     * The request mimics a regular browser (user agent, Accept headers, the shop locale)
+     * because WAFs, bot protection and language plugins answer redirects to the default
+     * WordPress user agent that real visitors never see.
+     *
+     * @param string $url
+     * @return array {
+     *     error:      string  Error message if the test could not be completed, empty otherwise.
+     *     chain:      array   One entry per redirect hop: [ 'code' => int, 'to' => string ].
+     *     final_url:  string  The last URL that was requested.
+     *     final_code: int     The HTTP status code of the final response, 0 on error.
+     * }
+     */
+    private static function get_purchase_confirmation_redirect_report( $url ) {
+        $report = [
+            'error'      => '',
+            'chain'      => [],
+            'final_url'  => $url,
+            'final_code' => 0,
+        ];
+        $max_hops = 5;
+        $current_url = $url;
+        for ($hop = 0; $hop <= $max_hops; $hop++) {
+            $response = wp_remote_get( $current_url, [
+                'timeout'             => 4,
+                'sslverify'           => !Geolocation::is_localhost(),
+                'limit_response_size' => 5000,
+                'blocking'            => true,
+                'redirection'         => 0,
+                'user-agent'          => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                'headers'             => [
+                    'Accept'          => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language' => str_replace( '_', '-', get_locale() ),
+                ],
+            ] );
+            if ( is_wp_error( $response ) ) {
+                $report['error'] = $response->get_error_message();
+                $report['final_url'] = $current_url;
+                return $report;
             }
-            return 'error';
+            $response_code = wp_remote_retrieve_response_code( $response );
+            if ( $response_code >= 300 && $response_code < 400 ) {
+                $location = wp_remote_retrieve_header( $response, 'location' );
+                if ( is_array( $location ) ) {
+                    $location = end( $location );
+                }
+                if ( !$location ) {
+                    // Redirect status without a Location header, nothing to follow
+                    $report['final_url'] = $current_url;
+                    $report['final_code'] = $response_code;
+                    return $report;
+                }
+                $location = \WP_Http::make_absolute_url( $location, $current_url );
+                $report['chain'][] = [
+                    'code' => $response_code,
+                    'to'   => $location,
+                ];
+                $current_url = $location;
+                continue;
+            }
+            $report['final_url'] = $current_url;
+            $report['final_code'] = $response_code;
+            return $report;
         }
+        $report['error'] = 'too many redirects (more than ' . $max_hops . ' hops)';
+        $report['final_url'] = $current_url;
+        return $report;
+    }
+
+    /**
+     * Check if a URL still points to the order confirmation page of the given order.
+     *
+     * Canonical redirects (http to https, www to non-www, trailing slash, language
+     * prefixes) keep the order key or the order-received endpoint in the URL. Only
+     * a redirect that loses both actually moves the customer off the confirmation
+     * page and breaks purchase tracking.
+     *
+     * @param string        $url
+     * @param \WC_Order|false $order
+     * @return bool
+     */
+    private static function is_order_confirmation_url( $url, $order ) {
+        if ( !$url || !$order ) {
+            return false;
+        }
+        $order_key = $order->get_order_key();
+        if ( $order_key && false !== strpos( $url, $order_key ) ) {
+            return true;
+        }
+        $endpoint = get_option( 'woocommerce_checkout_order_received_endpoint', 'order-received' );
+        if ( false !== strpos( $url, '/' . $endpoint . '/' . $order->get_id() ) ) {
+            return true;
+        }
+        return false;
     }
 
     private static function show_warning( $test = false ) {

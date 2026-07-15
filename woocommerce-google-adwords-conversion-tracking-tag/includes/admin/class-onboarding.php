@@ -20,7 +20,9 @@
 
 namespace SweetCode\Pixel_Manager\Admin;
 
+use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -35,6 +37,17 @@ class Onboarding {
 	public static $option_name = 'pmw_onboarding_checklist';
 
 	/**
+	 * Transient caching the last-known Pixie (chatbot) availability, written
+	 * on the PMW settings page where the remote reachability check runs. The
+	 * admin-menu badge renders on every admin page, where a remote check per
+	 * request would be far too expensive, so it reads this instead. Unknown
+	 * (never visited / expired) counts as unavailable.
+	 *
+	 * @var string
+	 */
+	public static $cody_available_transient = 'pmw_cody_available';
+
+	/**
 	 * The checklist steps that can be persisted.
 	 *
 	 * "pixel" (the first-pixel step) is intentionally not in this list: it is
@@ -44,7 +57,6 @@ class Onboarding {
 	 */
 	private static $steps = [
 		'consent',     // reviewed the consent settings
-		'general',     // reviewed the general settings
 		'diagnostics', // visited the diagnostics tab
 		'pixie',       // opened the Pixie chat
 		'pro',         // looked at what Pro unlocks (free tier only)
@@ -87,6 +99,68 @@ class Onboarding {
 			'show'      => true,
 			'completed' => $completed,
 		];
+	}
+
+	/**
+	 * Number of getting-started steps still open, for the admin-menu badge.
+	 *
+	 * Mirrors the step composition of the Nova checklist (onboardingStepIds()
+	 * in the admin UI): consent/diagnostics always, Pixie only when the
+	 * chatbot was reachable on the last settings-page visit, Pro only on the
+	 * free tier when an upgrade or trial URL exists, and the first-pixel step
+	 * derived live from the settings. Returns 0 once the checklist is
+	 * dismissed or completed, so the badge falls back to the pure
+	 * opportunities count.
+	 *
+	 * @return int
+	 * @since 1.61.2
+	 */
+	public static function get_open_steps_count() {
+
+		if (!self::is_eligible()) {
+			return 0;
+		}
+
+		$state = get_option(self::$option_name, []);
+
+		if (!empty($state['dismissed'])) {
+			return 0;
+		}
+
+		$completed = isset($state['completed']) && is_array($state['completed'])
+			? $state['completed']
+			: [];
+
+		$steps = [ 'consent', 'diagnostics' ];
+
+		if ('yes' === get_transient(self::$cody_available_transient)) {
+			$steps[] = 'pixie';
+		}
+
+		// The Pro step only exists when there is a real URL to open (the
+		// checklist hides it otherwise); mirror that so the badge count
+		// matches what the user sees.
+		if (
+			!Helpers::is_pmw_pro_version_active()
+			&& ( Commercial_Links::upgrade_url() || Notifications\Trial_Promotion_Notification::get_available_trial_url() )
+		) {
+			$steps[] = 'pro';
+		}
+
+		$open = 0;
+
+		foreach ($steps as $step) {
+			if (!isset($completed[$step])) {
+				++$open;
+			}
+		}
+
+		// The first-pixel step is never persisted; it is derived live.
+		if (empty(Pixel_Registry::get_active_pixels())) {
+			++$open;
+		}
+
+		return $open;
 	}
 
 	/**

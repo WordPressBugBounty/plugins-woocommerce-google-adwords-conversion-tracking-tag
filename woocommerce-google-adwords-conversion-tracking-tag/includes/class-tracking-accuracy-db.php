@@ -15,7 +15,7 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  */
 class Tracking_Accuracy_DB {
 
-	const DB_VERSION                 = '1';
+	const DB_VERSION                 = '2';
 	const DB_VERSION_KEY             = 'pmw_tracking_accuracy_db_version';
 	const TABLE_NAME                 = 'pmw_tracking_accuracy';
 	const BACKFILL_HOOK              = 'pmw_tracking_accuracy_backfill';
@@ -83,6 +83,7 @@ class Tracking_Accuracy_DB {
 			orders_measured int unsigned NOT NULL DEFAULT 0,
 			orders_acr int unsigned NOT NULL DEFAULT 0,
 			delay_sum int unsigned NOT NULL DEFAULT 0,
+			orders_consent_excluded int unsigned NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY date_gateway (date, gateway_id),
 			KEY date_idx (date)
@@ -247,6 +248,52 @@ class Tracking_Accuracy_DB {
 		}
 	}
 
+	/**
+	 * Increment orders_consent_excluded for a date+gateway.
+	 *
+	 * Counts orders that are excluded from the tracking accuracy statistics
+	 * because the visitor denied all consent categories. Surfaced in the
+	 * payment gateway accuracy report so shop managers can judge the impact
+	 * of consent denials on their measurable order volume.
+	 *
+	 * @param string $date       Order creation date in Y-m-d format.
+	 * @param string $gateway_id Payment method ID.
+	 *
+	 * @return void
+	 * @since 1.62.0
+	 */
+	public static function increment_orders_consent_excluded( $date, $gateway_id ) {
+
+		if (empty($gateway_id) || empty($date)) {
+			return;
+		}
+
+		if (!self::table_exists()) {
+			return;
+		}
+
+		global $wpdb;
+
+		try {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query(
+				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnquotedComplexPlaceholder
+					'INSERT INTO ' . esc_sql( self::get_table_name() ) . ' (`date`, gateway_id, orders_consent_excluded) VALUES (%s, %s, 1)
+					ON DUPLICATE KEY UPDATE orders_consent_excluded = orders_consent_excluded + 1',
+					$date,
+					$gateway_id
+				)
+			);
+
+			if ($wpdb->last_error) {
+				Logger::debug('Tracking accuracy DB: increment_orders_consent_excluded error: ' . $wpdb->last_error);
+			}
+		} catch (\Exception $e) {
+			Logger::debug('Tracking accuracy DB: increment_orders_consent_excluded exception: ' . $e->getMessage());
+		}
+	}
+
 	// ─── Read Layer ────────────────────────────────────────────────────
 
 	/**
@@ -278,7 +325,8 @@ class Tracking_Accuracy_DB {
 						SUM(orders_total) AS orders_total,
 						SUM(orders_measured) AS orders_measured,
 						SUM(orders_acr) AS orders_acr,
-						SUM(delay_sum) AS delay_sum
+						SUM(delay_sum) AS delay_sum,
+						SUM(orders_consent_excluded) AS orders_consent_excluded
 					FROM ' . esc_sql( self::get_table_name() ) . "
 					WHERE `date` >= %s AND gateway_id IN ({$placeholders})
 					GROUP BY gateway_id
@@ -297,7 +345,8 @@ class Tracking_Accuracy_DB {
 						SUM(orders_total) AS orders_total,
 						SUM(orders_measured) AS orders_measured,
 						SUM(orders_acr) AS orders_acr,
-						SUM(delay_sum) AS delay_sum
+						SUM(delay_sum) AS delay_sum,
+						SUM(orders_consent_excluded) AS orders_consent_excluded
 					FROM ' . esc_sql( self::get_table_name() ) . '
 					WHERE `date` >= %s
 					GROUP BY gateway_id
@@ -314,10 +363,11 @@ class Tracking_Accuracy_DB {
 
 		// Cast string values to integers
 		foreach ($results as &$row) {
-			$row['orders_total']    = intval($row['orders_total']);
-			$row['orders_measured'] = intval($row['orders_measured']);
-			$row['orders_acr']      = intval($row['orders_acr']);
-			$row['delay_sum']       = intval($row['delay_sum']);
+			$row['orders_total']            = intval($row['orders_total']);
+			$row['orders_measured']         = intval($row['orders_measured']);
+			$row['orders_acr']              = intval($row['orders_acr']);
+			$row['delay_sum']               = intval($row['delay_sum']);
+			$row['orders_consent_excluded'] = isset($row['orders_consent_excluded']) ? intval($row['orders_consent_excluded']) : 0;
 		}
 
 		return $results;
@@ -333,7 +383,7 @@ class Tracking_Accuracy_DB {
 	 * @param string     $end_date    Inclusive end date (Y-m-d).
 	 * @param array|null $gateway_ids Optional list of gateway IDs to filter. Null = all.
 	 *
-	 * @return array Array of rows: { date, gateway_id, orders_total, orders_measured, orders_acr, delay_sum }.
+	 * @return array Array of rows: { date, gateway_id, orders_total, orders_measured, orders_acr, delay_sum, orders_consent_excluded }.
 	 * @since 1.59.0
 	 */
 	public static function get_accuracy_timeseries( $start_date, $end_date, $gateway_ids = null ) {
@@ -349,7 +399,7 @@ class Tracking_Accuracy_DB {
 
 		global $wpdb;
 
-		$select = 'SELECT `date`, gateway_id, orders_total, orders_measured, orders_acr, delay_sum
+		$select = 'SELECT `date`, gateway_id, orders_total, orders_measured, orders_acr, delay_sum, orders_consent_excluded
 			FROM ' . esc_sql( self::get_table_name() ) . '
 			WHERE `date` BETWEEN %s AND %s';
 
@@ -385,10 +435,11 @@ class Tracking_Accuracy_DB {
 		}
 
 		foreach ($results as &$row) {
-			$row['orders_total']    = intval($row['orders_total']);
-			$row['orders_measured'] = intval($row['orders_measured']);
-			$row['orders_acr']      = intval($row['orders_acr']);
-			$row['delay_sum']       = intval($row['delay_sum']);
+			$row['orders_total']            = intval($row['orders_total']);
+			$row['orders_measured']         = intval($row['orders_measured']);
+			$row['orders_acr']              = intval($row['orders_acr']);
+			$row['delay_sum']               = intval($row['delay_sum']);
+			$row['orders_consent_excluded'] = isset($row['orders_consent_excluded']) ? intval($row['orders_consent_excluded']) : 0;
 		}
 
 		return $results;
@@ -604,6 +655,14 @@ class Tracking_Accuracy_DB {
 						continue;
 					}
 
+					// Only orders placed through a customer browser checkout ever
+					// see the purchase confirmation page. Everything else (admin,
+					// subscription renewals, migration imports) must not deflate
+					// the accuracy statistics.
+					if (!in_array($meta['created_via'], Shop::get_tracking_accuracy_created_via_allowlist(), true)) {
+						continue;
+					}
+
 					$date       = $meta['date_created'];
 					$gateway_id = $meta['payment_method'];
 					$key        = $date . '|' . $gateway_id;
@@ -700,10 +759,13 @@ class Tracking_Accuracy_DB {
 						o.id AS order_id,
 						o.payment_method,
 						DATE(o.date_created_gmt) AS date_created,
+						MAX(od.created_via) AS created_via,
 						MAX(CASE WHEN om.meta_key = '_wpm_conversion_pixel_fired' THEN om.meta_value END) AS pixel_fired,
 						MAX(CASE WHEN om.meta_key = '_wpm_conversion_pixel_trigger' THEN om.meta_value END) AS pixel_trigger,
 						MAX(CASE WHEN om.meta_key = '_wpm_conversion_pixel_fired_delay' THEN om.meta_value END) AS delay_val
 					FROM {$wpdb->prefix}wc_orders o
+					LEFT JOIN {$wpdb->prefix}wc_order_operational_data od
+						ON o.id = od.order_id
 					LEFT JOIN {$wpdb->prefix}wc_orders_meta om
 						ON o.id = om.order_id
 						AND om.meta_key IN ('_wpm_conversion_pixel_fired', '_wpm_conversion_pixel_trigger', '_wpm_conversion_pixel_fired_delay')
@@ -724,13 +786,14 @@ class Tracking_Accuracy_DB {
 						p.ID AS order_id,
 						MAX(CASE WHEN pm.meta_key = '_payment_method' THEN pm.meta_value END) AS payment_method,
 						DATE(p.post_date_gmt) AS date_created,
+						MAX(CASE WHEN pm.meta_key = '_created_via' THEN pm.meta_value END) AS created_via,
 						MAX(CASE WHEN pm.meta_key = '_wpm_conversion_pixel_fired' THEN pm.meta_value END) AS pixel_fired,
 						MAX(CASE WHEN pm.meta_key = '_wpm_conversion_pixel_trigger' THEN pm.meta_value END) AS pixel_trigger,
 						MAX(CASE WHEN pm.meta_key = '_wpm_conversion_pixel_fired_delay' THEN pm.meta_value END) AS delay_val
 					FROM {$wpdb->posts} p
 					LEFT JOIN {$wpdb->postmeta} pm
 						ON p.ID = pm.post_id
-						AND pm.meta_key IN ('_payment_method', '_wpm_conversion_pixel_fired', '_wpm_conversion_pixel_trigger', '_wpm_conversion_pixel_fired_delay')
+						AND pm.meta_key IN ('_payment_method', '_created_via', '_wpm_conversion_pixel_fired', '_wpm_conversion_pixel_trigger', '_wpm_conversion_pixel_fired_delay')
 					WHERE p.ID IN ({$placeholders})
 					GROUP BY p.ID",
 					...$order_ids
@@ -747,6 +810,7 @@ class Tracking_Accuracy_DB {
 			$result[$row->order_id] = [
 				'payment_method' => isset($row->payment_method) ? $row->payment_method : '',
 				'date_created'   => isset($row->date_created) ? $row->date_created : '',
+				'created_via'    => isset($row->created_via) ? $row->created_via : '',
 				'pixel_fired'    => !empty($row->pixel_fired),
 				'pixel_trigger'  => isset($row->pixel_trigger) ? $row->pixel_trigger : null,
 				'delay'          => intval(isset($row->delay_val) ? $row->delay_val : 0),

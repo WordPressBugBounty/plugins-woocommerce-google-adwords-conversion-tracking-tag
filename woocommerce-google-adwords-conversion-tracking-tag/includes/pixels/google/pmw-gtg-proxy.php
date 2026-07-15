@@ -410,7 +410,23 @@ final class PMW_GTG_Proxy_Standalone {
 		'HTTP_AUTHORIZATION',
 		'HTTP_PROXY_AUTHORIZATION',
 		'HTTP_X_API_KEY',
+		// Set by the proxy itself, never trust a client-supplied value
+		'HTTP_X_GTG_DEVELOPER_ID',
 	];
+
+	/**
+	 * Developer ID identifying PMW's local proxy to Google's FPS.
+	 *
+	 * Requested by Google's tag platform team so their support can identify
+	 * how GTG is configured on a site. Sent as the X-gtg-developer-id header
+	 * on every request the local proxy forwards to FPS. The regular developer
+	 * ID (dNDI5Yz) stays in the tag script; Cloudflare setups are not affected
+	 * because Cloudflare sets its own developer ID and requests never reach
+	 * this proxy.
+	 *
+	 * @since 1.62.1
+	 */
+	const LOCAL_PROXY_DEVELOPER_ID = 'dNjgwZG';
 
 	/**
 	 * Valid Google Tag ID prefixes
@@ -1273,6 +1289,9 @@ final class PMW_GTG_Proxy_Standalone {
 		if ( ! empty( $geo ) ) {
 			$headers[] = 'X-Forwarded-CountryRegion: ' . $geo;
 		}
+
+		// Identify PMW's local proxy to Google (Cloudflare sets its own developer ID)
+		$headers[] = 'X-gtg-developer-id: ' . self::LOCAL_PROXY_DEVELOPER_ID;
 
 		return $headers;
 	}

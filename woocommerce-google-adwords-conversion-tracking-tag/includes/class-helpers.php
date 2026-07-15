@@ -1100,11 +1100,16 @@ class Helpers {
      * Resolution order:
      *  1. PMW_HANDLE_AS_FREE_VERSION constant (local development override)
      *  2. PMW_HANDLE_AS_PRO_VERSION  constant (local development override)
-     *  3. Freemius runtime check: can_use_premium_code__premium_only()
-     *     This is license-aware, so when a premium license is invalidated at
-     *     runtime (renewal failure, manual disconnect, sync downgrade) the
-     *     bundle directory flips to 'free' even though the premium PHP files
-     *     are still on disk.
+     *  3. Helpers::is_pmw_pro_version_active()
+     *     On Freemius builds this is the license-aware
+     *     can_use_premium_code__premium_only() check, so when a premium
+     *     license is invalidated at runtime (renewal failure, manual
+     *     disconnect, sync downgrade) the bundle directory flips to 'free'
+     *     even though the premium PHP files are still on disk.
+     *     On builds without the Freemius SDK (the WooCommerce.com marketplace
+     *     distribution loads pmw-loader.php instead of freemius-loader.php)
+     *     it falls back to the plugin basename check, so the wcm pro build
+     *     serves the pro bundle instead of silently dropping to 'free'.
      *
      * Do not use Helpers::is_free_plugin_distribution() for asset selection:
      * that helper answers the distribution question (which ZIP was installed)
@@ -1121,10 +1126,7 @@ class Helpers {
         if ( defined( 'PMW_HANDLE_AS_PRO_VERSION' ) && PMW_HANDLE_AS_PRO_VERSION ) {
             return 'pro';
         }
-        if ( function_exists( 'wpm_fs' ) && wpm_fs()->can_use_premium_code__premium_only() ) {
-            return 'pro';
-        }
-        return 'free';
+        return ( self::is_pmw_pro_version_active() ? 'pro' : 'free' );
     }
 
     /**

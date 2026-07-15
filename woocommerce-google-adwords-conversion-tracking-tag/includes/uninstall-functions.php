@@ -57,6 +57,26 @@ if (!function_exists('pmw_delete_plugin_data')) {
 
 		global $wpdb;
 
+		// --- Broker connection (experimental) ---
+		// Best-effort: tell the broker to revoke the Google connection and
+		// purge its stored credentials before the site token is deleted below.
+		$pmw_broker_state = get_option('pmw_broker');
+
+		if (is_array($pmw_broker_state) && !empty($pmw_broker_state['site_token'])) {
+			wp_remote_post(
+				'https://pmw.sweetcode.com/v1/disconnect',
+				[
+					'timeout' => 5,
+					'headers' => [
+						'Authorization' => 'Bearer ' . $pmw_broker_state['site_token'],
+						// JSON-typed so the broker's CSRF check accepts the POST.
+						'Content-Type'  => 'application/json',
+					],
+					'body'    => '{}',
+				]
+			);
+		}
+
 		// --- Options ---
 		$option_names = [
 			// Core settings + backups
@@ -67,6 +87,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 			'pmw_opportunities',
 			'pmw_gtg_handler_cache',
 			'pmw_default_admin_theme',
+			'pmw_broker',
 
 			// Tracking accuracy
 			'pmw_tracking_accuracy_db_version',
@@ -84,6 +105,10 @@ if (!function_exists('pmw_delete_plugin_data')) {
 			delete_option($option_name);
 		}
 
+		// --- User meta ---
+		// Per-user admin UI theme choice (Nova/Classic switcher).
+		delete_metadata('user', 0, 'pmw_admin_theme', '', true);
+
 		// --- Transients (named) ---
 		delete_transient('pmw_tracking_accuracy_backfill_running');
 		delete_transient('pmw_tracking_accuracy_analysis');
@@ -96,6 +121,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 		delete_transient('pmw_google_tag_id_information');
 		delete_transient('_pmw_pro_version_demo_active');
 		delete_transient('pmw_test_transient');
+		delete_transient('pmw_broker_challenge');
 
 		// --- Transients (prefixed; cleaned up via direct query) ---
 		// These are created with dynamic suffixes (per-key caches), so match by prefix.

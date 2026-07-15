@@ -4,6 +4,7 @@ namespace SweetCode\Pixel_Manager\Admin;
 
 use SweetCode\Pixel_Manager\Admin\Notifications\Notifications;
 use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunities;
+use SweetCode\Pixel_Manager\First_Event_Confirmation;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
@@ -95,6 +96,16 @@ class Admin_REST {
 					wp_send_json_error('Unknown onboarding step');
 				}
 
+				// First-event confirmation: hide the "first order tracked" celebration.
+				if ('first_event' === $data['type']) {
+
+					if ('dismiss-celebration' === $data['id'] && First_Event_Confirmation::dismiss_celebration()) {
+						wp_send_json_success();
+					}
+
+					wp_send_json_error('Unknown first-event action');
+				}
+
 				// One-time server-load warning acknowledgement (CAPI / Tag Gateway).
 				if ('server_load_warning' === $data['type']) {
 
@@ -122,6 +133,17 @@ class Admin_REST {
 				}
 
 				wp_send_json_error('Unknown notification action');
+			},
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+
+		// Status poll for the first-run "waiting for the first storefront
+		// visit" dashboard strip. Polled by Nova only while that strip is
+		// visible and unconfirmed; returns the same snapshot as pmwAdminApi.
+		register_rest_route(self::$rest_namespace, '/onboarding/first-event/', [
+			'methods'             => 'GET',
+			'callback'            => function () {
+				wp_send_json_success(First_Event_Confirmation::get_data_for_nova());
 			},
 			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
@@ -489,12 +511,13 @@ class Admin_REST {
 			}
 
 			$out_rows[] = [
-				'date'      => (string) $row['date'],
-				'gatewayId' => $id,
-				'total'     => (int) $row['orders_total'],
-				'measured'  => (int) $row['orders_measured'],
-				'acr'       => (int) $row['orders_acr'],
-				'delaySum'  => (int) $row['delay_sum'],
+				'date'            => (string) $row['date'],
+				'gatewayId'       => $id,
+				'total'           => (int) $row['orders_total'],
+				'measured'        => (int) $row['orders_measured'],
+				'acr'             => (int) $row['orders_acr'],
+				'delaySum'        => (int) $row['delay_sum'],
+				'consentExcluded' => isset($row['orders_consent_excluded']) ? (int) $row['orders_consent_excluded'] : 0,
 			];
 		}
 
@@ -502,7 +525,11 @@ class Admin_REST {
 			'bounds'    => $bounds,
 			'start'     => $start,
 			'end'       => $end,
-			'canUseAcr' => function_exists('wpm_fs') && wpm_fs()->can_use_premium_code__premium_only(),
+			// Use the canonical helper, not an inline wpm_fs() check: the WooCommerce
+			// Marketplace Pro build ships without the Freemius SDK, so a compound
+			// function_exists('wpm_fs') && wpm_fs()->...() condition is always false
+			// there and ACR would present as locked for paying customers.
+			'canUseAcr' => Helpers::is_pmw_pro_version_active(),
 			'gateways'  => $gateways,
 			'rows'      => $out_rows,
 		], 200);

@@ -677,6 +677,7 @@ class Abilities {
 				'total_active'             => count($active_pixels),
 				'has_marketing_pixels'     => Pixel_Registry::has_active_marketing_pixels(),
 				'has_statistics_pixels'    => Pixel_Registry::has_active_statistics_pixels(),
+				'has_attribution_pixels'   => Pixel_Registry::has_active_attribution_pixels(),
 				'has_optimization_pixels'  => Pixel_Registry::has_active_optimization_pixels(),
 				'has_server_side_tracking' => Pixel_Registry::has_available_adapters(),
 			],

@@ -156,7 +156,7 @@ class Pixel_Registry {
 	/**
 	 * Get pixels by category
 	 *
-	 * @param string $category One of: 'marketing', 'statistics', 'optimization'
+	 * @param string $category One of: 'marketing', 'statistics', 'attribution', 'optimization'
 	 * @return Pixel_Descriptor[] Array of descriptors in the specified category
 	 */
 	public static function get_pixels_by_category( $category ) {
@@ -171,7 +171,7 @@ class Pixel_Registry {
 	/**
 	 * Get active pixels by category
 	 *
-	 * @param string $category One of: 'marketing', 'statistics', 'optimization'
+	 * @param string $category One of: 'marketing', 'statistics', 'attribution', 'optimization'
 	 * @return Pixel_Descriptor[] Array of active descriptors in the specified category
 	 */
 	public static function get_active_pixels_by_category( $category ) {
@@ -205,6 +205,21 @@ class Pixel_Registry {
 	public static function has_active_statistics_pixels() {
 		foreach ( self::$descriptors as $descriptor ) {
 			if ( $descriptor->get_category() === 'statistics' && $descriptor->is_active() ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Check if any attribution pixels are active
+	 *
+	 * @return bool True if at least one attribution pixel is active
+	 * @since 1.62.1
+	 */
+	public static function has_active_attribution_pixels() {
+		foreach ( self::$descriptors as $descriptor ) {
+			if ( $descriptor->get_category() === 'attribution' && $descriptor->is_active() ) {
 				return true;
 			}
 		}

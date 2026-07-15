@@ -40,7 +40,7 @@ interface Pixel_Descriptor {
 	/**
 	 * Get the pixel's category.
 	 *
-	 * @return string One of: 'marketing', 'statistics', 'optimization'
+	 * @return string One of: 'marketing', 'statistics', 'attribution', 'optimization'
 	 */
 	public function get_category();
 
