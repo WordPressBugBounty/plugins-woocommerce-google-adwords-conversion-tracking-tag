@@ -5,6 +5,7 @@ namespace SweetCode\Pixel_Manager\Admin;
 use Exception;
 use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Logger;
+use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
@@ -69,6 +70,8 @@ class Debug_Info {
             $html .= 'hook_suffix:                  ' . $hook_suffix . PHP_EOL;
             $html .= PHP_EOL;
             $html .= 'Hosting provider: ' . Environment::get_hosting_provider() . PHP_EOL;
+            $html = self::add_facebook_event_setup_info( $html );
+            $html = self::add_facebook_restricted_events_info( $html );
             if ( Environment::is_woocommerce_active() ) {
                 $html .= PHP_EOL . '## WooCommerce ##' . PHP_EOL . PHP_EOL;
                 $html .= 'Default currency: ' . get_woocommerce_currency() . PHP_EOL . PHP_EOL;
@@ -219,6 +222,129 @@ class Debug_Info {
             return $html;
         } catch ( Exception $e ) {
             $html .= PHP_EOL . 'Freemius error: ' . $e->getMessage() . PHP_EOL;
+        }
+        return $html;
+    }
+
+    /**
+     * Add a report about Meta Event Setup Tool rules to the debug info.
+     *
+     * Meta stores point-and-click Event Setup Tool rules server-side on the
+     * pixel and delivers them to every browser through the public signals
+     * config file. Active rules fire additional events without an event ID
+     * and usually without a value, which corrupts event counts and purchase
+     * values because they cannot be deduplicated against the events the
+     * Pixel Manager sends.
+     *
+     * Reference: https://secure.helpscout.net/conversation/3309525073
+     *
+     * @param string $html
+     * @return string
+     * @since 1.63.1
+     */
+    private static function add_facebook_event_setup_info( $html ) {
+        try {
+            $pixel_ids = Facebook::get_pixel_ids();
+            if ( empty( $pixel_ids ) ) {
+                return $html;
+            }
+            $html .= PHP_EOL . '## Meta Event Setup Tool ##' . PHP_EOL . PHP_EOL;
+            $results = Facebook_Event_Setup_Scan::get_scan_results( true );
+            if ( !is_array( $results ) || empty( $results['pixels'] ) ) {
+                $html .= 'Scan disabled or no results available.' . PHP_EOL;
+                return $html;
+            }
+            $findings_detected = false;
+            foreach ( $results['pixels'] as $pixel_id => $pixel ) {
+                if ( !empty( $pixel['error'] ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': could not be scanned (' . $pixel['error'] . ')' . PHP_EOL;
+                    continue;
+                }
+                $event_names = Facebook_Event_Setup_Scan::get_active_rule_event_names( $pixel );
+                $iwl_extractors = ( !empty( $pixel['iwl_extractors'] ) ? $pixel['iwl_extractors'] : [] );
+                if ( empty( $event_names ) && empty( $iwl_extractors ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': OK (no active Event Setup Tool rules found)' . PHP_EOL;
+                    continue;
+                }
+                $findings_detected = true;
+                if ( !empty( $event_names ) ) {
+                    $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': ' . count( $pixel['active_rules'] ) . ' active Event Setup Tool rule(s) firing: ' . implode( ', ', $event_names ) . PHP_EOL;
+                }
+                if ( !empty( $iwl_extractors ) ) {
+                    $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': Event Setup Tool value extractors configured for: ' . implode( ', ', $iwl_extractors ) . PHP_EOL;
+                }
+            }
+            if ( $findings_detected ) {
+                $html .= PHP_EOL;
+                $html .= 'These rules fire additional browser events without deduplication and mostly without values,' . PHP_EOL;
+                $html .= 'which corrupts event counts and purchase values in Meta. Remove them in the Meta Events Manager:' . PHP_EOL;
+                $html .= 'Data sources -> select the pixel -> Settings -> Event setup -> Manage' . PHP_EOL;
+                $html .= 'More information: ' . Documentation::get_link( 'facebook_event_setup_tool' ) . PHP_EOL;
+            }
+            if ( !empty( $results['scanned_at'] ) ) {
+                $html .= 'Scan date: ' . gmdate( 'Y-m-d H:i:s', $results['scanned_at'] ) . ' UTC' . PHP_EOL;
+            }
+            return $html;
+        } catch ( Exception $e ) {
+            $html .= PHP_EOL . 'Meta Event Setup Tool scan error: ' . $e->getMessage() . PHP_EOL;
+        }
+        return $html;
+    }
+
+    /**
+     * Add Meta business category event restrictions to the debug info.
+     *
+     * Meta pixels in restricted business categories (e.g. health and wellness)
+     * carry an eventValidation entry with restrictedEventNames in their public
+     * signals config. fbevents.js silently drops those events client-side (no
+     * request to facebook.com/tr) and Meta filters them on the Conversion API
+     * too, while PageView and ViewContent keep working. Merchants then suspect
+     * the Pixel Manager because only the lower funnel events are missing.
+     *
+     * Reference: averyalert.com support case, 2026-07-24
+     *
+     * @param string $html
+     * @return string
+     * @since 1.63.1
+     */
+    private static function add_facebook_restricted_events_info( $html ) {
+        try {
+            $pixel_ids = Facebook::get_pixel_ids();
+            if ( empty( $pixel_ids ) ) {
+                return $html;
+            }
+            $html .= PHP_EOL . '## Meta Business Category Event Restrictions ##' . PHP_EOL . PHP_EOL;
+            $results = Facebook_Event_Setup_Scan::get_scan_results( true );
+            if ( !is_array( $results ) || empty( $results['pixels'] ) ) {
+                $html .= 'Scan disabled or no results available.' . PHP_EOL;
+                return $html;
+            }
+            $restrictions_detected = false;
+            foreach ( $results['pixels'] as $pixel_id => $pixel ) {
+                if ( !empty( $pixel['error'] ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': could not be scanned (' . $pixel['error'] . ')' . PHP_EOL;
+                    continue;
+                }
+                $restricted_events = ( !empty( $pixel['restricted_events'] ) ? $pixel['restricted_events'] : [] );
+                if ( empty( $restricted_events ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': OK (no restricted events)' . PHP_EOL;
+                    continue;
+                }
+                $restrictions_detected = true;
+                $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': Meta blocks these events for this pixel: ' . implode( ', ', $restricted_events ) . PHP_EOL;
+            }
+            if ( $restrictions_detected ) {
+                $html .= PHP_EOL;
+                $html .= 'Meta restricts these events because of the business category of the pixel (e.g. health and wellness).' . PHP_EOL;
+                $html .= 'fbevents.js silently drops them in the browser and Meta also filters them on the Conversion API,' . PHP_EOL;
+                $html .= 'while PageView and ViewContent keep working. This is enforced by Meta and not caused by the Pixel Manager.' . PHP_EOL;
+                $html .= 'Review the business category in the Meta Events Manager (Data sources -> select the pixel -> Settings ->' . PHP_EOL;
+                $html .= 'Manage data source categories, and Manage event blocking) and request a review if the categorization is wrong.' . PHP_EOL;
+                $html .= 'More information: ' . Documentation::get_link( 'facebook_restricted_events' ) . PHP_EOL;
+            }
+            return $html;
+        } catch ( Exception $e ) {
+            $html .= PHP_EOL . 'Meta business category restrictions scan error: ' . $e->getMessage() . PHP_EOL;
         }
         return $html;
     }

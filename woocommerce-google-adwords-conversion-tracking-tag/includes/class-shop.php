@@ -8,7 +8,13 @@ use SweetCode\Pixel_Manager\Options;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
 class Shop {
-    private static $clv_orders_by_billing_email;
+    /**
+     * Paid orders per billing email, memoized for the request.
+     *
+     * @var array<string, array>
+     * @since 1.63.1 Keyed by email address.
+     */
+    private static $clv_orders_by_billing_email = [];
 
     private static $pmw_ist_order_received_page;
 
@@ -231,6 +237,61 @@ class Shop {
         return false;
     }
 
+    /**
+     * Meta key recording that the GA4 purchase event was sent from the browser.
+     *
+     * The GA4 browser pixel and the GA4 Measurement Protocol are mutually
+     * exclusive transports: the browser purchase is suppressed while the MP
+     * API secret is set. Each transport used to track its own "already sent"
+     * state, so an order paid while the secret was empty was tracked from the
+     * browser without leaving any marker the MP could see. Re-enabling the
+     * secret then made the next paid-status transition send that same order
+     * a second time.
+     *
+     * This key closes that gap. It is written on the order confirmation only
+     * while the MP is inactive, and the MP purchase gate honors it.
+     *
+     * Note: it is deliberately NOT the same as _wpm_conversion_pixel_fired.
+     * That flag is written on every order confirmation regardless of consent
+     * and regardless of which pixels actually ran, so it cannot gate the MP.
+     *
+     * Known imprecision: the order confirmation cannot tell whether the GA4
+     * browser purchase was itself suppressed by denied statistics consent, so
+     * the marker is set for those orders too. That only matters for shops
+     * running always_send_s2s, which would otherwise send such an order once
+     * the MP is enabled. Not resending a historical order is the safer default.
+     *
+     * @return string
+     * @since 1.63.1
+     */
+    public static function get_ga4_browser_purchase_key() {
+        return '_pmw_ga4_browser_purchase_sent';
+    }
+
+    /**
+     * Whether the GA4 purchase event for this order was already sent from the browser.
+     *
+     * @param \WC_Order $order The order.
+     * @return bool
+     * @since 1.63.1
+     */
+    public static function was_ga4_purchase_sent_from_browser( $order ) {
+        return $order->meta_exists( self::get_ga4_browser_purchase_key() );
+    }
+
+    /**
+     * Whether the order confirmation should record a browser-sent GA4 purchase.
+     *
+     * True only when GA4 is configured and the Measurement Protocol is inactive,
+     * which is exactly the situation in which the browser sends the purchase.
+     *
+     * @return bool
+     * @since 1.63.1
+     */
+    public static function should_record_ga4_browser_purchase() {
+        return Options::is_ga4_enabled() && !Options::is_ga4_mp_active();
+    }
+
     public static function is_order_confirmation_allowed_status( $order ) {
         if ( $order->has_status( 'failed' ) || $order->has_status( 'cancelled' ) || $order->has_status( 'refunded' ) ) {
             return false;
@@ -415,31 +476,14 @@ class Shop {
         return wp_specialchars_decode( $title );
     }
 
-    public static function get_all_order_ids() {
-        return wc_get_orders( [
-            'post_status' => wc_get_is_paid_statuses(),
-            'limit'       => -1,
-            'return'      => 'ids',
-        ] );
-    }
-
-    public static function get_count_of_all_order_ids() {
-        return count( self::get_all_order_ids() );
-    }
-
-    public static function get_all_order_ids_by_billing_email( $billing_email ) {
-        return wc_get_orders( [
-            'billing_email' => sanitize_email( $billing_email ),
-            'post_status'   => wc_get_is_paid_statuses(),
-            'limit'         => -1,
-            'return'        => 'ids',
-        ] );
-    }
-
-    public static function get_count_of_order_ids_by_billing_email( $billing_email ) {
-        return count( self::get_all_order_ids_by_billing_email( $billing_email ) );
-    }
-
+    // Removed in 1.63.1: get_all_order_ids(), get_count_of_all_order_ids(),
+    // get_all_order_ids_by_billing_email() and
+    // get_count_of_order_ids_by_billing_email(). They fetched every paid order
+    // ID in the shop with limit => -1 purely to count() the result, and their
+    // only caller was the commented-out guard in can_ltv_be_processed_on_order()
+    // below. Should that guard ever be revived, count the orders with
+    // wc_get_orders(['limit' => 1, 'paginate' => true])->total instead of
+    // hydrating the full ID list.
     public static function can_ltv_be_processed_on_order( $order ) {
         if ( !Options::is_order_level_ltv_calculation_active() ) {
             return false;
@@ -461,17 +505,23 @@ class Shop {
     }
 
     public static function get_all_paid_orders_by_billing_email( $billing_email ) {
-        if ( self::$clv_orders_by_billing_email ) {
-            return self::$clv_orders_by_billing_email;
-        } else {
-            $orders = wc_get_orders( [
-                'billing_email' => sanitize_email( $billing_email ),
-                'post_status'   => wc_get_is_paid_statuses(),
-                'limit'         => -1,
-            ] );
-            self::$clv_orders_by_billing_email = $orders;
-            return $orders;
+        $email = sanitize_email( $billing_email );
+        // Keyed by email. The previous single-slot cache returned the first
+        // looked-up customer's orders for every subsequent email in the same
+        // request, which silently reported the wrong customer lifetime value
+        // whenever more than one email was resolved (and an isset() check
+        // rather than a truthy one so a customer with no paid orders is not
+        // re-queried on every call). @since 1.63.1
+        if ( isset( self::$clv_orders_by_billing_email[$email] ) ) {
+            return self::$clv_orders_by_billing_email[$email];
         }
+        $orders = wc_get_orders( [
+            'billing_email' => $email,
+            'post_status'   => wc_get_is_paid_statuses(),
+            'limit'         => -1,
+        ] );
+        self::$clv_orders_by_billing_email[$email] = $orders;
+        return $orders;
     }
 
     public static function get_clv_value_filtered_by_billing_email( $billing_email ) {

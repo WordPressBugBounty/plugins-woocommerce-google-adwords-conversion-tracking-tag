@@ -10,6 +10,24 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 // https://stackoverflow.com/a/36453587/4688612
 class Order_Columns {
 
+	/**
+	 * Transient holding the cached "pixels not fired" order count.
+	 *
+	 * @since 1.63.1
+	 */
+	const COUNT_TRANSIENT = 'pmw_orders_pixels_not_fired_count';
+
+	/**
+	 * How long the cached count stays valid.
+	 *
+	 * Short enough that the number stays useful while paging through the order
+	 * list, long enough that the count query runs once instead of on every
+	 * single order-list render.
+	 *
+	 * @since 1.63.1
+	 */
+	const COUNT_TTL = 5 * MINUTE_IN_SECONDS;
+
 	private static $instance;
 
 	public static function get_instance() {
@@ -37,12 +55,38 @@ class Order_Columns {
 
 	public function hpos_menu_view( $views ) {
 
-		$count_missing_pixel_fires = count(wc_get_orders([
-			'return'         => 'ids',
-			'status'         => [ 'wc-completed', 'wc-processing', 'wc-on-hold', 'wc-pending' ],
-			'posts_per_page' => -1,
-			'date_created'   => '>' . ( time() - MONTH_IN_SECONDS ),
-			'meta_query'     => [
+		return $this->get_updated_views_hpos($views, $this->get_missing_pixel_fires_count(), $this->is_pmw_pixels_not_fired_view());
+	}
+
+	/**
+	 * Count the orders from the last 30 days that PMW monitored but whose
+	 * conversion pixels never fired.
+	 *
+	 * Asks the data store for the total via 'paginate' instead of pulling every
+	 * matching order ID into PHP just to count() the array. The meta_query
+	 * carries a NOT EXISTS clause, so on a busy shop the unbounded variant both
+	 * ran an expensive join and then hydrated an arbitrarily large ID list on
+	 * every order-list page render. The result is cached briefly because this
+	 * count is only ever rendered as a view-link label.
+	 *
+	 * @return int
+	 * @since 1.63.1
+	 */
+	private function get_missing_pixel_fires_count() {
+
+		$cached = get_transient(self::COUNT_TRANSIENT);
+
+		if (false !== $cached) {
+			return (int) $cached;
+		}
+
+		$query = wc_get_orders([
+			'return'       => 'ids',
+			'status'       => [ 'wc-completed', 'wc-processing', 'wc-on-hold', 'wc-pending' ],
+			'limit'        => 1,
+			'paginate'     => true,
+			'date_created' => '>' . ( time() - MONTH_IN_SECONDS ),
+			'meta_query'   => [
 				[
 					'key'     => '_wpm_process_through_wpm',
 					'compare' => 'EXISTS',
@@ -52,17 +96,20 @@ class Order_Columns {
 					'compare' => 'NOT EXISTS',
 				],
 			],
-			'field_query'    => [
+			'field_query'  => [
 				[
 					'field'   => 'created_via',
 					'value'   => 'checkout',
 					'compare' => '=',
 				],
 			],
-		]));
+		]);
 
+		$count = isset($query->total) ? (int) $query->total : 0;
 
-		return $this->get_updated_views_hpos($views, $count_missing_pixel_fires, $this->is_pmw_pixels_not_fired_view());
+		set_transient(self::COUNT_TRANSIENT, $count, self::COUNT_TTL);
+
+		return $count;
 	}
 
 	public function get_updated_views_hpos( $views, $count_missing_pixel_fires, $pmw_pixels_not_fired_query ) {
@@ -157,17 +204,47 @@ class Order_Columns {
 			];
 		}
 
+		$count_missing_pixel_fires = $this->get_missing_pixel_fires_count_legacy();
+
+		// Add new view with all orders where the conversion pixels have not been fired
+		add_filter('views_edit-shop_order', function ( $views ) use ( $count_missing_pixel_fires, $is_pmw_pixels_not_fired_view ) {
+			return $this->get_updated_views($views, $count_missing_pixel_fires, $is_pmw_pixels_not_fired_view);
+		});
+	}
+
+	/**
+	 * Pre-HPOS variant of get_missing_pixel_fires_count().
+	 *
+	 * Uses WP_Query's found_posts total rather than fetching every matching ID,
+	 * and shares the same short-lived cache as the HPOS path (only one of the
+	 * two ever runs on a given install).
+	 *
+	 * @return int
+	 * @since 1.63.1
+	 */
+	private function get_missing_pixel_fires_count_legacy() {
+
+		$cached = get_transient(self::COUNT_TRANSIENT);
+
+		if (false !== $cached) {
+			return (int) $cached;
+		}
+
 		// Count all post_meta where _wpm_process_through_wpm exists and _wpm_conversion_pixel_fired is missing and not older than 30d
-		$count_missing_pixel_fires = count(get_posts([
-			'fields'         => 'ids',
-			'post_type'      => 'shop_order',
-			'post_status'    => [ 'wc-completed', 'wc-processing', 'wc-on-hold', 'wc-pending' ],
-			'posts_per_page' => -1,
-			'date_query'     => [
+		$query = new \WP_Query([
+			'fields'                 => 'ids',
+			'post_type'              => 'shop_order',
+			'post_status'            => [ 'wc-completed', 'wc-processing', 'wc-on-hold', 'wc-pending' ],
+			'posts_per_page'         => 1,
+			'ignore_sticky_posts'    => true,
+			'no_found_rows'          => false,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
+			'date_query'             => [
 				'column' => 'post_date',
 				'after'  => '30 days ago',
 			],
-			'meta_query'     => [
+			'meta_query'             => [
 				[
 					'key'     => '_wpm_process_through_wpm',
 					'compare' => 'EXISTS',
@@ -182,12 +259,13 @@ class Order_Columns {
 					'compare' => '=',
 				],
 			],
-		]));
+		]);
 
-		// Add new view with all orders where the conversion pixels have not been fired
-		add_filter('views_edit-shop_order', function ( $views ) use ( $count_missing_pixel_fires, $is_pmw_pixels_not_fired_view ) {
-			return $this->get_updated_views($views, $count_missing_pixel_fires, $is_pmw_pixels_not_fired_view);
-		});
+		$count = (int) $query->found_posts;
+
+		set_transient(self::COUNT_TRANSIENT, $count, self::COUNT_TTL);
+
+		return $count;
 	}
 
 	public function get_updated_views( $views, $count_missing_pixel_fires, $pmw_pixels_not_fired_query ) {

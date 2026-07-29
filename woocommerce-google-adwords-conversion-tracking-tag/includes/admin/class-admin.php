@@ -296,7 +296,8 @@ class Admin {
         // never repainted by the current/hover menu rules — in WP 7 those rules
         // turn .awaiting-mod near-black inside the open flyout, while
         // .menu-counter keeps the admin accent colour in every state.
-        $attention_count = Opportunities::get_active_opportunities_count() + Onboarding::get_open_steps_count();
+        // Cached: this runs on every admin page load. @since 1.63.1
+        $attention_count = Opportunities::get_active_opportunities_count_cached() + Onboarding::get_open_steps_count();
         if ( $attention_count > 0 ) {
             $count = number_format_i18n( $attention_count );
             $menu_title .= ' <span class="menu-counter count-' . absint( $attention_count ) . '">' . '<span class="count">' . esc_html( $count ) . '</span>' . '</span>';
@@ -586,6 +587,22 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // Add the field for the Criteo pixel
+            add_settings_field(
+                'pmw_plugin_criteo_account_id',
+                esc_html__( 'Criteo account ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_criteo_account_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+            // Add the field for the Nextdoor pixel
+            add_settings_field(
+                'pmw_plugin_nextdoor_pixel_id',
+                esc_html__( 'Nextdoor pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_nextdoor_pixel_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             // Add the field for the GroundTruth pixel
             add_settings_field(
                 'pmw_plugin_groundtruth_gtid',
@@ -705,6 +722,14 @@ class Admin {
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
+        // Add the field for the Hyros product hash
+        add_settings_field(
+            'pmw_plugin_hyros_product_hash',
+            esc_html__( 'Hyros product hash', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            [__CLASS__, 'option_html_hyros_product_hash'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
     }
 
     public static function add_section_main_subsection_optimization( $section_ids ) {
@@ -769,6 +794,9 @@ class Admin {
             self::add_section_advanced_subsection_snapchat( $section_ids );
             self::add_section_advanced_subsection_reddit( $section_ids );
             self::add_section_advanced_subsection_openai( $section_ids );
+            self::add_section_advanced_subsection_criteo( $section_ids );
+            self::add_section_advanced_subsection_nextdoor( $section_ids );
+            self::add_section_advanced_subsection_hyros( $section_ids );
             self::add_section_advanced_subsection_tiktok( $section_ids );
             if ( Environment::is_woocommerce_active() ) {
                 self::add_section_advanced_subsection_twitter( $section_ids );
@@ -917,16 +945,11 @@ class Admin {
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
-        if ( Helpers::is_experiment() ) {
-            // Add a button to enable the automatic lifetime value recalculation
-            add_settings_field(
-                'pmw_setting_ltv_automatic_recalculation',
-                esc_html__( 'Automatic Lifetime Value Recalculation', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_experiment(),
-                [__CLASS__, 'html_ltv_automatic_recalculation'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-        }
+        // The "Automatic Lifetime Value Recalculation" field was removed in 1.63.1.
+        // The automatic drift detection it advertised had been disabled long
+        // before that because it caused performance problems on large shops, so
+        // the setting controlled nothing. A full recalculation is a manual
+        // operation now; see the field below. Details in LTV::calculate_pmw_order_values().
         // Add a button to schedule a lifetime value recalculation
         add_settings_field(
             'pmw_setting_ltv_manual_recalculation',
@@ -1251,6 +1274,78 @@ class Admin {
             'plugin_openai_advanced_matching',
             esc_html__( 'OpenAI Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'option_html_openai_advanced_matching'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
+    public static function add_section_advanced_subsection_criteo( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'Criteo',
+            'slug'  => 'criteo',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the Criteo advanced matching
+        add_settings_field(
+            'pmw_plugin_criteo_advanced_matching',
+            esc_html__( 'Criteo Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_criteo_advanced_matching'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
+    /**
+     * Hyros advanced settings subsection
+     *
+     * @since 1.63.1
+     *
+     * @param array $section_ids
+     * @return void
+     */
+    public static function add_section_advanced_subsection_hyros( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'Hyros',
+            'slug'  => 'hyros',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the Hyros application tag
+        add_settings_field(
+            'pmw_plugin_hyros_application_tag',
+            esc_html__( 'Hyros application tag', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_hyros_application_tag'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
+    public static function add_section_advanced_subsection_nextdoor( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'Nextdoor',
+            'slug'  => 'nextdoor',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the Nextdoor Conversion API token
+        add_settings_field(
+            'pmw_plugin_nextdoor_capi_token',
+            esc_html__( 'Nextdoor Conversion API: token', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_nextdoor_capi_token'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Nextdoor Conversion API test event code
+        add_settings_field(
+            'pmw_plugin_nextdoor_capi_test_event_code',
+            esc_html__( 'Nextdoor Conversion API: test event code', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_nextdoor_capi_test_event_code'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Nextdoor advanced matching
+        add_settings_field(
+            'pmw_plugin_nextdoor_advanced_matching',
+            esc_html__( 'Nextdoor Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_nextdoor_advanced_matching'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -3533,6 +3628,186 @@ class Admin {
         esc_html_e( 'Enter the unique identifier (GTID) provided by your GroundTruth representative. One GTID covers all campaigns of your Ads Manager account.', 'woocommerce-google-adwords-conversion-tracking-tag' );
     }
 
+    public static function option_html_criteo_account_id() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_criteo_account_id"
+				name="wgact_plugin_options[pixels][criteo][account_id]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_criteo_account_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_criteo_active() );
+        self::get_documentation_html_by_key( 'criteo_account_id' );
+        self::output_advanced_section_cog_html( 'criteo' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter your Criteo account ID (also called partner ID). You can find it in Criteo Commerce Growth under Event Tracking, or request it from your Criteo representative. It looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>12345</code>';
+    }
+
+    public static function option_html_criteo_advanced_matching() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][criteo][advanced_matching]">
+			<input type="checkbox"
+					id="pmw_plugin_criteo_advanced_matching"
+					name="wgact_plugin_options[pixels][criteo][advanced_matching]"
+					value="1"
+				<?php 
+        checked( Options::is_criteo_advanced_matching_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable Criteo advanced matching', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_criteo_advanced_matching_enabled(), Options::is_criteo_active(), true );
+        self::get_documentation_html_by_key( 'criteo_advanced_matching' );
+        self::html_pro_feature();
+    }
+
+    public static function option_html_nextdoor_pixel_id() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_nextdoor_pixel_id"
+				name="wgact_plugin_options[pixels][nextdoor][pixel_id]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_nextdoor_pixel_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_nextdoor_active() );
+        self::get_documentation_html_by_key( 'nextdoor_pixel_id' );
+        self::output_advanced_section_cog_html( 'nextdoor' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter your Nextdoor pixel ID. You can find it in Nextdoor Ads Manager under Assets > Pixels. It looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>550e8400-e29b-41d4-a716-446655440000</code>';
+    }
+
+    public static function option_html_nextdoor_capi_token() {
+        ?>
+		<textarea class="pmw mono"
+					id="pmw_plugin_nextdoor_capi_token"
+					name="wgact_plugin_options[pixels][nextdoor][capi][token]"
+					cols="60"
+					rows="6"
+					onfocus="this.select();"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>><?php 
+        echo esc_html( Options::get_nextdoor_capi_token() );
+        ?></textarea>
+		<?php 
+        self::display_status_icon( Options::get_nextdoor_capi_token(), Options::is_nextdoor_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'nextdoor_capi_token' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_nextdoor_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the Nextdoor pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
+    }
+
+    public static function option_html_nextdoor_capi_test_event_code() {
+        ?>
+		<input class="pmw mono"
+				type="text"
+				id="pmw_plugin_nextdoor_capi_test_event_code"
+				name="wgact_plugin_options[pixels][nextdoor][capi][test_event_code]"
+				value="<?php 
+        echo esc_html( Options::get_nextdoor_capi_test_event_code() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+		/>
+		<?php 
+        self::display_status_icon( Options::get_nextdoor_capi_test_event_code(), Options::is_nextdoor_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'nextdoor_capi_test_event_code' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_nextdoor_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the Nextdoor pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
+    }
+
+    public static function option_html_nextdoor_advanced_matching() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][nextdoor][advanced_matching]">
+			<input type="checkbox"
+					id="pmw_plugin_nextdoor_advanced_matching"
+					name="wgact_plugin_options[pixels][nextdoor][advanced_matching]"
+					value="1"
+				<?php 
+        checked( Options::is_nextdoor_advanced_matching_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable Nextdoor advanced matching', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_nextdoor_advanced_matching_enabled(), Options::is_nextdoor_active(), true );
+        self::get_documentation_html_by_key( 'nextdoor_advanced_matching' );
+        self::html_pro_feature();
+    }
+
     public static function option_html_triple_whale_enabled() {
         // adding the hidden input is a hack to make WordPress save the option with the value zero,
         // instead of not saving it and remove that array key entirely
@@ -3584,6 +3859,67 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'Optional. A Triple Whale API key with the "Orders: Write" scope, created in Triple Whale under Data > APIs. When set, the Pixel Manager sends order records (including refunds) server-side to the Triple Whale Orders API.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * The Hyros product hash, the ph value of the Hyros Universal Script.
+     *
+     * @since 1.63.1
+     *
+     * @return void
+     */
+    public static function option_html_hyros_product_hash() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_hyros_product_hash"
+				name="wgact_plugin_options[pixels][hyros][product_hash]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_hyros_product_hash() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_hyros_active() );
+        self::get_documentation_html_by_key( 'hyros_product_hash' );
+        self::output_advanced_section_cog_html( 'hyros' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'The product hash is the ph value of the Hyros Universal Script, which you find in Hyros under Tracking > Universal Script. You can paste the whole script snippet here, the product hash is extracted automatically.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * The Hyros application tag, attributed to visitors when they land on a tracked page.
+     *
+     * @since 1.63.1
+     *
+     * @return void
+     */
+    public static function option_html_hyros_application_tag() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_hyros_application_tag"
+				name="wgact_plugin_options[pixels][hyros][application_tag]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_hyros_application_tag() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::get_documentation_html_by_key( 'hyros_application_tag' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Optional. The tag Hyros attributes to a visitor on landing, configured in Hyros under Tracking > Universal Script in the Application Tag field. Leave empty to use the Hyros default:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>!clicked</code>';
     }
 
     public static function option_html_facebook_pixel_id() {
@@ -5986,33 +6322,10 @@ class Admin {
         self::get_documentation_html_by_key( 'ltv_order_calculation' );
     }
 
-    public static function html_ltv_automatic_recalculation() {
-        // adding the hidden input is a hack to make WordPress save the option with the value zero,
-        // instead of not saving it and remove that array key entirely
-        // https://stackoverflow.com/a/1992745/4688612
-        ?>
-		<label>
-			<input type="hidden" value="0" name="wgact_plugin_options[shop][ltv][automatic_recalculation][is_active]">
-			<input type="checkbox"
-					id="pmw_setting_ltv_automatic_recalculation"
-					name="wgact_plugin_options[shop][ltv][automatic_recalculation][is_active]"
-					value="1"
-				<?php 
-        checked( Options::is_automatic_ltv_recalculation_active() );
-        ?>
-			/>
-
-			<?php 
-        esc_html_e( 'Enable the automatic detection and recalculation of the lifetime value.', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        ?>
-		</label>
-		<?php 
-        self::display_status_icon( Options::is_automatic_ltv_recalculation_active() );
-        ?>
-		<?php 
-        self::get_documentation_html_by_key( 'ltv_recalculation' );
-    }
-
+    // html_ltv_automatic_recalculation() was removed in 1.63.1 together with its
+    // settings field. The option key shop.ltv.automatic_recalculation.is_active
+    // is intentionally left in the options tree so saved values and options
+    // backups stay valid, but nothing reads it any more.
     public static function order_extra_details_output() {
         // adding the hidden input is a hack to make WordPress save the option with the value zero,
         // instead of not saving it and remove that array key entirely
@@ -6975,7 +7288,7 @@ class Admin {
         ?>
 			/>
 			<?php 
-        esc_html_e( 'ID for the WooCommerce Google Listings & Ads Plugin. Outputs the post ID with gla_ prefix **', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( 'ID for the Google for WooCommerce plugin (formerly Google Listings & Ads). Outputs the post ID with gla_ prefix **', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
 		</label>
 		<br>
@@ -6992,10 +7305,9 @@ class Admin {
 			Plugin</a>
 		<br>
 		<?php 
-        esc_html_e( '** This is for users of the WooCommerce Google Listings & Ads Plugin', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( '** This is for users of the Google for WooCommerce plugin (formerly Google Listings & Ads)', 'woocommerce-google-adwords-conversion-tracking-tag' );
         ?>
-		<a href="https://woocommerce.com/products/google-listings-and-ads/" target="_blank">WooCommerce Google Listings
-			& Ads Plugin
+		<a href="https://woocommerce.com/products/google-listings-and-ads/" target="_blank">Google for WooCommerce
 			Plugin</a>
 
 		<?php 

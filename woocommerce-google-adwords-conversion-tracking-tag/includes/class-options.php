@@ -10,6 +10,7 @@
 namespace SweetCode\Pixel_Manager;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
+use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunities;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -271,11 +272,27 @@ class Options {
 				'groundtruth' => [
 					'gtid' => '',
 				],
+				'criteo'     => [
+					'account_id'        => '',
+					'advanced_matching' => false,
+				],
+				'nextdoor'   => [
+					'pixel_id'          => '',
+					'advanced_matching' => false,
+					'capi'              => [
+						'token'           => '',
+						'test_event_code' => '',
+					],
+				],
 				'triple_whale' => [
 					'enabled'    => false,
 					'orders_api' => [
 						'token' => '',
 					],
+				],
+				'hyros'      => [
+					'product_hash'    => '',
+					'application_tag' => '',
 				],
 			],
 			'shop'       => [
@@ -955,6 +972,54 @@ class Options {
 	}
 
 	/**
+	 * Criteo
+	 */
+
+	public static function get_criteo_account_id() {
+		return self::get_options_obj()->pixels->criteo->account_id;
+	}
+
+	public static function is_criteo_active() {
+		return (bool) self::get_criteo_account_id();
+	}
+
+	public static function is_criteo_advanced_matching_enabled() {
+		return (bool) self::get_options_obj()->pixels->criteo->advanced_matching;
+	}
+
+	/**
+	 * Nextdoor
+	 */
+
+	public static function get_nextdoor_pixel_id() {
+		return self::get_options_obj()->pixels->nextdoor->pixel_id;
+	}
+
+	public static function is_nextdoor_active() {
+		return (bool) self::get_nextdoor_pixel_id();
+	}
+
+	public static function is_nextdoor_advanced_matching_enabled() {
+		return (bool) self::get_options_obj()->pixels->nextdoor->advanced_matching;
+	}
+
+	public static function get_nextdoor_capi_token() {
+		return self::get_options_obj()->pixels->nextdoor->capi->token;
+	}
+
+	public static function get_nextdoor_capi_test_event_code() {
+		return self::get_options_obj()->pixels->nextdoor->capi->test_event_code;
+	}
+
+	public static function is_nextdoor_capi_active() {
+		return self::is_nextdoor_active() && (bool) self::get_nextdoor_capi_token();
+	}
+
+	public static function is_nextdoor_capi_test_event_code_set() {
+		return (bool) self::get_nextdoor_capi_test_event_code();
+	}
+
+	/**
 	 * Triple Whale
 	 */
 
@@ -968,6 +1033,46 @@ class Options {
 
 	public static function is_triple_whale_orders_api_active() {
 		return self::is_triple_whale_active() && self::get_triple_whale_orders_api_token();
+	}
+
+	/**
+	 * Hyros
+	 *
+	 * @since 1.63.1
+	 */
+
+	public static function get_hyros_product_hash() {
+		return self::get_options_obj()->pixels->hyros->product_hash;
+	}
+
+	public static function is_hyros_active() {
+		return (bool) self::get_hyros_product_hash();
+	}
+
+	/**
+	 * The application tag as configured by the shop, which can be empty.
+	 *
+	 * @since 1.63.1
+	 *
+	 * @return string
+	 */
+	public static function get_hyros_application_tag() {
+		return self::get_options_obj()->pixels->hyros->application_tag;
+	}
+
+	/**
+	 * The application tag Hyros attributes to visitors when they land on a tracked page.
+	 * Hyros defaults to !clicked when no custom tag has been configured.
+	 *
+	 * @since 1.63.1
+	 *
+	 * @return string
+	 */
+	public static function get_hyros_effective_application_tag() {
+
+		$tag = self::get_hyros_application_tag();
+
+		return $tag ? $tag : '!clicked';
 	}
 
 	/**
@@ -1329,6 +1434,18 @@ class Options {
 		return (bool) self::get_options_obj()->shop->ltv->order_calculation->is_active;
 	}
 
+	/**
+	 * No longer read anywhere.
+	 *
+	 * The automatic LTV drift detection this gated was disabled because it
+	 * caused performance problems on large shops, and its settings field was
+	 * removed in 1.63.1. The option key stays in the options tree so saved
+	 * values and options backups remain valid, and this accessor stays so any
+	 * third-party code calling it does not fatal. A full recalculation is a
+	 * manual operation now. See LTV::calculate_pmw_order_values().
+	 *
+	 * @deprecated 1.63.1 The setting it reads no longer has any effect.
+	 */
 	public static function is_automatic_ltv_recalculation_active() {
 		return (bool) self::get_options_obj()->shop->ltv->automatic_recalculation->is_active;
 	}
@@ -1394,6 +1511,11 @@ class Options {
 
 		// Invalidate cache so new options are loaded
 		self::invalidate_cache();
+
+		// Almost every opportunity's availability is derived from the settings,
+		// so the cached admin-menu badge count is stale after a save.
+		// @since 1.63.1
+		Opportunities::flush_active_opportunities_count_cache();
 	}
 
 	/**

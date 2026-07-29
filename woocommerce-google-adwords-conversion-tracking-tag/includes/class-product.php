@@ -9,6 +9,22 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 
 class Product {
 
+	/**
+	 * Request-level memo for get_brand_name(), keyed by product ID.
+	 *
+	 * @var array<int, string>
+	 * @since 1.63.1
+	 */
+	private static $brand_name_cache = [];
+
+	/**
+	 * Request-level memo for get_product_category(), keyed by product ID.
+	 *
+	 * @var array<int, array>
+	 * @since 1.63.1
+	 */
+	private static $product_category_cache = [];
+
 	public static function get_order_item_ids( $order, $pixel_name ) {
 
 		$order_items       = self::pmw_get_order_items($order);
@@ -314,6 +330,30 @@ class Product {
 	 */
 	public static function get_brand_name( $product_id ) {
 
+		// Brand and category are read repeatedly for the same product within a
+		// single request: once per data-layer entry, again for cart and order
+		// item output, and in a few places twice in a row for the same ID (see
+		// Google_Helpers::get_product_data_for_datalayer). Each miss costs
+		// taxonomy term lookups, so memoize per request. Product terms cannot
+		// change mid-request, so this is safe. @since 1.63.1
+		if (isset(self::$brand_name_cache[$product_id])) {
+			return self::$brand_name_cache[$product_id];
+		}
+
+		self::$brand_name_cache[$product_id] = self::resolve_brand_name($product_id);
+
+		return self::$brand_name_cache[$product_id];
+	}
+
+	/**
+	 * Uncached brand-name resolution. See get_brand_name().
+	 *
+	 * @param int $product_id
+	 * @return string
+	 * @since 1.63.1
+	 */
+	private static function resolve_brand_name( $product_id ) {
+
 		// Works for the WooCommere internal brand taxonomy since version 9.7
 		// and for the deprecated WooCommerce Brands plugin
 		$brand_taxonomy = 'product_brand';
@@ -373,6 +413,25 @@ class Product {
 
 	// get an array with all product categories
 	public static function get_product_category( $product_id ) {
+
+		// Memoized for the same reason as get_brand_name(). @since 1.63.1
+		if (isset(self::$product_category_cache[$product_id])) {
+			return self::$product_category_cache[$product_id];
+		}
+
+		self::$product_category_cache[$product_id] = self::resolve_product_category($product_id);
+
+		return self::$product_category_cache[$product_id];
+	}
+
+	/**
+	 * Uncached product-category resolution. See get_product_category().
+	 *
+	 * @param int $product_id
+	 * @return array
+	 * @since 1.63.1
+	 */
+	private static function resolve_product_category( $product_id ) {
 
 		$product = wc_get_product($product_id);
 

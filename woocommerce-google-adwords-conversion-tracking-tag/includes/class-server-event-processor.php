@@ -80,6 +80,8 @@ class Server_Event_Processor {
 			'SweetCode\Pixel_Manager\Pixels\Pinterest\Pinterest_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\Snapchat\Snapchat_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_Adapter',
+			'SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_Adapter',
+			'SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_Adapter',
 		];
 
 		foreach ($adapters_to_load as $adapter_class) {

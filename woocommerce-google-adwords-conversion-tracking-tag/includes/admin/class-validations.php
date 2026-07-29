@@ -741,6 +741,66 @@ class Validations {
 			}
 		}
 
+		// Validate the Criteo account ID
+		if (isset($input['pixels']['criteo']['account_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['criteo']['account_id'] = Helpers::trim_string($input['pixels']['criteo']['account_id']);
+
+			if (!self::is_criteo_account_id($input['pixels']['criteo']['account_id'])) {
+				$input['pixels']['criteo']['account_id']
+					= Options::get_criteo_account_id()
+					? Options::get_criteo_account_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-criteo-account-id', esc_html__('You have entered an invalid Criteo account ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Nextdoor pixel ID
+		if (isset($input['pixels']['nextdoor']['pixel_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['nextdoor']['pixel_id'] = Helpers::trim_string($input['pixels']['nextdoor']['pixel_id']);
+
+			if (!self::is_nextdoor_pixel_id($input['pixels']['nextdoor']['pixel_id'])) {
+				$input['pixels']['nextdoor']['pixel_id']
+					= Options::get_nextdoor_pixel_id()
+					? Options::get_nextdoor_pixel_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-nextdoor-pixel-id', esc_html__('You have entered an invalid Nextdoor pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Nextdoor Conversion API token
+		if (isset($input['pixels']['nextdoor']['capi']['token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['nextdoor']['capi']['token'] = Helpers::trim_string($input['pixels']['nextdoor']['capi']['token']);
+
+			if (!self::is_nextdoor_capi_token($input['pixels']['nextdoor']['capi']['token'])) {
+				$input['pixels']['nextdoor']['capi']['token']
+					= Options::get_nextdoor_capi_token()
+					? Options::get_nextdoor_capi_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-nextdoor-capi-token', esc_html__('You have entered an invalid Nextdoor Conversion API token.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Nextdoor Conversion API test event code
+		if (isset($input['pixels']['nextdoor']['capi']['test_event_code'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['nextdoor']['capi']['test_event_code'] = Helpers::trim_string($input['pixels']['nextdoor']['capi']['test_event_code']);
+
+			if (!self::is_nextdoor_capi_test_event_code($input['pixels']['nextdoor']['capi']['test_event_code'])) {
+				$input['pixels']['nextdoor']['capi']['test_event_code']
+					= Options::get_nextdoor_capi_test_event_code()
+					? Options::get_nextdoor_capi_test_event_code()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-nextdoor-capi-test-event-code', esc_html__('You have entered an invalid Nextdoor Conversion API test event code.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Validate the Triple Whale Orders API key
 		if (isset($input['pixels']['triple_whale']['orders_api']['token'])) {
 
@@ -753,6 +813,36 @@ class Validations {
 					? Options::get_triple_whale_orders_api_token()
 					: '';
 				add_settings_error('wgact_plugin_options', 'invalid-triple-whale-orders-api-token', esc_html__('You have entered an invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Hyros product hash
+		if (isset($input['pixels']['hyros']['product_hash'])) {
+
+			// Trim space, newlines and quotes, and pull the hash out of a pasted script snippet or URL
+			$input['pixels']['hyros']['product_hash'] = self::extract_hyros_product_hash($input['pixels']['hyros']['product_hash']);
+
+			if (!self::is_hyros_product_hash($input['pixels']['hyros']['product_hash'])) {
+				$input['pixels']['hyros']['product_hash']
+					= Options::get_hyros_product_hash()
+					? Options::get_hyros_product_hash()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-hyros-product-hash', esc_html__('You have entered an invalid Hyros product hash.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Hyros application tag
+		if (isset($input['pixels']['hyros']['application_tag'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['hyros']['application_tag'] = Helpers::trim_string($input['pixels']['hyros']['application_tag']);
+
+			if (!self::is_hyros_application_tag($input['pixels']['hyros']['application_tag'])) {
+				$input['pixels']['hyros']['application_tag']
+					= Options::get_hyros_application_tag()
+					? Options::get_hyros_application_tag()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-hyros-application-tag', esc_html__('You have entered an invalid Hyros application tag.', 'woocommerce-google-adwords-conversion-tracking-tag'));
 			}
 		}
 
@@ -1152,11 +1242,19 @@ class Validations {
 			'pixels.adroll.pixel_id',
 			'pixels.clarity.project_id',
 			'pixels.contentsquare.tag_id',
+			'pixels.criteo.account_id',
+			'pixels.criteo.advanced_matching',
 			'pixels.groundtruth.gtid',
+			'pixels.hyros.application_tag',
+			'pixels.hyros.product_hash',
 			'pixels.linkedin.conversion_ids.add_to_cart',
 			'pixels.linkedin.conversion_ids.purchase',
 			'pixels.linkedin.conversion_ids.view_content',
 			'pixels.linkedin.partner_id',
+			'pixels.nextdoor.advanced_matching',
+			'pixels.nextdoor.capi.test_event_code',
+			'pixels.nextdoor.capi.token',
+			'pixels.nextdoor.pixel_id',
 			'pixels.optimizely.project_id',
 			'pixels.outbrain.advertiser_id',
 			'pixels.openai.advanced_matching',
@@ -1464,6 +1562,64 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	/**
+	 * Pull the Hyros product hash out of whatever the shop pasted into the field.
+	 *
+	 * Hyros hands out the product hash as the ph query parameter of the Universal
+	 * Script, so shops routinely paste the whole script snippet or the script URL
+	 * instead of the bare hash. Both are accepted, an empty string is returned when
+	 * no hash can be found.
+	 *
+	 * @since 1.63.1
+	 *
+	 * @param string $string
+	 * @return string
+	 */
+	public static function extract_hyros_product_hash( $string ) {
+
+		$string = Helpers::trim_string($string);
+
+		if (preg_match('/[?&]ph=([a-zA-Z0-9_\-]+)/', $string, $matches)) {
+			return $matches[1];
+		}
+
+		return $string;
+	}
+
+	/**
+	 * Hyros product hashes are opaque identifiers. The regex is kept permissive so
+	 * valid hashes are never rejected, while whitespace, markup and control
+	 * characters are blocked.
+	 *
+	 * @since 1.63.1
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_hyros_product_hash( $string ) {
+
+		$re = '/^[a-zA-Z0-9_\-]{10,200}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	/**
+	 * Hyros application tags are free-form labels, conventionally prefixed with an
+	 * exclamation mark (!clicked). They travel in a query string, so only characters
+	 * that survive that unescaped are allowed.
+	 *
+	 * @since 1.63.1
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_hyros_application_tag( $string ) {
+
+		$re = '/^[a-zA-Z0-9_!\-]{1,50}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_scroll_tracker_thresholds( $string ) {
 
 		// https://regex101.com/r/4haInV/1
@@ -1657,6 +1813,39 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	public static function is_criteo_account_id( $string ) {
+
+		// Criteo account IDs (partner IDs) are numeric.
+		$re = '/^[\d]{3,10}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_nextdoor_pixel_id( $string ) {
+
+		// Nextdoor pixel IDs are UUIDs.
+		$re = '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_nextdoor_capi_token( $string ) {
+
+		// The Nextdoor Conversion API token is an opaque bearer token generated
+		// in Nextdoor Ads Manager, so this is deliberately permissive.
+		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_nextdoor_capi_test_event_code( $string ) {
+
+		// Nextdoor test event identifiers are short alphanumeric flags (e.g. TEST1234).
+		$re = '/^[A-Za-z0-9_-]{2,64}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_tiktok_pixel_id( $string ) {
 
 		$re = '/^[A-Z0-9]{20,20}$/m';
@@ -1833,6 +2022,11 @@ class Validations {
 				}
 				break;
 
+			case 'pixels.hyros.product_hash':
+				// Pull the hash out of a pasted Universal Script snippet or script URL
+				$value = self::extract_hyros_product_hash($value);
+				break;
+
 			case 'google.tag_gateway.measurement_path':
 				// Prefix a slash if missing — but leave an empty value empty so the
 				// field can be cleared (an empty path disables the gateway).
@@ -1959,8 +2153,20 @@ class Validations {
 			// GroundTruth
 			'pixels.groundtruth.gtid'                           => [ 'is_groundtruth_gtid', __('Invalid GroundTruth GTID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
+			// Criteo
+			'pixels.criteo.account_id'                          => [ 'is_criteo_account_id', __('Invalid Criteo account ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Nextdoor
+			'pixels.nextdoor.pixel_id'                          => [ 'is_nextdoor_pixel_id', __('Invalid Nextdoor pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.nextdoor.capi.token'                        => [ 'is_nextdoor_capi_token', __('Invalid Nextdoor Conversion API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.nextdoor.capi.test_event_code'              => [ 'is_nextdoor_capi_test_event_code', __('Invalid Nextdoor Conversion API test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
 			// Triple Whale
 			'pixels.triple_whale.orders_api.token'              => [ 'is_triple_whale_orders_api_token', __('Invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Hyros
+			'pixels.hyros.product_hash'                         => [ 'is_hyros_product_hash', __('Invalid Hyros product hash.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.hyros.application_tag'                      => [ 'is_hyros_application_tag', __('Invalid Hyros application tag. Only letters, digits, underscores, dashes and the leading exclamation mark are allowed.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 		];
 	}
 }

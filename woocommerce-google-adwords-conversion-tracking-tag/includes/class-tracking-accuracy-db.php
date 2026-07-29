@@ -31,6 +31,14 @@ class Tracking_Accuracy_DB {
 	const BACKFILL_MAX_CONTINUATIONS = 50;
 
 	/**
+	 * Request-level memo for table_exists(). Null means "not yet checked".
+	 *
+	 * @var bool|null
+	 * @since 1.63.1
+	 */
+	private static $table_exists_cache = null;
+
+	/**
 	 * Get the full table name with prefix.
 	 *
 	 * @return string
@@ -48,6 +56,16 @@ class Tracking_Accuracy_DB {
 	 * @since 1.58.5
 	 */
 	public static function table_exists() {
+
+		// Every read and write in this class calls table_exists() as its guard,
+		// and several of those run on the purchase path, so without memoization a
+		// single checkout issues repeated SHOW TABLES queries. The table can only
+		// appear or disappear through create_table()/drop_table(), which reset
+		// this, so a per-request cache is safe. @since 1.63.1
+		if (null !== self::$table_exists_cache) {
+			return self::$table_exists_cache;
+		}
+
 		global $wpdb;
 
 		$table = self::get_table_name();
@@ -57,7 +75,9 @@ class Tracking_Accuracy_DB {
 			$wpdb->prepare('SHOW TABLES LIKE %s', $table)
 		);
 
-		return $result === $table;
+		self::$table_exists_cache = ( $result === $table );
+
+		return self::$table_exists_cache;
 	}
 
 	/**
@@ -91,6 +111,9 @@ class Tracking_Accuracy_DB {
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta($sql);
+
+		// The table may have just come into existence. @since 1.63.1
+		self::$table_exists_cache = null;
 
 		if (!self::table_exists()) {
 			Logger::error('Tracking accuracy DB: table creation failed');
@@ -144,6 +167,8 @@ class Tracking_Accuracy_DB {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
 		$wpdb->query( 'DROP TABLE IF EXISTS ' . esc_sql( self::get_table_name() ) );
+
+		self::$table_exists_cache = null; // @since 1.63.1
 
 		delete_option(self::DB_VERSION_KEY);
 		delete_option(self::BACKFILL_DONE);

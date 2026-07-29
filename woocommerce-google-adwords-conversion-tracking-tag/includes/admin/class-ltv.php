@@ -409,26 +409,37 @@ class LTV {
 		$previous_order_id = self::get_previous_order_with_same_email_address($order);
 		$previous_order    = wc_get_order($previous_order_id);
 
-		// If there is a previous order
-		// and not all PMW order values are set,
-		// it means the LTV calculation on that old order came from a previous version of the plugin.
-		// Therefore, we need to schedule a complete vertical LTV calculation.
-//      if (
-//          $previous_order
-//          && !self::are_all_pmw_order_values_set($previous_order)
-//          && Options::is_automatic_ltv_recalculation_active()
-//      ) {
-//          self::schedule_complete_vertical_ltv_calculation();
-//      }
+		// Note on automatic drift detection, deliberately absent:
+		//
+		// Two triggers used to sit here. One scheduled a full vertical
+		// recalculation when a previous order was missing PMW values, the other
+		// re-ran the marketing order value and compared it against the stored one
+		// to detect that the calculation had changed. Both were disabled because
+		// they caused serious performance problems on large shops: the comparison
+		// recomputed the order value a second time on the purchase path, and a
+		// single detection scheduled a walk over the entire order history.
+		//
+		// They are not coming back, and there is no cheap replacement. The
+		// marketing order value can change through PHP filters
+		// (pmw_marketing_conversion_value_filter, pmw_product_price_for_datalayer
+		// and friends) that live in a theme's functions.php, so there is no
+		// settings write or any other event we could hook to notice it. Detecting
+		// drift means recomputing the values, which is exactly the cost we are
+		// trying to avoid.
+		//
+		// A full recalculation is therefore a manual, explicit operation that the
+		// shop manager triggers from the settings; see
+		// schedule_complete_vertical_ltv_calculation() and
+		// run_complete_vertical_ltv_calculation(). Refunds and cancellations are
+		// still handled automatically by the much cheaper horizontal chain walk in
+		// horizontal_ltv_calculation().
+		//
+		// @since 1.63.1 Dead detection code and its commented-out call sites removed.
 
 		// If there is a previous order and all PMW order values are set, calculate the LTV
 		if ($previous_order && self::are_all_pmw_order_values_set($previous_order)) {
 			$order_values['marketing_ltv'] = self::get_marketing_ltv_from_order($previous_order) + $order_values['marketing_order_value'];
 			$order_values['total_ltv']     = self::get_total_ltv_from_order($previous_order) + $order_values['total_order_value'];
-
-			// Check if the marketing order value calculation changed
-			// If yes, schedule a complete vertical LTV calculation
-//          self::vertical_recalculation_if_the_marketing_order_value_calculation_changed($previous_order);
 		} else {
 			$order_values['marketing_ltv'] = $order_values['marketing_order_value'];
 			$order_values['total_ltv']     = $order_values['total_order_value'];
@@ -437,62 +448,6 @@ class LTV {
 		self::set_pmw_order_values_on_order($order, $order_values);
 
 		return $order_values;
-	}
-
-	/**
-	 * Checks if the marketing order value calculation has changed and schedules a complete
-	 * vertical LTV (Lifetime Value) calculation if necessary.
-	 *
-	 * This function retrieves the old marketing order value, calculates the new marketing
-	 * order value and then compares them. If the old value is `null`, it means the marketing
-	 * order value was never calculated for that order, so a complete vertical LTV calculation
-	 * is scheduled. If the values are different, it logs the difference and schedules
-	 * a complete vertical LTV calculation as well.
-	 *
-	 * @param WC_Order $order The order object.
-	 *
-	 * @return void
-	 *
-	 * @since 1.35.1
-	 */
-	private static function vertical_recalculation_if_the_marketing_order_value_calculation_changed( $order ) {
-
-		if (Environment::cannot_run_action_scheduler()) {
-			Logger::debug('LTV::vertical_recalculation_if_the_marketing_order_value_calculation_changed() - cannot run action scheduler');
-			return;
-		}
-
-		// Return if the automatic LTV recalculation is not active
-		if (!Options::is_automatic_ltv_recalculation_active()) {
-			return;
-		}
-
-		// If the order has been partially refunded,
-		// abort the recalculation.
-		// We do recalculate the LTV for partially refunded orders already.
-		// But that doesn't happen immediately.
-		// So there is a chance that the marketing values are not correct when the current check runs.
-		// Therefore, we abort the recalculation.
-		if (Shop::has_order_been_partially_refunded($order)) {
-			return;
-		}
-
-		$marketing_order_value_old = self::get_marketing_order_value_from_order($order);
-		$marketing_order_value_new = Shop::get_order_value_total_marketing($order);
-
-		// Stop if it is null
-		// It means the marketing order value was never calculated on that order
-		if (null === $marketing_order_value_old) {
-			Logger::info('LTV::has_the_marketing_order_value_calculation_changed() - marketing_order_value_old is null. scheduling a complete vertical recalculation');
-			self::schedule_complete_vertical_ltv_calculation();
-			return;
-		}
-
-		// If the values are different, schedule a complete vertical LTV calculation
-		if ($marketing_order_value_old != $marketing_order_value_new) {
-			Logger::info('LTV::has_the_marketing_order_value_calculation_changed() - marketing_order_value_old != $marketing_order_value_new. scheduling a complete vertical recalculation');
-			self::schedule_complete_vertical_ltv_calculation();
-		}
 	}
 
 	/**

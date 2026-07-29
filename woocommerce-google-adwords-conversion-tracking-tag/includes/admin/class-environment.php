@@ -1084,7 +1084,7 @@ class Environment {
 	public static function third_party_plugin_tweaks_on_init() {
 
 		/**
-		 * Google Listing and Ads
+		 * Google for WooCommerce (formerly Google Listings & Ads, still "gla" in its code)
 		 *
 		 * Disable GLA's gtag tracking when Google Ads is active in PMW.
 		 * GLA's tracking is specifically for Google Ads (remarketing, conversions).

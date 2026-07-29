@@ -129,6 +129,7 @@ class SSP_Destination_Error_Notification extends Notification {
 			'snapchat'   => 'Snapchat',
 			'reddit'     => 'Reddit',
 			'openai'     => 'OpenAI',
+			'nextdoor'   => 'Nextdoor',
 			'google_ga4' => 'Google Analytics 4',
 		];
 

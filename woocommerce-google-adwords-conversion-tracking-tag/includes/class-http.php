@@ -92,7 +92,10 @@ class HTTP {
 
 	private function log_request( $url, $response, $payload = null, $request_args_override = [] ) {
 
-		Logger::debug('request url: ' . $url);
+		// Several APIs carry their credential in the query string (Meta and
+		// Snapchat as `access_token`, GA4 as `api_secret`), so the URL is masked
+		// against an allow list before it reaches the log.
+		Logger::debug('request url: ' . Logger::redact_url($url));
 
 		if ($payload) {
 			Logger::debug('payload: ' . print_r($payload, true));

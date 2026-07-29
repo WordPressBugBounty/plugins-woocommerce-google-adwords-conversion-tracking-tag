@@ -4,10 +4,12 @@ namespace SweetCode\Pixel_Manager\Pixels;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\LTV;
+use SweetCode\Pixel_Manager\Admin\Order_Columns;
 use SweetCode\Pixel_Manager\Admin\Validations;
 use SweetCode\Pixel_Manager\Data\GA4_Data_API;
 use SweetCode\Pixel_Manager\Pixels\ABTasty\AB_Tasty;
 use SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry;
+use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_MP_GA4;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
@@ -19,6 +21,7 @@ use SweetCode\Pixel_Manager\Pixels\Pinterest\Pinterest_APIC;
 use SweetCode\Pixel_Manager\Pixels\Snapchat\Snapchat_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_CAPI;
 use SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_CAPI;
+use SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_CAPI;
 use SweetCode\Pixel_Manager\Pixels\TripleWhale\Triple_Whale_API;
 use SweetCode\Pixel_Manager\Pixels\VWO\VWO;
 use SweetCode\Pixel_Manager\First_Event_Confirmation;
@@ -126,10 +129,13 @@ class Pixel_Manager {
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Outbrain_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Taboola_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\GroundTruth_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Criteo_Descriptor',
             // Statistics pixels
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Hotjar_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Crazyegg_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Clarity_Descriptor',
+            // Attribution pixels
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Hyros_Descriptor',
             // Optimization pixels
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\VWO_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Optimizely_Descriptor',
@@ -1320,6 +1326,7 @@ class Pixel_Manager {
     private function get_facebook_pixel_data() {
         $data = [
             'pixel_id'            => Options::get_facebook_pixel_id(),
+            'pixel_ids'           => Facebook::get_pixel_ids(),
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'facebook' ),
             ],
@@ -1374,9 +1381,47 @@ class Pixel_Manager {
         ];
     }
 
+    private static function get_criteo_pixel_data() {
+        return [
+            'account_id'          => (int) Options::get_criteo_account_id(),
+            'advanced_matching'   => Options::is_criteo_advanced_matching_enabled(),
+            'dynamic_remarketing' => [
+                'id_type' => Product::get_dyn_r_id_type( 'criteo' ),
+            ],
+        ];
+    }
+
+    private static function get_nextdoor_pixel_data() {
+        return [
+            'pixel_id'            => Options::get_nextdoor_pixel_id(),
+            'advanced_matching'   => Options::is_nextdoor_advanced_matching_enabled(),
+            'dynamic_remarketing' => [
+                'id_type' => Product::get_dyn_r_id_type( 'nextdoor' ),
+            ],
+        ];
+    }
+
     private static function get_triple_whale_pixel_data() {
         return [
             'shop' => Triple_Whale_API::get_shop(),
+        ];
+    }
+
+    /**
+     * Hyros data layer configuration
+     *
+     * The Universal Script URL is assembled in the browser so that the ref_url
+     * parameter carries the actual page URL, the same way the official Hyros
+     * plugin does it.
+     *
+     * @since 1.63.1
+     *
+     * @return array
+     */
+    private static function get_hyros_pixel_data() {
+        return [
+            'product_hash'    => Options::get_hyros_product_hash(),
+            'application_tag' => Options::get_hyros_effective_application_tag(),
         ];
     }
 
@@ -1853,7 +1898,26 @@ class Pixel_Manager {
         // Get the time between when the order was created and now and save it in _wpm_conversion_pixel_fired_delay
         $time_diff = time() - strtotime( $order->get_date_created() );
         $order->update_meta_data( '_wpm_conversion_pixel_fired_delay', $time_diff );
+        /**
+         * Record that the GA4 purchase was sent from the browser.
+         *
+         * The browser sends the GA4 purchase only while the Measurement Protocol
+         * is inactive (the adapter suppresses it when mp_active is true). Marking
+         * the order here lets the MP purchase gate recognize orders that were
+         * already tracked browser-side, so switching the MP API secret off and on
+         * again no longer resends them.
+         *
+         * @since 1.63.1
+         */
+        if ( Shop::should_record_ga4_browser_purchase() ) {
+            $order->update_meta_data( Shop::get_ga4_browser_purchase_key(), true );
+        }
         $order->save();
+        // This order just left the "pixels not fired" set, so drop the cached
+        // count behind the order-list view link. @since 1.63.1
+        if ( !$already_fired ) {
+            delete_transient( Order_Columns::COUNT_TRANSIENT );
+        }
         // First-run onboarding: record the very first tracked order once
         // (single get_option() guard in the steady state).
         First_Event_Confirmation::record_first_tracked_order( $order->get_id() );

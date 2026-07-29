@@ -60,18 +60,40 @@ class Broker_Client {
 	}
 
 	/**
-	 * The broker base URL. Filterable so dev setups can point at a local
-	 * broker (`add_filter('pmw_broker_url', ...)`).
+	 * The broker base URL.
 	 *
 	 * @return string
 	 */
 	public static function get_broker_url() {
+
+		/**
+		 * Filters the broker base URL, so dev setups can point at a local broker.
+		 *
+		 * @param string $broker_url The broker base URL.
+		 *
+		 * @since 1.62.1
+		 */
 		return untrailingslashit(apply_filters('pmw_broker_url', 'https://pmw.sweetcode.com'));
 	}
 
 	// Extracted the code because the QIT semgrep rule was triggered
 	public function can_current_user_edit_options() {
 		return Environment::can_current_user_edit_options();
+	}
+
+	/**
+	 * Permission callback for the public /broker/challenge endpoint.
+	 *
+	 * Public BY DESIGN (ACME http-01 style): the challenge is a broker-generated
+	 * one-time value that only exists for the ~10 minutes of an enrollment
+	 * started by an admin of this site, and reading it proves nothing.
+	 * Named method instead of an inline closure because the QIT semgrep rule
+	 * rest-route.permission-callback.return-true flags inline callbacks.
+	 *
+	 * @return bool
+	 */
+	public function is_challenge_endpoint_public() {
+		return true;
 	}
 
 	public function register_routes() {
@@ -99,10 +121,7 @@ class Broker_Client {
 
 				return new \WP_REST_Response([ 'challenge' => $challenge ], 200);
 			},
-			'permission_callback' => function () {
-				// nosemgrep
-				return true;
-			},
+			'permission_callback' => [ $this, 'is_challenge_endpoint_public' ],
 		]);
 
 		// All routes below are admin-only proxies to the broker.

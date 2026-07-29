@@ -35,7 +35,28 @@ class Notifications {
         } );
     }
 
+    /**
+     * Whether this admin screen can render any PMW notification.
+     *
+     * Mirrors the conditions in the admin_notices callback registered in the
+     * constructor: the opportunities notice and the notification list render on
+     * the WordPress dashboard and on the PMW settings pages, and the
+     * license-expired warning is limited to those same screens. Every other
+     * admin screen renders nothing, so it needs neither the script nor the
+     * stylesheet.
+     *
+     * @return bool
+     * @since 1.63.1
+     */
+    private static function needs_notification_assets() {
+        return Environment::is_allowed_notification_page() || Environment::is_pmw_settings_page();
+    }
+
     public static function inject_admin_scripts() {
+        // Was previously enqueued on every admin screen. @since 1.63.1
+        if ( !self::needs_notification_assets() ) {
+            return;
+        }
         wp_enqueue_script(
             'pmw-notifications',
             PMW_PLUGIN_DIR_PATH . 'js/admin/notifications.js',
@@ -50,6 +71,12 @@ class Notifications {
     }
 
     public static function wpm_admin_css( $hook_suffix ) {
+        // Only output the css on screens that can actually show a notification.
+        // The order-list column icons are styled by admin.css, not by this
+        // stylesheet, so gating here does not affect them. @since 1.63.1
+        if ( !self::needs_notification_assets() ) {
+            return;
+        }
         // Only output the css on PMW pages and the order page
         //      if (self::is_not_allowed_to_show_pmw_notification()) {
         //          return;

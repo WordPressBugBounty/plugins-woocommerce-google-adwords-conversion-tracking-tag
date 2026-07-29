@@ -48,6 +48,28 @@ class Opportunities {
 
 	public static $pmw_opportunities_option = 'pmw_opportunities';
 
+	/**
+	 * Transient holding the cached active-opportunity count for the admin menu badge.
+	 *
+	 * @since 1.63.1
+	 */
+	const COUNT_TRANSIENT = 'pmw_active_opportunities_count';
+
+	/**
+	 * How long the cached badge count stays valid.
+	 *
+	 * @since 1.63.1
+	 */
+	const COUNT_TTL = 15 * MINUTE_IN_SECONDS;
+
+	/**
+	 * Request-level memo for get_opportunities().
+	 *
+	 * @var array|null
+	 * @since 1.63.1
+	 */
+	private static $opportunities_cache = null;
+
 	public static function html() {
 		?>
 		<div>
@@ -392,6 +414,14 @@ class Opportunities {
 
 	private static function get_opportunities() {
 
+		// Several callers (the badge count, the by-impact breakdown, the
+		// dashboard notification) ask for this list in the same request. Each
+		// call globbed two directories and then walked every declared class in
+		// the process through is_subclass_of(), so memoize it. @since 1.63.1
+		if (null !== self::$opportunities_cache) {
+			return self::$opportunities_cache;
+		}
+
 		self::load_all_opportunity_classes();
 
 		$classes = get_declared_classes();
@@ -403,6 +433,8 @@ class Opportunities {
 				$opportunities[] = $class;
 			}
 		}
+
+		self::$opportunities_cache = $opportunities;
 
 		return $opportunities;
 	}
@@ -480,6 +512,46 @@ class Opportunities {
 		}
 
 		return $count;
+	}
+
+	/**
+	 * Cached variant of get_active_opportunities_count() for the admin menu badge.
+	 *
+	 * The badge is rendered on every single admin page load, and computing the
+	 * count means loading ~30 opportunity classes and running each one's
+	 * available() check. Some of those checks are not free: the payment gateway
+	 * accuracy opportunity, for instance, runs a grouped aggregate over the
+	 * tracking accuracy table. A badge number does not need to be
+	 * to-the-second accurate, so serve it from a short-lived transient and
+	 * invalidate on the events that can actually change it (settings saved,
+	 * opportunity dismissed or restored).
+	 *
+	 * @return int
+	 * @since 1.63.1
+	 */
+	public static function get_active_opportunities_count_cached() {
+
+		$cached = get_transient(self::COUNT_TRANSIENT);
+
+		if (false !== $cached) {
+			return (int) $cached;
+		}
+
+		$count = self::get_active_opportunities_count();
+
+		set_transient(self::COUNT_TRANSIENT, $count, self::COUNT_TTL);
+
+		return $count;
+	}
+
+	/**
+	 * Drop the cached badge count.
+	 *
+	 * @return void
+	 * @since 1.63.1
+	 */
+	public static function flush_active_opportunities_count_cache() {
+		delete_transient(self::COUNT_TRANSIENT);
 	}
 
 	/**
@@ -616,6 +688,8 @@ class Opportunities {
 
 		update_option(self::$pmw_opportunities_option, $option);
 
+		self::flush_active_opportunities_count_cache();
+
 		wp_send_json_success();
 	}
 
@@ -627,6 +701,8 @@ class Opportunities {
 			unset($option[$opportunity_id]['dismissed']);
 			update_option(self::$pmw_opportunities_option, $option);
 		}
+
+		self::flush_active_opportunities_count_cache();
 
 		wp_send_json_success();
 	}

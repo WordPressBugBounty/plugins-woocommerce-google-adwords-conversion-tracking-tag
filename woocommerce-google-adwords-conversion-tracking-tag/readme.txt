@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.3
-Stable tag: 1.63.0
+Stable tag: 1.64.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -89,10 +89,13 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 * Adroll Ads
 * Contentsquare Statistics
 * CrazyEgg Analytics
+* Criteo Ads – retargeting and audience events through the Criteo OneTag (beta)
 * GroundTruth Ads – omnichannel engagement and conversion tracking (beta)
+* Hyros – ad attribution through the Hyros Universal Script with funnel milestone tags (beta)
 * LinkedIn Ads
 * Microsoft Ads (Bing Ads)
 * Microsoft Clarity – heatmaps and session recordings with e-commerce events (beta)
+* Nextdoor Ads – conversion tracking through the Nextdoor Universal Pixel (beta)
 * OpenAI Ads – conversion tracking for ads on ChatGPT
 * Outbrain Ads
 * Pinterest Ads
@@ -321,12 +324,31 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.64.0  =
+*Release date - 29.07.2026*
+
+* New: Added the `pmw_facebook_pixel_identifiers` filter for tracking multiple Facebook (Meta) pixels at the same time; every browser event is sent to all configured pixels
+* New: Added a check that detects active Meta Event Setup Tool rules on the Facebook pixel and warns in the opportunities and the debug info, because those point-and-click rules fire additional events without deduplication and mostly without values, which inflates event counts and corrupts purchase values in Meta
+* New: Added an "Ask Pixie" chat icon next to most settings, from the pixel IDs and API tokens to the consent and order configuration options, that opens the AI assistant with a ready-to-send question about that setting
+* Tweak: The Facebook (Meta) pixel now detects when another script on the site has defined window.fbq before the Pixel Manager loaded it and logs a clear warning in the browser console, because such a script prevents Meta's standard bootstrap from loading fbevents.js and the browser pixel silently stops tracking
+* Tweak: The Pixel Manager now detects when Meta restricts events for a Facebook (Meta) pixel because of its business category (e.g. health and wellness) and reports the restricted event names in the browser console and in the debug info, because Meta silently drops those events in the browser and on the Conversion API while page views keep working, which looks like a tracking failure even though it is enforced by Meta; a business category review can be requested in the Meta Events Manager
+* Tweak: API tokens are now masked in the log; with request logging enabled, credentials that travel in the request URL (Meta and Snapchat access tokens, the GA4 Measurement Protocol API secret) or in an authorization header used to end up in clear text in the WooCommerce log, which is a file that gets shared with support and third parties; only the last four characters of a credential are shown now, and unknown URL parameters are masked by default
+* Tweak: The "PMW pixels not fired" counter above the WooCommerce order list no longer loads every matching order into memory just to count it; the number now comes from a counting query and is cached for a few minutes, which noticeably speeds up the order list on shops with many orders
+* Tweak: The order value calculation no longer looks up the brand and the categories of the same product more than once per request, which reduces the number of database queries on shop, category, cart, and order pages, most visibly on pages that list many products
+* Tweak: The notification count next to the Pixel Manager entry in the WooCommerce menu is now cached instead of being recalculated on every single admin page load; calculating it meant loading all opportunity checks, one of which aggregates the tracking accuracy statistics, so every admin page in the shop paid for it
+* Tweak: The notification script and stylesheet are now only loaded on the admin pages that can actually display a Pixel Manager notification (the WordPress dashboard and the Pixel Manager settings), instead of on every admin page
+* Tweak: The tracking accuracy database maintenance (creating the table after an update and scheduling the one-time backfill) no longer runs on storefront and checkout requests; until the backfill had finished, every single page view asked the Action Scheduler whether the backfill was already queued, which is a database query on the critical path; the maintenance now runs on admin, cron, and WP-CLI requests only
+* Tweak: The tracking accuracy statistics no longer re-check whether their database table exists on every read and write within the same request, which removes several redundant queries from the purchase path
+* Tweak: The product identifier setting now refers to the "Google for WooCommerce" plugin under its current name instead of "Google Listings & Ads", with the former name kept as a hint so the option is still recognizable; the plugin was renamed by WooCommerce a while ago, and the old name made it hard to tell which of the two plugins the gla_ option belongs to
+* Fix: Corrected broken or outdated documentation links in the settings (SweetCode Cloud, LinkedIn, Reddit, LTV recalculation) and added the missing documentation link to the "Disable tracking for user roles" setting
+* Fix: The add to cart event for WooCommerce Product Bundles now reports the value of the bundle as configured by the shopper, instead of the static minimum bundle price, which is 0 for bundles where all items are optional or for bundled subscriptions without an up-front fee
+* Fix: The add to cart event for WooCommerce Product Bundles now reads the quantity from the bundle's own quantity field; before, it could pick up the quantity of the first bundled item
+* Fix: The customer lifetime value is now resolved per email address; when more than one email address was looked up during the same request, every address after the first one received the order history of the first one, which reported the wrong lifetime value
+
 = 1.63.0  =
 *Release date - 15.07.2026*
 
-* New: Added GroundTruth as a new tracking pixel (Pro, beta), loading the GroundTruth Web Engagement Pixel for omnichannel ad attribution across mobile, desktop, CTV, and audio, and sending add to cart and purchase events with order values; just enter the GTID provided by your GroundTruth representative
-* New: Added Triple Whale as a new tracking pixel (Pro, beta) under a new Attribution category; a single toggle loads the Triple Pixel for visitor journey tracking (no pixel ID needed, the shop is identified by its domain), and an optional Orders API key syncs order records including refunds server-side to Triple Whale, which completes the attribution without connecting the store's REST API to Triple Whale
-* New: Added an Attribution pixel category, which appears as its own group in the settings and follows the statistics consent category for consent management
+* Tweak: Internal improvements to the tracking pixel framework
 
 = 1.62.1  =
 *Release date - 14.07.2026*
@@ -376,7 +398,6 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 = 1.61.0  =
 *Release date - 29.06.2026*
 
-* New: Added Microsoft Clarity as a new tracking pixel (Pro, beta), loading the Clarity tag for heatmaps and session recordings and sending add to cart, begin checkout, and purchase events so you can analyze the full shopping experience; just enter your Clarity project ID
 * Tweak: When you enable the Google Tag Gateway but your site is not served through a Cloudflare edge, the Pixel Manager now warns you once that the gateway is handled by your own server and adds load, so you can move it behind Cloudflare, keep it as-is, or turn it off
 * Tweak: The confirmation that appears when you turn on a consent gate (Explicit Consent Mode, or Google TCF support) now offers only "Enable anyway" or "Cancel" and can no longer be closed by clicking beside it, pressing Escape, or a close icon, so this consequential choice is not dismissed by accident
 * Tweak: Added a `pmw_product_price_for_datalayer` filter to override the per-product price used in the browser events
@@ -388,7 +409,6 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 = 1.60.0  =
 *Release date - 23.06.2026*
 
-* New: Added OpenAI as a new tracking pixel (Pro), with browser-side conversion tracking, a server-side Conversions API connection, and Advanced Matching for improved event matching; you only need to enter your OpenAI pixel ID and, for server-side tracking, a Conversions API token. Purchase conversions are sent server-side either way: routed through SweetCode Cloud when it is active, and sent directly to OpenAI from your store otherwise
 * New: Added a "Request a tracking pixel" link to the Tracking Pixels page so you can suggest a tracking pixel you would like us to add
 * Tweak: The Tracking Pixels page now separates active and inactive pixels with a labelled divider, so it is clear at a glance which pixels are currently tracking
 * Tweak: Turning on a consent gate (Explicit Consent Mode, or Google TCF support) now asks for confirmation first, because these settings stop all pixels from firing until your consent management platform grants consent
@@ -433,315 +453,6 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 * Tweak: Bumped up WordPress version to 7.0
 * Fix: Fixed fatal errors that could occur when an order or variation referenced a product or parent product that no longer exists
 
-= 1.58.11  =
-*Release date - 12.05.2026*
-
-* Tweak: Improved code quality and resolved static analysis findings
-
-= 1.58.10  =
-*Release date - 12.05.2026*
-
-* Tweak: Tightened Google Consent Mode behavior by defaulting to "denied" in explicit consent mode and mapping `personalization_storage` to marketing instead of preferences
-* Tweak: Removed the Account and Pricing tabs from the experimental Mantine admin UI in the WooCommerce.com Marketplace distribution where Freemius is not available
-* Tweak: Bucketed the Payment Gateway Accuracy Report against the gateway used to finalize payment instead of the gateway set at order creation, preventing per-gateway percentages above 100% when a gateway (Affirm, wallets, etc.) overwrites the payment method during checkout
-* Tweak: Hardened the public products data layer endpoint with per-IP rate limiting, page ID validation against existing posts, and a shorter one-week cache TTL to bound transient storage growth from unauthenticated requests
-* Fix: Hardened inline product data layer JSON encoding against script-tag injection by switching to hex-encoded HTML special characters
-* Fix: Removed incorrect "Pro Feature" label from CMP automatic support rows in Consent Management settings, since CMP integrations (Complianz, Cookiebot, Cookie Notice, Cookie Script, Moove GDPR, CookieYes, Termly) are available in the free version
-* Fix: Fixed iubenda CMP integration using deny-by-default fallbacks for absent purposes, matching the correct consent cookie, and mapping purpose 3 (Experience) to preferences
-* Fix: Fixed external Google Consent Mode update handler incorrectly granting preferences when only `personalization_storage` was present
-* Fix: Fixed opportunity cards not displaying when an admin notice hider plugin is active, by removing WordPress notice classes from the card markup
-* Fix: Fixed profit margin calculation producing incorrect marketing order values when WooCommerce native Cost of Goods Sold is active and order items have quantity greater than one, caused by double-counting the COGS quantity
-* Fix: Fixed JS chunks failing to load when a premium license was deactivated while the premium plugin files remained installed, which broke consent loading and silently disabled tracking
-* Fix: Hardened the frontend initialization so a failed consent module load no longer aborts all subsequent tracking setup, with consent defaulting to denied on failure to preserve privacy
-
-= 1.58.9  =
-*Release date - 14.04.2026*
-
-* Tweak: Added `pmw_` prefix to all generated event IDs for easier debugging and source identification
-* Fix: Fixed Termly CMP integration ignoring actual visitor consent choices and always granting full consent due to a hardcoded event payload
-
-
-= 1.58.8  =
-*Release date - 09.08.2026*
-
-* Tweak: Added diagnostic consent decision logging that explains why consent categories were set to their values when the logger is active, including mode, CMP source, and region check details
-* Tweak: Eliminated the REST API preflight test request by using optimistic-try with AJAX fallback, saving one HTTP round-trip per browser session
-* Fix: Fixed WooCommerce HPOS compatibility not being declared for inactive remnant PMW plugin folders, causing false "incompatible" warnings on the plugins page
-
-= 1.58.7  =
-*Release date - 31.03.2026*
-
-* Tweak: Improved Google Tag Gateway handler detection by replacing server-side self-probing with browser-based detection and cookie feedback, preventing PHP-FPM pool saturation on high-traffic sites
-* Tweak: Updated vendor packages
-
-= 1.58.6  =
-*Release date - 26.03.2026*
-
-* Tweak: Improved admin user interface
-
-= 1.58.5  =
-*Release date - 24.03.2026*
-
-* Tweak: Updated PHPCS tooling (WPCS 3.3.0, woocommerce-sniffs 1.0.1) and resolved all coding standards violations
-* Tweak: Added support for Google Ads conversion ID format (AW-) as a valid GA4 measurement ID
-* Tweak: Improved tracking accuracy analysis performance and reliability
-* Tweak: Added event-driven tracking accuracy table where per-order real-time writes replace the nightly batch analysis, with automatic 3-month backfill and graceful fallback to transients during transition
-* Tweak: Added comprehensive Action Scheduler cleanup on plugin deactivation, preventing orphaned pending tasks for tracking accuracy, duplication prevention, HTTP logging, LTV calculation, and SSP sync
-* Tweak: Fixed WP Rocket JS minification and combination breaking webpack chunk loading (ChunkLoadError) by always excluding PMW scripts from WP Rocket's minify and combine features, independent of compatibility mode
-* Tweak: Removed Maximum Compatibility Mode setting, since JS optimization exclusions (minify, combine, delay JS on critical pages) are now automatic for all supported performance plugins
-* Fix: Fixed Google Tag Gateway proxy returning 400 errors on some shops due to overly aggressive path sanitization
-* Fix: Fixed Google Tag Gateway proxy generating malformed conversion tracking URLs on some shops due to double-rewriting CCM paths
-
-= 1.58.4  =
-*Release date - 16.03.2026*
-
-* Tweak: Fixed Google Tag Gateway proxy causing Apache AH00124 internal redirect loops on some hosting configurations by following Google FPS redirects server-side and using absolute URLs in Location headers to prevent Apache from misinterpreting relative paths as internal redirects
-* Fix: Fixed PHP 8.5 deprecation warnings in the standalone Google Tag Gateway proxy breaking GA4 tracking by replacing deprecated $http_response_header with http_get_last_response_headers() (PHP 8.4+) with backward-compatible fallback, and conditionally skipping no-op curl_close() on PHP 8.0+
-
-= 1.58.3  =
-*Release date - 10.03.2026*
-
-
-= 1.58.2  =
-*Release date - 10.03.2026*
-
-* Tweak: Improved WP Rocket's Delay JavaScript breaking purchase tracking when PMW lazy loading is active by excluding all PMW scripts from WP Rocket optimization instead of only the lazy loader
-
-= 1.58.1  =
-*Release date - 10.03.2026*
-
-* New: Added support for WooCommerce's built-in Cost of Goods Sold feature for profit margin calculations (available since WooCommerce 9.5)
-* Tweak: Improved COGS retrieval to only check active sources, preventing stale data from deactivated plugins
-
-= 1.58.0  =
-*Release date - 02.03.2026*
-
-* New: Added unified IP exclusion filter (`pmw_ip_exclusion_list`) to block specific IPs and CIDR ranges from all tracking, including browser pixels, browser-initiated S2S, server-side purchase events, and SSP proxy
-* New: Declared compatibility with WooCommerce Product Instance Caching (experimental feature in WooCommerce 10.5+)
-* Tweak: Added support for suppressed Google Ads and GA4 tags in the Google Tag Gateway Proxy
-
-= 1.57.0  =
-*Release date - 24.02.2026*
-
-* New: Implemented account created event tracking
-* New: Added Abilities API integration 
-* Tweak: Implement cross-tab session synchronization for improved data consistency
-* Tweak: Added modern styling and impact indicators to opportunity cards
-* Tweak: Bumped up WC version compatibility to 10.5
-* Tweak: Enhanced GTG Proxy: Improved config resilience, reduced unnecessary health check requests, and added periodic config refresh
-* Tweak: Implemented REST API for saving settings via AJAX; refactored admin tabs and enhance section rendering
-* Tweak: Update styles for impact badges and add Google Automated Discounts and Customer Reviews opportunities
-
-= 1.56.0  =
-*Release date - 02.02.2026*
-
-* Tweak: Google Tag Gateway Proxy: Improved handling of config file
-
-= 1.55.1  =
-*Release date - 29.01.2026*
-
-* Fix: Fixed the bug which did not save the dismissed button click in the database for the trial notification
-
-= 1.55.0  =
-*Release date - 26.01.2026*
-
-* Tweak: Activated an opportunity notification for the Google Tag Gateway Proxy feature
-* Tweak: Updated pixel registry adapter capabilities for consistency with the decentralized architecture
-* Tweak: Added filter to control output of cart item data inline script for theme compatibility
-* Tweak: Refactored the internal event handling system for better maintainability
-* Tweak: Large refactor which renamed wpm to pmw
-* Tweak: Enhanced event handling for product variations and improve conditional triggers
-* Tweak: Enhanced active opportunities notification with impact level breakdown and improved styling
-* Tweak: Revamped rating notice UI and logic for better user experience
-* Tweak: Enhanced opportunities header with statistics and dismissal tracking
-* Tweak: Added backup section styles and improve table row highlighting
-* Tweak: Updated documentation links to use the new path structure
-* Tweak: Added Cookie Confirm CMP integration
-* Tweak: Added support for Beautiful and Responsive Cookie Consent plugin
-* Tweak: Updated script behavior for tracking on specific pages when Flying Press is active
-* Tweak: Enhanced race condition protection when renaming temporary config file in GTG_Proxy
-* Tweak: Improved proxy URL handling based on GTG handler type in Pixel Manager
-* Tweak: Updated GTG handler detection logic to rely on session cache and remove unnecessary server-side checks
-* Tweak: Updated GTG proxy config cache handling on activation and improve config file management
-* Fix: Add back view_cart event listener
-* Fix: Prevent division by zero for free orders in order value calculation
-
-= 1.54.1  =
-*Release date - 15.12.2025*
-
-* Tweak: Added a missing check for Contentsquare
-
-= 1.54.0  =
-*Release date - 15.12.2025*
-* Tweak: Admin UX improvements in the settings page.
-* Tweak: Refactored opportunity card output: sort by impact level and streamline dismissed opportunities
-* Tweak: Enhanced client IP address handling
-* Tweak: Added external object cache detection and enhanced debug info output
-* Tweak: Enhanced transient handling: add verification for transient storage to improve reliability with external object caches
-
-= 1.53.0  =
-*Release date - 09.12.2025*
-
-* New: Implement Google Tag Gateway Proxy for proxying requests to Google's First-Party Servers
-* Tweak: Added support for loading deprecated functions with user toggle in settings
-* Tweak: Simplified documentation link retrieval by removing unnecessary parameters
-* Tweak: Added notification badges
-* Tweak: Enhanced Facebook Pixel script loading and user data caching
-* Tweak: Added multiple enhancement opportunity notifications for various settings
-* Tweak: Added crossDomain option to AJAX requests
-* Tweak: Replaced jQuery.ajax with native script loading for improved performance and error handling
-* Tweak: Removed unused code and files
-
-= 1.52.1  =
-*Release date - 03.12.2025*
-
-* Tweak: Added new documenation links.
-* Tweak: Updated the GA4 tag ID format.
-* Tweak: Updated Google tag ID suppression logic in functions.js
-* Tweak: Implemented public front-end API for third-party integrations with event dispatching and consent context
-
-= 1.52.0  =
-*Release date - 01.12.2025*
-
-* Tweak: Bumped up WP version compatibility to 6.9
-* Tweak: Filter out non-existent or unpublished products from transient data
-* Tweak: Refactored pixel file structure to unify server-side and browser-side handling, implementing a centralized pixel registry for improved management and automatic detection of active pixels.
-* Tweak: Added validations for some input data.
-
-= 1.51.1  =
-*Release date - 27.11.2025*
-
-* Fix: Fixed chunk loading compatibility with script optimization plugins (that combine JavaScript) by setting the .js public path dynamically (with an absolute instead of a relative path).
-* Fix: Disabled the Composer APCU optimization since it caused loading issues on a small subset of servers.
-
-= 1.51.0  =
-*Release date - 25.11.2025*
-
-* New: Event filtering system.
-* Tweak: Added error handling in the queue runner.
-* Tweak: Added null and undefined check in visitor permission logic.
-* Tweak: Updated the documentation links.
-* Tweak: Bumped up Facebook CAPI API version to v24.0.
-* Fix: Fixed chunk loading compatibility with script optimization plugins (SiteGround Optimizer, Autoptimize, WP Rocket, etc.) by implementing webpack runtime publicPath configuration.
-
-= 1.50.1 =
-*Release date - 19.11.2025*
-
-* Fix: Fixed undefined check for visitorAllowed cache.
-
-= 1.50.0  =
-*Release date - 16.11.2025*
-
-* New: Split the tracking library into chunks to only load the necessary code for the active pixels and features.
-* Tweak: Switched bot detection from IP based to user-agent based for better accuracy, flexibility, and much smaller file size.
-* Tweak: Added support in the pmw_google_ads_conversion_identifiers filter for multiple labels for the same Google Ads conversion ID.
-* Tweak: Updated vendor packages.
-* Tweak: Added filter to take over control of the Reddit tracking pixel in case the Reddit pixel is active in the Pixel Manager and the official Reddit for WooCommerce plugin is also active.
-
-= 1.49.3  =
-*Release date - 06.11.2025*
-
-* Tweak: Replaced Cody widget with Chatbase widget.
-* Tweak: Added chatbot widget with side panel.
-* Fix: Fixed product ID validation and filtered unpublished products in get_products_for_datalayer_by_product_ids. (CVE-2025-12545)
-
-= 1.49.2  =
-*Release date - 07.10.2025*
-
-* Tweak: Expanded consent mode regions by adding entries for 11 additional U.S. states.
-* Tweak: Updated the `add-to-cart` URL parameter handling to include an optional `quantity` parameter.
-* Tweak: Added payment type details to Google Analytics events.
-* Tweak: Refactored order item price handling for Google Ads cart items to always exclude tax.
-* Tweak: Automatically detect disabled Google tags after combining Google tags and prevent running a config command for them.
-* Tweak: Updated vendor packages.
-* Tweak: Refactored gateway analysis calculations for improved clarity and accuracy.
-* Tweak: Bumped up WC version compatibility to 10.2
-* Fix: Moved the GLA activation filter to the init hook. It prevented other Pixel Manager filters from being applied.
-
-= 1.49.1  =
-*Release date - 18.06.2025*
-
-* Tweak: Updated plugin URI to SweetCode site.
-* Tweak: Automatic options backup on plugin upgrades.
-* Fix: Fixed edge-case XSS vulnerabilities related to unquoted product ID injection in post-editing scenarios. Exploitation required specific conditions and permissions.
-* Fix: Fixed the "Show recent log file" link in the logs tab.
-
-= 1.49.0  =
-*Release date - 10.06.2025*
-
-* New: Added a new queue runner _pmwq for developers who want to run Pixel Manager functions, no matter when the Pixel Manager is loaded.
-* New: Added a new automatic settings backup feature.
-* Tweak: Updated Wistia embed script and styling for better integration.
-* Tweak: Various admin UX improvements.
-* Tweak: Added a health check for the Google Tag Gateway.
-* Tweak: Removed some unused code.
-* Tweak: Added method to convert LTV order values to base currency when the shop uses specific multi-currency plugins.
-* Tweak: Improved payment gateway retrieval logic.
-* Tweak: Bumped up WC version compatibility to 9.9
-
-= 1.48.0  =
-*Release date - 22.05.2025*
-
-* New: Support for Google tag gateway for advertisers.
-* Tweak: Many code improvements to reduce Plugin Check warnings and errors.
-* Tweak: Bumped up WP version compatibility to 6.8
-* Tweak: Bumped up WC version compatibility to 9.8
-* Tweak: Added filter to declare WP Consent API compatibility.
-* Tweak: Removed some cruft.
-* Tweak: Added console log for Meta (Facebook) custom event tracking.
-* Tweak: Updated vendor packages.
-* Tweak: Optimized the show_variation event listener to prevent issues on small subset of themes.
-* Tweak: Added optional fallback URL for the script loader.
-* Tweak: Optimized filter loading.
-* Tweak: Optimized the event script for Google shortcodes.
-* Tweak: Improved the cache purge logic to also purge transients that cache certain options.
-* Fix: Removed a possible recursion to prevent a memory overallocation error in some edge cases in class-opportunties.php.
-* Fix: Fixed the facebook_for_woocommerce_integration_pixel_enabled filter.
-
-= 1.47.1  =
-*Release date - 17.04.2025*
-
-* New: Released the free version of the plugin on the woocommerce.org marketplace.
-
-= 1.47.0  =
-*Release date - 31.03.2025*
-
-* Tweak: Cast permission callback return values to prevent semgrep warnings.
-* Tweak: Added a feature to show the PMW pro features demo in the wp.org playground.
-* Tweak: Removed some cruft.
-* Tweak: Added new pmw_options filter that allows to filter the options array before it is used.
-* Tweak: Added order extra details output that helps with debugging.
-* Tweak: Improved the loading logic to prevent fatal errors if several versions of the plugin are activated at the same time.
-* Tweak: Numerous code syntax improvements.
-* Tweak: Improved variation name output for GA4.
-* Tweak: Added support fo the new WooCommerce internal brand feature.
-* Tweak: Improved the update_cart event listener.
-
-= 1.46.1  =
-*Release date - 27.01.2025*
-
-* Tweak: Cast permission_callback input variable into bool.
-* Tweak: Workaround for a rare Google tracking ID URL bug.
-* Tweak: Added a safeguard to prevent a fatal error in some edge cases when third-party code changes the data output from a string to an array in prepare_custom_rest_handlers.
-* Tweak: Bumped up WC version compatibility to 9.6
-
-= 1.46.0  =
-*Release date - 09.01.2025*
-
-* New: Added support for the Cookiefirst CMP.
-* Tweak: Added safeguard to get_payment_gateways method to prevent a fatal error in some edge cases when a payment gateway is not following the WooCommerce standard.
-* Tweak: Added data collection placeholder for gateway analysis when the analysis is run when no orders have been processed through the Pixel Manager yet.
-* Tweak: Bumped up WC version compatibility to 9.5
-* Tweak: Bumped up WP version compatibility to 6.7
-* Tweak: Switched gtag.js ID priority from GA4 to Google Ads, as GA4 in rare cases is buggy and returns a 404.
-* Tweak: Prevent double logging of payment method change.
-* Tweak: Reactivated the AI support chat bot.
-
-= 1.45.0  =
-*Release date - 29.10.2024*
-
-* Tweak: Allow shop managers to access the settings page.
-* Tweak: Updated vendor packages.
-
 = Earlier versions =
-For the changelog of earlier versions, please refer to the changelog in the /changelog-archive/ folder.
+
+For the changelog of earlier versions, please refer to the changelog in the /changelog-archive/ folder of the plugin or the full changelog on https://sweetcode.com/docs/pmw/changelog/free
