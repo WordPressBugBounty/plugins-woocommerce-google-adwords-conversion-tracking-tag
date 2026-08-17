@@ -7,19 +7,55 @@ if ( function_exists( 'wpm_fs' ) ) {
     wpm_fs()->set_basename( true, __FILE__ );
 } else {
     // DO NOT REMOVE THIS IF, IT IS ESSENTIAL FOR THE `function_exists` CALL ABOVE TO PROPERLY WORK.
+    // Activate multisite network integration.
+    if ( !defined( 'WP_FS__PRODUCT_7498_MULTISITE' ) ) {
+        define( 'WP_FS__PRODUCT_7498_MULTISITE', false );
+    }
+    // Include Freemius SDK.
+    require_once __DIR__ . '/vendor/freemius/wordpress-sdk/start.php';
+    /**
+     * Make sure the Freemius SDK actually finished loading before using it.
+     *
+     * The SDK's start.php returns early, without ever defining fs_dynamic_init(),
+     * whenever it decides that some other copy of the SDK is in charge: either the
+     * Freemius class is already in scope, or the loading is handed over to the
+     * newest SDK copy registered on the site and that copy has already been
+     * included (or bailed out) earlier in the request. Both cases are triggered by
+     * other Freemius powered plugins and themes, not by us, and both leave
+     * fs_dynamic_init() undefined.
+     *
+     * Calling it anyway throws an uncaught Error on every single request, the front
+     * end included, which takes the whole shop down. So bail out quietly instead
+     * and tell the shop admin what is going on.
+     *
+     * @since 1.64.1
+     */
+    if ( !function_exists( 'fs_dynamic_init' ) ) {
+        // Named, and only hooked once, so that the free and the premium version of
+        // the plugin cannot print the notice twice when both of them are installed.
+        if ( !function_exists( 'pmw_fs_sdk_conflict_notice' ) ) {
+            function pmw_fs_sdk_conflict_notice() {
+                if ( !current_user_can( 'activate_plugins' ) ) {
+                    return;
+                }
+                echo '<div class="notice notice-error"><p>' . '<strong>Pixel Manager for WooCommerce</strong>: ' . esc_html__( 'the plugin could not start because the Freemius SDK it needs was not loaded. This usually means that another plugin or theme on this site ships a conflicting copy of the Freemius SDK. Deactivating the other Freemius powered plugins one by one identifies the culprit. Please get in touch with our support if the notice persists.', 'woocommerce-google-adwords-conversion-tracking-tag' ) . '</p></div>';
+            }
+
+            add_action( 'admin_notices', 'pmw_fs_sdk_conflict_notice' );
+        }
+        return;
+    }
     if ( !function_exists( 'wpm_fs' ) ) {
         // Create a helper function for easy SDK access.
         function wpm_fs() {
             global $wpm_fs;
             if ( !isset( $wpm_fs ) ) {
-                // Activate multisite network integration.
-                if ( !defined( 'WP_FS__PRODUCT_7498_MULTISITE' ) ) {
-                    define( 'WP_FS__PRODUCT_7498_MULTISITE', false );
-                }
-                // Include Freemius SDK.
-                require_once __DIR__ . '/vendor/freemius/wordpress-sdk/start.php';
                 if ( !function_exists( 'pmw_is_woocommerce_active' ) ) {
                     function pmw_is_woocommerce_active() {
+                        // is_plugin_active() lives in the admin and is not loaded on front end requests.
+                        if ( !function_exists( 'is_plugin_active' ) ) {
+                            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+                        }
                         return is_plugin_active( 'woocommerce/woocommerce.php' );
                         // return in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')));
                     }

@@ -173,6 +173,58 @@ class Helpers {
         return ( $denominator > 0 ? round( $counter / $denominator * 100 ) : 0 );
     }
 
+    /**
+     * Whether the current request targets one of the Pixel Manager's own REST
+     * routes through the ?rest_route= query form.
+     *
+     * WordPress serves every REST route under two URLs: /wp-json/<route> on
+     * installs with pretty permalinks, and /?rest_route=/<route> on installs
+     * without them. Which one the plugin's JavaScript calls is decided by
+     * rest_url(), so it is the permalink structure of the shop that picks the
+     * form, not the Pixel Manager.
+     *
+     * WooCommerce recognizes a REST request by searching the request URI for the
+     * REST prefix (WooCommerce::is_rest_api_request()). The query form carries no
+     * prefix, so it slips through that check and WooCommerce boots its whole
+     * frontend stack for what is only a tracking call: it initializes the
+     * session, unserializes the cart, builds the customer object and arms
+     * WC_Session_Handler::save_data() on shutdown. That work is wasted on every
+     * tracked event, and a background request that holds a full session snapshot
+     * with an armed write is a stale cart waiting to be written back.
+     *
+     * @return bool True when this is a PMW REST route served as ?rest_route=.
+     * @since 1.64.1
+     */
+    public static function is_pmw_rest_route_query_request() {
+        if ( !isset( $_GET['rest_route'] ) || !is_string( $_GET['rest_route'] ) ) {
+            return false;
+        }
+        $route = sanitize_text_field( wp_unslash( $_GET['rest_route'] ) );
+        return 0 === strpos( ltrim( $route, '/' ), 'pmw/v1/' );
+    }
+
+    /**
+     * Filter callback for woocommerce_is_rest_api_request.
+     *
+     * Makes WooCommerce treat the Pixel Manager's REST routes as REST requests
+     * under both REST URL forms, so a shop without pretty permalinks no longer
+     * boots the session, the cart and the customer object for a tracking call,
+     * and no background tracking request carries a session snapshot with an armed
+     * shutdown write. This is how the pretty URL form has always behaved.
+     *
+     * The filter only ever confirms a REST request, it never denies one.
+     *
+     * @param bool $is_rest_api_request What WooCommerce determined on its own.
+     * @return bool
+     * @since 1.64.1
+     */
+    public static function declare_pmw_rest_routes_as_rest_requests( $is_rest_api_request ) {
+        if ( $is_rest_api_request ) {
+            return $is_rest_api_request;
+        }
+        return ( self::is_pmw_rest_route_query_request() ? true : $is_rest_api_request );
+    }
+
     public static function get_user_country_code( $user ) {
         // If the country code is set on the user, return it
         if ( isset( $user->billing_country ) ) {
@@ -708,6 +760,7 @@ class Helpers {
     public static function get_version_info() {
         return [
             'number'               => PMW_CURRENT_VERSION,
+            'schema'               => PMW_DATA_LAYER_SCHEMA_VERSION,
             'pro'                  => wpm_fs()->is__premium_only(),
             'eligible_for_updates' => wpm_fs()->can_use_premium_code__premium_only(),
             'distro'               => PMW_DISTRO,

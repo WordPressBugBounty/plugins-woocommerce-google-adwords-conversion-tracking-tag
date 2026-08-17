@@ -578,9 +578,16 @@ class GTG_Proxy {
 		// Sanitize path (light-touch, matching standalone proxy behavior)
 		// Only strip dangerous characters — no URL-encoding or trailing slash changes.
 		// SSRF protection is handled by is_valid_fps_url() after URL construction.
+		// Keep the pre-sanitization value: overwriting $path first made the
+		// log line below report the sanitized result, so `original_path` could
+		// only ever print the failure value and the warning said nothing about
+		// which request had been rejected.
+		// @since 1.64.1
+		$original_path = $path;
+
 		$path = self::sanitize_destination_path($path);
 		if (!$path) {
-			self::log_proxy_event( 'Invalid path after sanitization', [ 'original_path' => $path ], 'warning' );
+			self::log_proxy_event( 'Invalid path after sanitization', [ 'original_path' => $original_path ], 'warning' );
 			return new \WP_Error('invalid_path', 'Invalid path', [ 'status' => 400 ]);
 		}
 
@@ -723,16 +730,33 @@ class GTG_Proxy {
 	 * For JavaScript files (gtag.js), cache in browser for 6 hours (default).
 	 * For tracking beacons and other requests, don't cache.
 	 *
-	 * @param array $data The response data containing headers.
+	 * @param array    $data        The response data containing headers.
+	 * @param int|null $status_code The upstream status code, when known.
 	 * @return void
 	 */
-	private static function set_cache_headers( $data ) {
+	private static function set_cache_headers( $data, $status_code = null ) {
 
 		$content_type = isset( $data['headers']['content-type'] ) ? $data['headers']['content-type'] : '';
 
+		$is_cacheable = ( false !== strpos( $content_type, 'javascript' ) || false !== strpos( $content_type, 'application/json' ) );
+
+		/**
+		 * A 304 carries no Content-Type, so it can't be recognized by the
+		 * check above. It only ever reaches this route as the revalidation of
+		 * a JS response we cached ourselves (everything else is sent
+		 * no-store and is therefore never revalidated), so it keeps the same
+		 * browser cache policy. Falling through to the no-store branch would
+		 * tell the browser to discard the very copy it just revalidated.
+		 *
+		 * @since 1.64.1
+		 */
+		if ( 304 === (int) $status_code ) {
+			$is_cacheable = true;
+		}
+
 		// Cache JavaScript files in browser for 6 hours (default)
 		// This prevents repeated PHP requests for the same gtag.js within a session
-		if ( false !== strpos( $content_type, 'javascript' ) || false !== strpos( $content_type, 'application/json' ) ) {
+		if ( $is_cacheable ) {
 			/**
 			 * Filter the cache duration for Google Tag Gateway proxy JavaScript responses.
 			 *
@@ -749,6 +773,50 @@ class GTG_Proxy {
 			// For non-JS responses (like tracking beacons), don't cache
 			header( 'Cache-Control: no-store, no-cache, must-revalidate', true );
 			header( 'Pragma: no-cache', true );
+		}
+	}
+
+	/**
+	 * Whether a status code carries no response body by definition.
+	 *
+	 * 204 No Content and 304 Not Modified must be sent without a body, so an
+	 * empty body on those is a correct upstream answer, not a failure.
+	 *
+	 * @param int|null $status_code The upstream status code.
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	private static function is_bodiless_status( $status_code ) {
+		return in_array( (int) $status_code, [ 204, 304 ], true );
+	}
+
+	/**
+	 * Forward the upstream response headers to the browser.
+	 *
+	 * Hop-by-hop headers and the headers this proxy sets itself
+	 * (cache-control, expires, pragma, content-length) are dropped.
+	 *
+	 * @param array $data The response data containing headers.
+	 * @return void
+	 * @since 1.64.1
+	 */
+	private static function forward_response_headers( $data ) {
+
+		if ( ! isset( $data['headers'] ) ) {
+			return;
+		}
+
+		$skip_headers = [ 'transfer-encoding', 'connection', 'content-encoding', 'content-length', 'cache-control', 'expires', 'pragma' ];
+
+		foreach ( $data['headers'] as $name => $value ) {
+			if ( in_array( strtolower( $name ), $skip_headers, true ) ) {
+				continue;
+			}
+			// Handle headers that may have multiple values (returned as arrays)
+			if ( is_array( $value ) ) {
+				$value = implode( ', ', $value );
+			}
+			header( "$name: $value", true );
 		}
 	}
 
@@ -775,50 +843,69 @@ class GTG_Proxy {
 
 		$data = $response->get_data();
 
+		$status_code = isset( $data['status_code'] ) ? $data['status_code'] : null;
+
 		// Check if we have a valid body
 		if ( ! isset( $data['body'] ) || empty( $data['body'] ) ) {
 			if ( $allow_empty_response ) {
 				// Empty response is OK for some Google requests (like beacon requests)
-				status_header( isset( $data['status_code'] ) ? $data['status_code'] : 200 );
+				status_header( null === $status_code ? 200 : $status_code );
 				die();
 			} else {
-				$empty_status = isset( $data['status_code'] ) ? $data['status_code'] : null;
 
-				// 2xx status codes with empty body are normal (e.g. tracking/beacon responses)
-				if ( $empty_status && $empty_status >= 200 && $empty_status < 300 ) {
-					self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => $empty_status ], 'debug' );
-					status_header( $empty_status );
+				/**
+				 * Pass through statuses that carry no body by definition.
+				 *
+				 * A 304 is the normal answer to a browser revalidating its
+				 * cached gtag.js: this proxy stamps JS responses with a 6h
+				 * max-age and forwards the visitor's If-None-Match /
+				 * If-Modified-Since upstream, so Google replies 304 on every
+				 * revalidation after that. Treating the missing body as a
+				 * failure answered those revalidations with a 502 and a
+				 * plain-text body where the browser expected JavaScript, which
+				 * killed the Google tag for every returning visitor and left
+				 * their GA4 session cookie stale.
+				 *
+				 * The validator headers (ETag, Last-Modified) are forwarded so
+				 * the browser keeps its cached copy and can revalidate again.
+				 *
+				 * @since 1.64.1
+				 */
+				if ( self::is_bodiless_status( $status_code ) ) {
+					self::log_proxy_event( 'Bodiless upstream response passed through', [ 'status_code' => $status_code ], 'debug' );
+					status_header( $status_code );
+					self::forward_response_headers( $data );
+					self::set_cache_headers( $data, $status_code );
 					die();
 				}
 
-				self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => isset( $empty_status ) ? $empty_status : 'unknown' ], 'error' );
+				// 2xx status codes with empty body are normal (e.g. tracking/beacon responses)
+				if ( $status_code && $status_code >= 200 && $status_code < 300 ) {
+					self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => $status_code ], 'debug' );
+					status_header( $status_code );
+					die();
+				}
+
+				self::log_proxy_event( 'Empty response from upstream', [ 'status_code' => null === $status_code ? 'unknown' : $status_code ], 'error' );
+
+				// No body: this route serves JavaScript, so an error string here
+				// would reach the browser as a script and fail to parse. The
+				// status code and the log line carry the diagnosis instead.
+				// @since 1.64.1
 				status_header( 502 );
-				die( 'Empty response from upstream' );
+				die();
 			}
 		}
 
 		// Set status code
-		if ( isset( $data['status_code'] ) ) {
-			http_response_code( $data['status_code'] );
+		if ( null !== $status_code ) {
+			http_response_code( $status_code );
 		}
 
-		// Set headers
-		if ( isset( $data['headers'] ) ) {
-			$skip_headers = [ 'transfer-encoding', 'connection', 'content-encoding', 'content-length', 'cache-control', 'expires', 'pragma' ];
-			foreach ( $data['headers'] as $name => $value ) {
-				if ( in_array( strtolower( $name ), $skip_headers, true ) ) {
-					continue;
-				}
-				// Handle headers that may have multiple values (returned as arrays)
-				if ( is_array( $value ) ) {
-					$value = implode( ', ', $value );
-				}
-				header( "$name: $value", true );
-			}
-		}
+		self::forward_response_headers( $data );
 
 		// Add browser caching headers for JavaScript files
-		self::set_cache_headers( $data );
+		self::set_cache_headers( $data, $status_code );
 
 		// Set content length and output body
 		$body_content = $data['body'];

@@ -93,6 +93,7 @@ class Shortcodes {
 			'taboola-event'         => '',
 			'tiktok-event'          => 'SubmitForm',
 			'contentsquare-event'   => '',
+			'mixpanel-event'        => 'Lead Submitted',
 		];
 
 		$shortcode_attributes = shortcode_atts($pairs, $attributes);
@@ -219,6 +220,15 @@ class Shortcodes {
 		) {
 			self::conversion_html_contentsquare($shortcode_attributes);
 		}
+
+		// Mixpanel (Premium only)
+		if (
+			wpm_fs()->can_use_premium_code__premium_only()
+			&& self::should_tracking_event_be_injected($shortcode_attributes, 'mixpanel')
+			&& Options::is_mixpanel_active()
+		) {
+			self::conversion_html_mixpanel($shortcode_attributes);
+		}
 	}
 
 	private static function should_tracking_event_be_injected( $shortcode_attributes, $pixel_id = null ) {
@@ -259,6 +269,34 @@ class Shortcodes {
 			jQuery(document).on("pmw:ready", function () {
 				if (typeof window._uxa !== "undefined") {
 					window._uxa.push(["trackPageEvent", "<?php echo esc_js($shortcode_attributes['contentsquare-event']); ?>"]);
+				}
+			});
+		</script>
+		<?php
+	}
+
+	/**
+	 * Output the Mixpanel conversion tracking script
+	 *
+	 * @since 1.64.1
+	 *
+	 * @param array $shortcode_attributes Sanitized shortcode attributes
+	 * @return void
+	 */
+	private static function conversion_html_mixpanel( $shortcode_attributes ) {
+
+		if (empty($shortcode_attributes['mixpanel-event'])) {
+			return;
+		}
+
+		?>
+
+		<script>
+			jQuery(document).on("pmw:ready", function () {
+				if (typeof window.mixpanel !== "undefined" && typeof window.mixpanel.track === "function") {
+					window.mixpanel.track("<?php echo esc_js($shortcode_attributes['mixpanel-event']); ?>", {
+						$source: "Pixel Manager for WooCommerce",
+					});
 				}
 			});
 		</script>

@@ -691,6 +691,87 @@ class Environment {
 			|| is_plugin_active('google-customer-reviews-for-woocommerce-premium/google-customer-reviews-for-woocommerce.php');
 	}
 
+	/**
+	 * Check if Nextend Social Login is active.
+	 *
+	 * The Pro addon is a separate plugin that requires the free one, so
+	 * detecting the free plugin covers both.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_nextend_social_login_active() {
+		return class_exists('NextendSocialLogin')
+			|| is_plugin_active('nextend-facebook-connect/nextend-facebook-connect.php');
+	}
+
+	/**
+	 * Check if miniOrange Social Login is active.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_miniorange_social_login_active() {
+		return defined('MO_OPENID_SOCIAL_LOGIN_VERSION')
+			|| is_plugin_active('miniorange-login-openid/miniorange_openid_sso_settings.php');
+	}
+
+	/**
+	 * Check if UsersWP Social Login is active.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_userswp_social_login_active() {
+		return defined('UWP_SOCIAL_VERSION')
+			|| is_plugin_active('userswp-social-login/uwp-social.php');
+	}
+
+	/**
+	 * Check if Super Socializer is active.
+	 *
+	 * Closed on WordPress.org, but still running on existing installs.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_super_socializer_active() {
+		return is_plugin_active('super-socializer/super_socializer.php');
+	}
+
+	/**
+	 * Check if Wapu Auth is active.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_wapu_auth_active() {
+		return defined('WAPU_AUTH_VERSION')
+			|| is_plugin_active('wapu-auth-social-login/wapu-auth-social-login.php');
+	}
+
+	/**
+	 * Check if Heateor Login is active.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_heateor_login_active() {
+		return defined('HEATEOR_FBL_VERSION')
+			|| is_plugin_active('heateor-login/heateor-login.php');
+	}
+
+	/**
+	 * Check if Easy Social Login is active.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_easy_social_login_active() {
+		return defined('ESLP_VERSION')
+			|| is_plugin_active('easy-social-login/easy-social-login.php');
+	}
+
 	public static function is_real_cookie_banner_active() {
 		return is_plugin_active('real-cookie-banner/index.php')
 			|| is_plugin_active('real-cookie-banner-pro/index.php');
@@ -778,6 +859,35 @@ class Environment {
 
 	public static function is_woocommerce_active() {
 		return is_plugin_active('woocommerce/woocommerce.php');
+	}
+
+	/**
+	 * The active shop platform of this site.
+	 *
+	 * WooCommerce wins when several supported shop plugins are active.
+	 * Returns 'none' when no supported shop platform is active. Part B of
+	 * docs/PLATFORM-ABSTRACTION-PLAN.md adds 'fluentcart' and 'surecart'.
+	 *
+	 * @since 1.65.0
+	 *
+	 * @return string 'woocommerce' | 'none'
+	 */
+	public static function get_active_shop_platform() {
+
+		$platform = 'none';
+
+		if (self::is_woocommerce_active()) {
+			$platform = 'woocommerce';
+		}
+
+		/**
+		 * Filters the detected shop platform slug.
+		 *
+		 * @since 1.65.0
+		 *
+		 * @param string $platform
+		 */
+		return apply_filters('pmw_active_shop_platform', $platform);
 	}
 
 	public static function is_wp_super_cache_active() {
@@ -1167,8 +1277,11 @@ class Environment {
 		if (self::is_faz_cookie_manager_active()) {
 			add_filter('faz_whitelisted_scripts', function ( $whitelist ) {
 				$whitelist[] = 'pmwDataLayer';
-				$whitelist[] = '/wp-content/plugins/woocommerce-pixel-manager';
-				$whitelist[] = '/wp-content/plugins/woocommerce-pixel-manager-pro';
+
+				foreach (self::get_pmw_plugin_directory_slugs() as $slug) {
+					$whitelist[] = '/wp-content/plugins/' . $slug;
+				}
+
 				return $whitelist;
 			});
 		}
@@ -1737,28 +1850,47 @@ class Environment {
 	 * @since 1.58.5
 	 */
 	private static function get_pmw_core_script_identifiers() {
+		return array_merge(
+			// Plugin directory slug patterns (all distributions and historical variants)
+			self::get_pmw_plugin_directory_slugs(),
+			[
+				// PMW data layer
+				'pmwDataLayer',
+				'window.pmwDataLayer',
+				// Legacy data layer
+				'wpmDataLayer',
+				'window.wpmDataLayer',
+				// Script handle identifiers
+				'pmw',
+				'pmw-js',
+				'wpm',
+				// Webpack chunk files
+				'.chunk.min.js',
+				// JS directory paths
+				'js/public/free/',
+				'js/public/pro/',
+			]
+		);
+	}
+
+	/**
+	 * Get the plugin directory slugs PMW ships into.
+	 *
+	 * Covers every distribution (wp.org free, Freemius Pro, WooCommerce.com Pro)
+	 * as well as the historical slugs. The slugs are matched as substrings, so
+	 * `woocommerce-pixel-manager` also covers `woocommerce-pixel-manager-free`.
+	 *
+	 * @return string[]
+	 *
+	 * @since 1.64.1
+	 */
+	private static function get_pmw_plugin_directory_slugs() {
 		return [
-			// Plugin directory slug patterns (all historical variants)
 			'pixel-manager-pro-for-woocommerce',
 			'pixel-manager-for-woocommerce',
 			'woocommerce-google-adwords-conversion-tracking-tag',
 			'woocommerce-pixel-manager',
 			'woopt-pixel-manager',
-			// PMW data layer
-			'pmwDataLayer',
-			'window.pmwDataLayer',
-			// Legacy data layer
-			'wpmDataLayer',
-			'window.wpmDataLayer',
-			// Script handle identifiers
-			'pmw',
-			'pmw-js',
-			'wpm',
-			// Webpack chunk files
-			'.chunk.min.js',
-			// JS directory paths
-			'js/public/free/',
-			'js/public/pro/',
 		];
 	}
 

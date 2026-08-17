@@ -756,6 +756,32 @@ class Validations {
 			}
 		}
 
+		// Validate the Mixpanel project token
+		if (isset($input['pixels']['mixpanel']['project_token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['mixpanel']['project_token'] = Helpers::trim_string($input['pixels']['mixpanel']['project_token']);
+
+			if (!self::is_mixpanel_project_token($input['pixels']['mixpanel']['project_token'])) {
+				$input['pixels']['mixpanel']['project_token']
+					= Options::get_mixpanel_project_token()
+					? Options::get_mixpanel_project_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-mixpanel-project-token', esc_html__('You have entered an invalid Mixpanel project token. It must be a 32 character hexadecimal string.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Keep the Mixpanel data residency region within the set of regions Mixpanel offers.
+		// Events sent to the wrong region are silently not ingested.
+		if (isset($input['pixels']['mixpanel']['data_residency'])) {
+
+			$input['pixels']['mixpanel']['data_residency'] = Helpers::trim_string($input['pixels']['mixpanel']['data_residency']);
+
+			if (!in_array($input['pixels']['mixpanel']['data_residency'], [ 'us', 'eu', 'in' ], true)) {
+				$input['pixels']['mixpanel']['data_residency'] = Options::get_mixpanel_data_residency();
+			}
+		}
+
 		// Validate the Nextdoor pixel ID
 		if (isset($input['pixels']['nextdoor']['pixel_id'])) {
 
@@ -1206,6 +1232,7 @@ class Validations {
 			'crazyegg.account_number',
 
 			// Facebook / Meta
+			'facebook.capi.send_fb_login_id',
 			'facebook.capi.test_event_code',
 			'facebook.capi.token',
 			'facebook.capi.user_transparency.send_additional_client_identifiers',
@@ -1251,6 +1278,12 @@ class Validations {
 			'pixels.linkedin.conversion_ids.purchase',
 			'pixels.linkedin.conversion_ids.view_content',
 			'pixels.linkedin.partner_id',
+			'pixels.mixpanel.autocapture',
+			'pixels.mixpanel.data_residency',
+			'pixels.mixpanel.ingestion_api.enabled',
+			'pixels.mixpanel.project_token',
+			'pixels.mixpanel.session_recording',
+			'pixels.mixpanel.user_identification',
 			'pixels.nextdoor.advanced_matching',
 			'pixels.nextdoor.capi.test_event_code',
 			'pixels.nextdoor.capi.token',
@@ -1539,6 +1572,24 @@ class Validations {
 		// 10 characters (e.g. q9zk3x7p2w). Kept slightly permissive so valid IDs
 		// are never rejected, while still blocking whitespace, markup and control characters.
 		$re = '/^[a-z0-9]{8,15}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	/**
+	 * Validate a Mixpanel project token
+	 *
+	 * Mixpanel project tokens are 32 character hexadecimal strings, taken from
+	 * Settings > Project Settings > Project Token in Mixpanel.
+	 *
+	 * @since 1.64.1
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_mixpanel_project_token( $string ) {
+
+		$re = '/^[a-f0-9]{32}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2163,6 +2214,9 @@ class Validations {
 
 			// Triple Whale
 			'pixels.triple_whale.orders_api.token'              => [ 'is_triple_whale_orders_api_token', __('Invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Mixpanel
+			'pixels.mixpanel.project_token'                     => [ 'is_mixpanel_project_token', __('Invalid Mixpanel project token. It must be a 32 character hexadecimal string.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
 			// Hyros
 			'pixels.hyros.product_hash'                         => [ 'is_hyros_product_hash', __('Invalid Hyros product hash.', 'woocommerce-google-adwords-conversion-tracking-tag') ],

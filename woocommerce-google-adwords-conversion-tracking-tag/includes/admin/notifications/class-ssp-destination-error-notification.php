@@ -131,6 +131,7 @@ class SSP_Destination_Error_Notification extends Notification {
 			'openai'     => 'OpenAI',
 			'nextdoor'   => 'Nextdoor',
 			'google_ga4' => 'Google Analytics 4',
+			'mixpanel'   => 'Mixpanel',
 		];
 
 		return isset( $labels[ $type ] ) ? $labels[ $type ] : ucfirst( str_replace( '_', ' ', (string) $type ) );

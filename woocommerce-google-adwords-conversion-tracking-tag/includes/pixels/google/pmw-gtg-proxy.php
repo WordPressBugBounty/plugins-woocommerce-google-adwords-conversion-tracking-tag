@@ -1646,12 +1646,31 @@ final class PMW_GTG_Proxy_Standalone {
 		}
 
 		// Set cache headers for JavaScript files
-		self::set_cache_headers( $headers );
+		self::set_cache_headers( $headers, $status_code );
 
 		// Allow empty responses for POST requests (beacon/tracking requests)
 		$allow_empty = ( strtoupper( $method ) === 'POST' );
 
 		if ( empty( $body ) && ! $allow_empty ) {
+
+			/**
+			 * 204 and 304 carry no body by definition, so an empty body on
+			 * those is a correct upstream answer. A 304 is what Google sends
+			 * whenever a browser revalidates its cached gtag.js, which this
+			 * proxy makes it do every 6 hours. Answering that with a 502 and
+			 * a text body broke the Google tag for every returning visitor.
+			 *
+			 * The validator headers (ETag, Last-Modified) were already
+			 * forwarded above, so the browser keeps its cached copy.
+			 *
+			 * @since 1.64.1
+			 */
+			if ( in_array( (int) $status_code, [ 204, 304 ], true ) ) {
+				self::log( 'Bodiless upstream response passed through', [ 'status_code' => $status_code ], 'debug' );
+				http_response_code( $status_code );
+				exit;
+			}
+
 			// 2xx status codes with empty body are normal (e.g. tracking/beacon responses)
 			if ( $status_code >= 200 && $status_code < 300 ) {
 				self::log( 'Empty response from upstream', [ 'status_code' => $status_code ], 'debug' );
@@ -1660,8 +1679,13 @@ final class PMW_GTG_Proxy_Standalone {
 			}
 
 			self::log( 'Empty response from upstream', [ 'status_code' => $status_code ], 'warning' );
+
+			// No body: this route serves JavaScript, so an error string here
+			// would reach the browser as a script and fail to parse. The
+			// status code and the log line carry the diagnosis instead.
+			// @since 1.64.1
 			http_response_code( 502 );
-			exit( 'Empty response from upstream' );
+			exit;
 		}
 
 		// Set content length and output
@@ -1679,14 +1703,27 @@ final class PMW_GTG_Proxy_Standalone {
 	/**
 	 * Set cache headers based on content type
 	 *
-	 * @param array $headers Response headers.
+	 * @param array    $headers     Response headers.
+	 * @param int|null $status_code The upstream status code, when known.
 	 * @return void
 	 */
-	private static function set_cache_headers( $headers ) {
+	private static function set_cache_headers( $headers, $status_code = null ) {
 		$content_type = isset( $headers['content-type'] ) ? $headers['content-type'] : '';
 
+		$is_cacheable = ( strpos( $content_type, 'javascript' ) !== false || strpos( $content_type, 'json' ) !== false );
+
+		// A 304 carries no Content-Type, so it can't be recognized above. It
+		// only reaches this route as the revalidation of a JS response we
+		// cached ourselves, so it keeps the same browser cache policy instead
+		// of falling through to no-store, which would tell the browser to
+		// discard the copy it just revalidated.
+		// @since 1.64.1
+		if ( 304 === (int) $status_code ) {
+			$is_cacheable = true;
+		}
+
 		// Cache JavaScript files in browser for 6 hours
-		if ( strpos( $content_type, 'javascript' ) !== false || strpos( $content_type, 'json' ) !== false ) {
+		if ( $is_cacheable ) {
 			$cache_duration = 21600; // 6 hours
 			header( 'Cache-Control: private, max-age=' . $cache_duration );
 			header( 'Expires: ' . gmdate( 'D, d M Y H:i:s', time() + $cache_duration ) . ' GMT' );

@@ -20,6 +20,24 @@ class Shop {
 
     private static $order;
 
+    private static $order_resolved = false;
+
+    /**
+     * Order IDs resolved from an order key, memoized for the request.
+     *
+     * @var array<string, int>
+     * @since 1.64.1
+     */
+    private static $order_ids_by_order_key = [];
+
+    /**
+     * The order the order received URL points at, memoized for the request.
+     *
+     * @var \WC_Order|\WC_Order_Refund|bool|null
+     * @since 1.64.1
+     */
+    private static $order_from_query_vars;
+
     private static $transient_identifiers;
 
     /**
@@ -97,7 +115,11 @@ class Shop {
         $order_total = $order->get_total();
         if ( in_array( Options::get_options_obj()->shop->order_total_logic, ['0', 'order_subtotal'], true ) ) {
             // Order subtotal
-            $order_total = $order->get_subtotal() - $order->get_total_discount() - self::get_order_fees( $order ) - $order->get_total_refunded() + $order->get_total_tax_refunded();
+            // get_subtotal() sums the product line items only, before discounts and excluding
+            // tax, shipping and fee lines. So only the product share of the refunds and the
+            // payment processor fees may be deducted from it. Anything else would be deducted
+            // twice, since WooCommerce never added it to the subtotal in the first place.
+            $order_total = $order->get_subtotal() - $order->get_total_discount() - self::get_order_fees( $order ) - self::get_product_refund_total( $order );
         } elseif ( in_array( Options::get_options_obj()->shop->order_total_logic, ['1', 'order_total'], true ) ) {
             // Order total
             $order_total = $order->get_total() - $order->get_total_refunded();
@@ -130,6 +152,10 @@ class Shop {
          * @since 1.31.2
          */
         $order_total = apply_filters( 'pmw_marketing_conversion_value_filter', $order_total, $order );
+        // A conversion value can never be negative. The ad platforms either reject a negative
+        // value or misinterpret it, so it is floored here. This happens after the filter on
+        // purpose, so that a custom calculation cannot send a negative value out either.
+        $order_total = max( 0, (float) $order_total );
         return (float) Helpers::format_decimal( (float) $order_total, 2 );
     }
 
@@ -328,10 +354,6 @@ class Shop {
          * @since 1.31.2
          */
         $conversion_prevention = apply_filters( 'pmw_conversion_prevention', $conversion_prevention, $order );
-        // If the order deduplication is deactivated, we can process the order confirmation
-        if ( self::is_order_duplication_prevention_disabled() ) {
-            return true;
-        }
         // If order is in failed, cancelled or refunded status, skip the order confirmation
         if ( self::is_order_confirmation_not_allowed_status( $order ) ) {
             return false;
@@ -343,6 +365,19 @@ class Shop {
         // If the conversion prevention filter is set to true, skip the order confirmation
         if ( $conversion_prevention ) {
             return false;
+        }
+        // If the order deduplication is deactivated, either through the setting or through
+        // the &nodedupe URL parameter, the order confirmation may be processed again.
+        //
+        // This waives the "has this pixel already fired" check below and nothing else. The
+        // order status, the excluded user role and the conversion prevention filter above are
+        // deliberate suppressions, so they have to be evaluated first. Returning early here
+        // used to skip them, which fired conversions for orders a shop had suppressed through
+        // the pmw_conversion_prevention filter, and for orders in a not-allowed status.
+        //
+        // @since 1.64.1
+        if ( self::is_order_duplication_prevention_disabled() ) {
+            return true;
         }
         // if the conversion pixels have not been fired yet, we can process the order confirmation
         if ( self::has_conversion_pixel_already_fired( $order ) !== true ) {
@@ -590,20 +625,9 @@ class Shop {
      * @return bool|\WC_Order|\WC_Order_Refund
      */
     public static function get_order_from_order_received_page() {
-        $_get = Helpers::get_input_vars( INPUT_GET );
-        // key is for WooCommerce
-        // wcf-key is for CartFlows
-        $order_key = null;
-        // for CartFlows keys
-        if ( isset( $_get['wcf-key'] ) ) {
-            $order_key = $_get['wcf-key'];
-        }
-        // for WooCommerce keys
-        if ( isset( $_get['key'] ) ) {
-            $order_key = $_get['key'];
-        }
+        $order_key = self::get_order_key_from_url();
         if ( $order_key ) {
-            $order_by_order_key = wc_get_order( wc_get_order_id_by_order_key( $order_key ) );
+            $order_by_order_key = wc_get_order( self::get_order_id_by_order_key( $order_key ) );
             $order_by_query_vars = self::get_order_from_query_vars();
             // If there is an $order_by_query_vars, then we can compare the order IDs.
             // If they don't match, then we return null.
@@ -632,42 +656,102 @@ class Shop {
     }
 
     public static function get_order_from_query_vars() {
+        /**
+         * Both the order key resolution and the order received page lookup read this,
+         * so a resolved order is memoized for the request.
+         *
+         * Only the positive result is cached. PMW checks for the order received page as
+         * early as init, where the query vars aren't parsed yet, and a cached miss would
+         * stay wrong for the rest of the request.
+         *
+         * @since 1.64.1
+         */
+        if ( self::$order_from_query_vars ) {
+            return self::$order_from_query_vars;
+        }
+        self::$order_from_query_vars = self::resolve_order_from_query_vars();
+        return self::$order_from_query_vars;
+    }
+
+    private static function resolve_order_from_query_vars() {
         global $wp;
         if ( !isset( $wp->query_vars['order-received'] ) ) {
             return false;
         }
         $order_id = absint( $wp->query_vars['order-received'] );
-        if ( $order_id && 0 != $order_id && wc_get_order( $order_id ) ) {
-            return wc_get_order( $order_id );
-        } else {
-            Logger::debug( 'WooCommerce couldn\'t retrieve the order ID from $wp->query_vars[\'order-received\']: ' . print_r( $wp->query_vars, true ) );
-            return false;
+        $order = ( $order_id ? wc_get_order( $order_id ) : false );
+        if ( $order ) {
+            return $order;
         }
+        Logger::debug( 'WooCommerce couldn\'t retrieve the order ID from $wp->query_vars[\'order-received\']: ' . print_r( $wp->query_vars, true ) );
+        return false;
+    }
+
+    /**
+     * Read the order key from the URL.
+     *
+     * Parameter key is for WooCommerce
+     * Parameter wcf-key is for CartFlows
+     * Parameter ctp_order_key is for StoreApps Custom Thankyou Page
+     *
+     * @since 1.64.1
+     * @return string|null
+     */
+    public static function get_order_key_from_url() {
+        $_get = Helpers::get_input_vars( INPUT_GET );
+        if ( isset( $_get['key'] ) ) {
+            return $_get['key'];
+            // for WooCommerce
+        }
+        if ( isset( $_get['wcf-key'] ) ) {
+            return $_get['wcf-key'];
+            // for CartFlows
+        }
+        if ( isset( $_get['ctp_order_key'] ) ) {
+            return $_get['ctp_order_key'];
+            // for StoreApps Custom Thankyou Page
+        }
+        return null;
+    }
+
+    /**
+     * Resolve an order key to an order ID, at most once per key and request.
+     *
+     * On shops that still use the legacy post storage wc_get_order_id_by_order_key()
+     * scans wp_postmeta on meta_value, which WordPress doesn't index. On a large shop
+     * that takes seconds, and the order received page used to pay for it twice: once
+     * to validate the key in the URL, and once to load the order. HPOS reads an
+     * indexed column and is cheap either way.
+     *
+     * @since 1.64.1
+     * @param string $order_key
+     * @return int The order ID, or 0 if the key doesn't belong to an order.
+     */
+    public static function get_order_id_by_order_key( $order_key ) {
+        $order_key = (string) $order_key;
+        if ( isset( self::$order_ids_by_order_key[$order_key] ) ) {
+            return self::$order_ids_by_order_key[$order_key];
+        }
+        /**
+         * On a standard WooCommerce order received page the order ID is already in the
+         * URL. If the key of that order matches the key in the URL, the key is resolved
+         * without the database lookup, while the key still authorizes the read.
+         */
+        $order = self::get_order_from_query_vars();
+        if ( $order && method_exists( $order, 'get_order_key' ) && hash_equals( (string) $order->get_order_key(), $order_key ) ) {
+            self::$order_ids_by_order_key[$order_key] = $order->get_id();
+            return self::$order_ids_by_order_key[$order_key];
+        }
+        self::$order_ids_by_order_key[$order_key] = (int) wc_get_order_id_by_order_key( $order_key );
+        return self::$order_ids_by_order_key[$order_key];
     }
 
     public static function is_valid_order_key_in_url() {
-        $_get = Helpers::get_input_vars( INPUT_GET );
-        $order_key = null;
-        /**
-         * Parameter key is for WooCommerce
-         * Parameter wcf-key is for CartFlows
-         * Parameter ctp_order_key is for StoreApps Custom Thankyou Page
-         */
-        if ( isset( $_get['key'] ) ) {
-            $order_key = $_get['key'];
-            // for WooCommerce
-        } elseif ( isset( $_get['wcf-key'] ) ) {
-            $order_key = $_get['wcf-key'];
-            // for CartFlows
-        } elseif ( isset( $_get['ctp_order_key'] ) ) {
-            $order_key = $_get['ctp_order_key'];
-            // for StoreApps Custom Thankyou Page
-        }
-        if ( $order_key && wc_get_order_id_by_order_key( $order_key ) ) {
-            return true;
-        } else {
+        $order_key = self::get_order_key_from_url();
+        if ( !$order_key ) {
             return false;
         }
+        return (bool) self::get_order_id_by_order_key( $order_key );
     }
 
     public static function add_parent_category_id( $category, $list_suffix ) {
@@ -715,22 +799,24 @@ class Shop {
     }
 
     /**
-     * Calculate and return the order fees.
+     * Calculate and return the payment processor fees of an order.
      *
-     * First, add the fees that have been saved to the order using the WooCommerce fees API.
-     * Then add the fees that have been saved by popular payment gateways to the order
-     * using the WooCommerce order meta.
+     * These are the fees the payment processor keeps out of the payout. They are a merchant
+     * cost, the customer never pays them, and they are part of no WooCommerce order figure at
+     * all. That is why they have to be read from the order meta that the gateways write.
      * Then provide a filter to allow shop managers to calculate and add their own fees.
+     *
+     * Customer facing fee lines (WC_Order_Item_Fee, for instance a gift wrap, COD or deposit
+     * surcharge) are deliberately not included here. WooCommerce adds those to the order total
+     * but never to $order->get_subtotal(), which only sums the product line items. Subtracting
+     * them from that subtotal would therefore remove them a second time and push the value
+     * below the actual product revenue, or even below zero when the fee line is the whole order.
      *
      * @param $order
      * @return float
      */
     public static function get_order_fees( $order ) {
         $order_fees = 0;
-        // Add fees that have been saved to the order
-        if ( $order->get_total_fees() ) {
-            $order_fees = $order->get_total_fees();
-        }
         // Add Stripe fees
         // because Stripe doesn't save the fee on the order fees
         $order_fees += self::get_fee_by_postmeta_key( $order, '_stripe_fee' );
@@ -752,6 +838,76 @@ class Shop {
          * @since 1.58.5
          */
         return (float) apply_filters( 'pmw_order_fees', $order_fees, $order );
+    }
+
+    /**
+     * Return the share of the refunded amount that belongs to the product line items, excluding tax.
+     *
+     * $order->get_total_refunded() covers the entire order: product lines, shipping, fee lines
+     * and tax. The subtotal branch of get_order_value_total_marketing() works on a base that
+     * holds the product line items only, excluding tax and shipping, so everything that is not
+     * product revenue has to be taken back out before the refund can be subtracted from it.
+     *
+     * Refunds that were entered as a plain amount instead of per line item carry no breakdown.
+     * Nothing can be attributed in that case, so the full amount stays in and the reported
+     * value errs on the low side.
+     *
+     * @param $order
+     * @return float
+     */
+    public static function get_product_refund_total( $order ) {
+        // get_total_tax_refunded() covers the tax of the product lines and of the shipping,
+        // so the shipping cost is the only shipping share left to remove.
+        $product_refund_total = (float) $order->get_total_refunded() - (float) $order->get_total_tax_refunded() - (float) $order->get_total_shipping_refunded() - self::get_fee_refund_total( $order );
+        return (float) max( 0, $product_refund_total );
+    }
+
+    /**
+     * Return the refunded amount that no line item of the order accounts for, excluding tax.
+     *
+     * A refund entered per line item records which items, shipping and fees it applies to. A
+     * refund entered as a plain amount records nothing but the amount, so any calculation that
+     * works per item cannot see it at all.
+     *
+     * The subtotal and the order total branch of get_order_value_total_marketing() work off the
+     * refund totals and cover both kinds. The profit margin branch has to work per item, because
+     * reversing the cost of goods needs the refunded quantity, so it needs this remainder to
+     * account for the rest.
+     *
+     * @param $order
+     * @return float
+     */
+    public static function get_unattributed_refund_total( $order ) {
+        $attributed_refund_total = (float) $order->get_total_tax_refunded() + (float) $order->get_total_shipping_refunded() + self::get_fee_refund_total( $order ) + self::get_line_item_refund_total( $order );
+        return (float) max( 0, (float) $order->get_total_refunded() - $attributed_refund_total );
+    }
+
+    /**
+     * Return the refunded amount that belongs to the order's product line items, excluding tax.
+     *
+     * @param $order
+     * @return float
+     */
+    private static function get_line_item_refund_total( $order ) {
+        $line_item_refund_total = 0;
+        foreach ( $order->get_items() as $item_id => $item ) {
+            $line_item_refund_total += (float) $order->get_total_refunded_for_item( $item_id );
+        }
+        return (float) $line_item_refund_total;
+    }
+
+    /**
+     * Return the refunded amount that belongs to the order's fee lines, excluding tax.
+     *
+     * @param $order
+     * @return float
+     */
+    private static function get_fee_refund_total( $order ) {
+        $fee_refund_total = 0;
+        foreach ( $order->get_fees() as $fee_id => $fee ) {
+            $fee_refund_total += (float) $order->get_total_refunded_for_item( $fee_id, 'fee' );
+        }
+        return (float) $fee_refund_total;
     }
 
     /**
@@ -777,9 +933,16 @@ class Shop {
      * @return WC_Order|bool
      */
     public static function pmw_get_current_order() {
-        if ( self::$order ) {
+        /**
+         * Cache the negative result too. Otherwise every caller repeats the lookup
+         * on pages where the order can't be resolved.
+         *
+         * @since 1.64.1
+         */
+        if ( self::$order_resolved ) {
             return self::$order;
         }
+        self::$order_resolved = true;
         self::$order = self::get_order_from_order_received_page();
         return self::$order;
     }
@@ -859,7 +1022,8 @@ class Shop {
         }
         // If we're on the purchase confirmation page, we can get the user ID from the order and return it
         if ( self::pmw_is_order_received_page() ) {
-            $order = self::get_order_from_order_received_page();
+            // Through pmw_get_current_order() so this shares the cached order.
+            $order = self::pmw_get_current_order();
             if ( $order ) {
                 $user_id = $order->get_user_id();
                 // If the $user_id is 0 (for guest) or 1 (for admin), we return null

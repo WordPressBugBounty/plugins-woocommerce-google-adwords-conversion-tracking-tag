@@ -8,6 +8,8 @@ use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Helpers;
+use SweetCode\Pixel_Manager\Social_Login;
+use SweetCode\Pixel_Manager\Split_Payments;
 use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 use WC_Payment_Gateways;
 defined( 'ABSPATH' ) || exit;
@@ -46,6 +48,14 @@ class Debug_Info {
             $html .= 'Transients enabled:                        ' . (( $transients_enabled ? 'yes' : 'no' )) . $transients_warning . PHP_EOL;
             $external_object_cache = Environment::get_external_object_cache();
             $html .= 'External object cache (Redis/Memcached):   ' . $external_object_cache . PHP_EOL;
+            // Which of the two REST URL forms the shop serves. The query form
+            // (?rest_route=) means the shop runs without pretty permalinks, which
+            // WooCommerce doesn't recognize as a REST request, so it boots the
+            // session and the cart for plain tracking calls.
+            $rest_url = rest_url();
+            $rest_url_form = ( false !== strpos( $rest_url, 'rest_route=' ) ? 'query string (no pretty permalinks)' : 'path (pretty permalinks)' );
+            $html .= 'REST API root:                             ' . $rest_url . PHP_EOL;
+            $html .= 'REST API URL form:                         ' . $rest_url_form . PHP_EOL;
             $html .= PHP_EOL;
             $html .= 'wp_remote_get to Cloudflare:           ' . self::pmw_remote_get_response( 'https://www.cloudflare.com/cdn-cgi/trace' ) . PHP_EOL;
             //          $html .= 'wp_remote_get to Google Analytics API: ' . self::pmw_remote_get_response('https://www.google-analytics.com/debug/collect') . PHP_EOL;
@@ -110,6 +120,14 @@ class Debug_Info {
                         $html .= self::show_warning( true ) . 'Redirect URL:                                   ' . $redirect_report['final_url'] . PHP_EOL;
                         $html .= 'Note: Tested server side. Verify in a private browser window before concluding that customers get redirected.' . PHP_EOL;
                     }
+                }
+                $split_payments_info = Split_Payments::get_debug_info();
+                if ( $split_payments_info ) {
+                    $html .= PHP_EOL . '## Split Payments ##' . PHP_EOL . PHP_EOL . $split_payments_info;
+                }
+                $social_login_info = Social_Login::get_debug_info();
+                if ( $social_login_info ) {
+                    $html .= PHP_EOL . '## Social Login (Facebook Login ID) ##' . PHP_EOL . PHP_EOL . $social_login_info;
                 }
                 //        $html                                .= 'wc_get_page_permalink(\'checkout\'): ' . wc_get_page_permalink('checkout') . PHP_EOL;
                 $html .= PHP_EOL . '## WooCommerce Payment Gateways ##' . PHP_EOL . PHP_EOL;

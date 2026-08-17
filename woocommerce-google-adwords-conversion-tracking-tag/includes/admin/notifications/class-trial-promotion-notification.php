@@ -3,6 +3,7 @@
 namespace SweetCode\Pixel_Manager\Admin\Notifications;
 
 use SweetCode\Pixel_Manager\Admin\Admin;
+use SweetCode\Pixel_Manager\Admin\Commercial_Links;
 use SweetCode\Pixel_Manager\Admin\Documentation;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Helpers;
@@ -177,7 +178,7 @@ class Trial_Promotion_Notification extends Notification {
 
 		return [
 			'show'         => true,
-			'trialUrl'     => wpm_fs()->get_trial_url(),
+			'trialUrl'     => Commercial_Links::trial_url(),
 			'learnMoreUrl' => Documentation::get_link('trial_promotion'),
 		];
 	}
@@ -220,7 +221,7 @@ class Trial_Promotion_Notification extends Notification {
 			return '';
 		}
 
-		return (string) $fs->get_trial_url();
+		return Commercial_Links::trial_url();
 	}
 
 	/**
@@ -257,8 +258,9 @@ class Trial_Promotion_Notification extends Notification {
 
 		$notification_data = static::notification_data();
 
-		// Get the trial URL from Freemius
-		$trial_url = wpm_fs()->get_trial_url();
+		// Get the trial URL. Falls back to our own checkout whenever Freemius'
+		// in-dashboard pricing page is not registered on this install.
+		$trial_url = Commercial_Links::trial_url();
 
 		?>
 		<div id="pmw-trial-promotion-notification"

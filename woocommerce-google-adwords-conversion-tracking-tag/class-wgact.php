@@ -31,12 +31,23 @@ use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\SSP_Purchase_Proxy;
 use SweetCode\Pixel_Manager\SSP_Sync;
 use SweetCode\Pixel_Manager\Shop;
+use SweetCode\Pixel_Manager\Split_Payments;
 use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 use SweetCode\Pixel_Manager\Admin\Ask_For_Rating;
 // autoloader
 require_once 'autoload.php';
 // Define constants
 define( 'PMW_CURRENT_VERSION', $pmw_version );
+/**
+ * The pmwDataLayer schema version (docs/schema/pmw-datalayer.schema.json).
+ *
+ * Bumped manually, and only for BREAKING data layer changes (removals,
+ * renames, type changes). Additive changes never bump it. A bump must ship
+ * together with the updated JSON Schema, fixtures, and payload snapshots,
+ * plus PMW_SCHEMA_VERSION in the JS library (version.js).
+ * See docs/PLATFORM-CONTRACT.md.
+ */
+define( 'PMW_DATA_LAYER_SCHEMA_VERSION', 1 );
 define( 'PMW_PLUGIN_PREFIX', 'pmw_' );
 define( 'PMW_DB_VERSION', '3' );
 define( 'PMW_DB_OPTIONS_NAME', 'wgact_plugin_options' );
@@ -75,6 +86,9 @@ class WCPM {
         Deprecated_Filters::load_deprecated_filters();
         if ( Environment::is_woocommerce_active() ) {
             add_action( 'before_woocommerce_init', [__CLASS__, 'declare_woocommerce_compatibilities'] );
+            // Registered here, on plugins_loaded, because WooCommerce decides whether to
+            // load the session and the cart in WooCommerce::init() on the init hook.
+            add_filter( 'woocommerce_is_rest_api_request', [Helpers::class, 'declare_pmw_rest_routes_as_rest_requests'] );
             add_action(
                 'init',
                 [$this, 'register_hooks_for_woocommerce'],
@@ -348,6 +362,9 @@ class WCPM {
         // endDeleteIf(wcMarketFree)
         // Needs to be under init to avoid issues with filters called in the Options class
         Environment::third_party_plugin_tweaks_on_init();
+        // Deposit and split-payment plugin compatibility. Must load unconditionally:
+        // the server-side purchase hooks also fire on webhook, cron and admin requests.
+        Split_Payments::get_instance();
         Admin_REST::get_instance();
         // Broker connect (experimental, routes only exist with PMW_EXPERIMENTS)
         Broker_Client::get_instance();

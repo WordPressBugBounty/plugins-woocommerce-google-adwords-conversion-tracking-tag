@@ -36,6 +36,14 @@ class Profit_Margin {
 		$cogs_margin -= $order->get_total_discount();
 		$cogs_margin -= Shop::get_order_fees($order);
 
+		// get_order_item_profit_margin() reverses a refund through the refunded quantity of the
+		// order items, which it needs to reverse the cost of goods along with the revenue. A
+		// refund that was entered as a plain amount instead of per line item carries no such
+		// quantity, so it stays invisible there and has to be deducted here. The cost of goods
+		// cannot be reversed for it, because there is nothing that says which items came back,
+		// so the whole remainder is deducted and the margin errs on the low side.
+		$cogs_margin -= Shop::get_unattributed_refund_total($order);
+
 		return Helpers::format_decimal($cogs_margin);
 	}
 

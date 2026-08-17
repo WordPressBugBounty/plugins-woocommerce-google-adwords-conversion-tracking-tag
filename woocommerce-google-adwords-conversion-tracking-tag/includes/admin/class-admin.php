@@ -13,6 +13,7 @@ use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Shop;
+use SweetCode\Pixel_Manager\Social_Login;
 use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 use WP_Post;
 defined( 'ABSPATH' ) || exit;
@@ -525,6 +526,16 @@ class Admin {
                 $section_ids['settings_name']
             );
         }
+        // add the field for the Mixpanel pixel (Pro feature)
+        if ( wpm_fs()->can_use_premium_code__premium_only() || Options::is_pro_version_demo_active() ) {
+            add_settings_field(
+                'pmw_plugin_mixpanel_project_token',
+                esc_html__( 'Mixpanel project token', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_mixpanel_project_token'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+        }
     }
 
     public static function add_section_main_subsection_marketing( $section_ids ) {
@@ -795,6 +806,7 @@ class Admin {
             self::add_section_advanced_subsection_reddit( $section_ids );
             self::add_section_advanced_subsection_openai( $section_ids );
             self::add_section_advanced_subsection_criteo( $section_ids );
+            self::add_section_advanced_subsection_mixpanel( $section_ids );
             self::add_section_advanced_subsection_nextdoor( $section_ids );
             self::add_section_advanced_subsection_hyros( $section_ids );
             self::add_section_advanced_subsection_tiktok( $section_ids );
@@ -1149,6 +1161,14 @@ class Admin {
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
+        // add field for sending the Facebook app-scoped login ID with CAPI events
+        add_settings_field(
+            'wpm_setting_facebook_capi_send_fb_login_id',
+            esc_html__( 'Meta (Facebook): Send Facebook Login ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'setting_facebook_send_fb_login_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
         // add field for the domain verification meta tag
         add_settings_field(
             'wpm_setting_facebook_domain_verification_meta_tag_id',
@@ -1314,6 +1334,62 @@ class Admin {
             'pmw_plugin_hyros_application_tag',
             esc_html__( 'Hyros application tag', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'option_html_hyros_application_tag'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
+    /**
+     * Mixpanel advanced settings subsection
+     *
+     * @since 1.64.1
+     *
+     * @param array $section_ids
+     * @return void
+     */
+    public static function add_section_advanced_subsection_mixpanel( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'Mixpanel',
+            'slug'  => 'mixpanel',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the Mixpanel data residency region
+        add_settings_field(
+            'pmw_plugin_mixpanel_data_residency',
+            esc_html__( 'Mixpanel data residency', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_mixpanel_data_residency'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Mixpanel Ingestion API
+        add_settings_field(
+            'pmw_plugin_mixpanel_ingestion_api',
+            esc_html__( 'Mixpanel Ingestion API', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_mixpanel_ingestion_api'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Mixpanel session replay
+        add_settings_field(
+            'pmw_plugin_mixpanel_session_recording',
+            esc_html__( 'Mixpanel session replay and heatmaps', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_mixpanel_session_recording'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Mixpanel autocapture
+        add_settings_field(
+            'pmw_plugin_mixpanel_autocapture',
+            esc_html__( 'Mixpanel autocapture', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_mixpanel_autocapture'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Mixpanel user identification
+        add_settings_field(
+            'pmw_plugin_mixpanel_user_identification',
+            esc_html__( 'Mixpanel user identification', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_mixpanel_user_identification'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -3605,6 +3681,238 @@ class Admin {
         echo '&nbsp;<code>q9zk3x7p2w</code>&nbsp;';
     }
 
+    /**
+     * Mixpanel project token
+     *
+     * @since 1.64.1
+     *
+     * @return void
+     */
+    public static function option_html_mixpanel_project_token() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_mixpanel_project_token"
+				name="wgact_plugin_options[pixels][mixpanel][project_token]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_mixpanel_project_token() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_mixpanel_active() );
+        self::get_documentation_html_by_key( 'mixpanel_project_token' );
+        self::output_advanced_section_cog_html( 'mixpanel' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter your Mixpanel project token. You can find it in Mixpanel under Settings > Project Settings > Project Token. It looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>a1b2c3d4e5f60718293a4b5c6d7e8f90</code>';
+    }
+
+    /**
+     * Mixpanel data residency region
+     *
+     * Mixpanel does not ingest events that are sent to the wrong region, so the
+     * region has to match the one the project was created in.
+     *
+     * @since 1.64.1
+     *
+     * @return void
+     */
+    public static function option_html_mixpanel_data_residency() {
+        $regions = [
+            'us' => esc_html__( 'United States (default)', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'eu' => esc_html__( 'European Union', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'in' => esc_html__( 'India', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+        ];
+        ?>
+		<select id="pmw_plugin_mixpanel_data_residency"
+				name="wgact_plugin_options[pixels][mixpanel][data_residency]"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+		>
+			<?php 
+        foreach ( $regions as $region_key => $region_label ) {
+            ?>
+				<option value="<?php 
+            echo esc_attr( $region_key );
+            ?>"
+					<?php 
+            selected( $region_key, Options::get_mixpanel_data_residency() );
+            ?>
+				>
+					<?php 
+            echo esc_html( $region_label );
+            ?>
+				</option>
+			<?php 
+        }
+        ?>
+		</select>
+		<?php 
+        self::get_documentation_html_by_key( 'mixpanel_data_residency' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        echo '<br><br>';
+        esc_html_e( 'Select the region your Mixpanel project is hosted in. Mixpanel does not ingest events that are sent to the wrong region. Projects hosted in the EU have a Mixpanel URL starting with eu.mixpanel.com, Indian projects with in.mixpanel.com.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Mixpanel Ingestion API
+     *
+     * @since 1.64.1
+     *
+     * @return void
+     */
+    public static function option_html_mixpanel_ingestion_api() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][mixpanel][ingestion_api][enabled]">
+			<input type="checkbox"
+					id="pmw_plugin_mixpanel_ingestion_api"
+					name="wgact_plugin_options[pixels][mixpanel][ingestion_api][enabled]"
+					value="1"
+				<?php 
+        checked( Options::is_mixpanel_ingestion_api_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable the Mixpanel Ingestion API', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_mixpanel_ingestion_api_enabled(), Options::is_mixpanel_active(), true );
+        self::get_documentation_html_by_key( 'mixpanel_ingestion_api' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Sends purchases and refunds to Mixpanel server-side. The project token authenticates the requests, so no additional credential is needed.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Mixpanel session replay and heatmaps
+     *
+     * @since 1.64.1
+     *
+     * @return void
+     */
+    public static function option_html_mixpanel_session_recording() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][mixpanel][session_recording]">
+			<input type="checkbox"
+					id="pmw_plugin_mixpanel_session_recording"
+					name="wgact_plugin_options[pixels][mixpanel][session_recording]"
+					value="1"
+				<?php 
+        checked( Options::is_mixpanel_session_recording_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable Mixpanel session replay and heatmaps', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_mixpanel_session_recording_enabled(), Options::is_mixpanel_active(), true );
+        self::get_documentation_html_by_key( 'mixpanel_session_recording' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Session replay also has to be enabled in the Mixpanel project itself.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Mixpanel autocapture
+     *
+     * @since 1.64.1
+     *
+     * @return void
+     */
+    public static function option_html_mixpanel_autocapture() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][mixpanel][autocapture]">
+			<input type="checkbox"
+					id="pmw_plugin_mixpanel_autocapture"
+					name="wgact_plugin_options[pixels][mixpanel][autocapture]"
+					value="1"
+				<?php 
+        checked( Options::is_mixpanel_autocapture_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable Mixpanel autocapture', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_mixpanel_autocapture_enabled(), Options::is_mixpanel_active(), true );
+        self::get_documentation_html_by_key( 'mixpanel_autocapture' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Lets Mixpanel capture clicks, form submissions and input changes on its own, on top of the e-commerce events the Pixel Manager sends.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Mixpanel user identification
+     *
+     * @since 1.64.1
+     *
+     * @return void
+     */
+    public static function option_html_mixpanel_user_identification() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][mixpanel][user_identification]">
+			<input type="checkbox"
+					id="pmw_plugin_mixpanel_user_identification"
+					name="wgact_plugin_options[pixels][mixpanel][user_identification]"
+					value="1"
+				<?php 
+        checked( Options::is_mixpanel_user_identification_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable Mixpanel user identification', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_mixpanel_user_identification_enabled(), Options::is_mixpanel_active(), true );
+        self::get_documentation_html_by_key( 'mixpanel_user_identification' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Identifies logged-in customers by their WordPress user ID and writes their email address, name and phone number to their Mixpanel user profile.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
     public static function option_html_groundtruth_gtid() {
         ?>
 		<input class="pmw mono"
@@ -5888,6 +6196,63 @@ class Admin {
         }
     }
 
+    /**
+     * Toggle for sending the Facebook app-scoped login ID with CAPI events.
+     *
+     * The ID is read from a third party social login plugin, so the setting is
+     * only actionable when one of those is installed.
+     *
+     * @since 1.64.1
+     */
+    public static function setting_facebook_send_fb_login_id() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0"
+					name="wgact_plugin_options[facebook][capi][send_fb_login_id]">
+			<input type="checkbox"
+					id="wpm_setting_facebook_capi_send_fb_login_id"
+					name="wgact_plugin_options[facebook][capi][send_fb_login_id]"
+					value="1"
+				<?php 
+        checked( Options::is_facebook_send_fb_login_id_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Send the Facebook Login ID (fb_login_id) for customers who signed in with Facebook.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_facebook_send_fb_login_id_enabled(), Options::is_facebook_active(), true );
+        self::get_documentation_html_by_key( 'facebook_login_id' );
+        self::html_pro_feature();
+        if ( Options::is_facebook_send_fb_login_id_enabled() ) {
+            $social_login_plugin = Social_Login::get_active_plugin_name();
+            if ( $social_login_plugin ) {
+                echo '<p><span class="dashicons dashicons-info"></span>';
+                printf( 
+                    /* translators: %s: name of the detected social login plugin */
+                    esc_html__( '%s detected. Meta can only match the ID if that plugin\'s Facebook app is in the same Business Manager as this pixel.', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+                    esc_html( $social_login_plugin )
+                 );
+                echo '</p>';
+            } else {
+                echo '<p><span class="dashicons dashicons-info"></span>';
+                printf( 
+                    /* translators: %s: comma separated list of supported social login plugins */
+                    esc_html__( 'No supported social login plugin detected. One of these can supply the Facebook Login ID: %s.', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+                    esc_html( implode( ', ', Social_Login::get_supported_plugin_names() ) )
+                 );
+                echo '</p>';
+            }
+        }
+    }
+
     public static function setting_html_facebook_domain_verification_id() {
         ?>
 		<input class="pmw mono"
@@ -6585,19 +6950,19 @@ class Admin {
         ?>
 		</label>
 		<?php 
-        self::display_status_icon( Options::is_always_send_s2s_active(), Options::server_2_server_enabled(), true );
+        self::display_status_icon( Options::is_always_send_s2s_active(), Options::always_send_s2s_has_destination(), true );
         ?>
 		<?php 
         self::html_pro_feature();
         ?>
 
 		<?php 
-        if ( Options::is_always_send_s2s_active() && !Options::server_2_server_enabled() ) {
+        if ( Options::is_always_send_s2s_active() && !Options::always_send_s2s_has_destination() ) {
             ?>
 			<p>
 				<span class="dashicons dashicons-info"></span>
 				<?php 
-            esc_html_e( 'For this feature to be used, at least one server-to-server feature, like Facebook CAPI must be enabled.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            esc_html_e( 'For this feature to be used, at least one server-to-server feature, like Facebook CAPI or the GA4 Measurement Protocol must be enabled.', 'woocommerce-google-adwords-conversion-tracking-tag' );
             ?>
 			</p>
 		<?php 

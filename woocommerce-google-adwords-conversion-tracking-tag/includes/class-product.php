@@ -583,6 +583,53 @@ class Product {
 	 */
 	private static $printing_deferred = false;
 
+	/**
+	 * Product IDs whose data layer entry has already been printed in this
+	 * request, keyed by ID.
+	 *
+	 * A product can be reached by more than one output path in the same
+	 * request: the classic loop hook, the block grid item filter, and the
+	 * Product Collection collector below. Printing the entry twice is harmless
+	 * in itself, but the second pass would increment the listing position
+	 * counter again and report the wrong position.
+	 *
+	 * @var array
+	 * @since 1.65.0
+	 */
+	private static $printed_product_ids = [];
+
+	/**
+	 * Whether the data layer entry for a product has already been printed in
+	 * this request.
+	 *
+	 * @param int $product_id
+	 * @return bool
+	 * @since 1.65.0
+	 */
+	public static function is_product_data_layer_printed( $product_id ) {
+		return isset(self::$printed_product_ids[ (int) $product_id ]);
+	}
+
+	/**
+	 * Queue a product for deferred data layer output in the footer.
+	 *
+	 * Used by render paths that produce no usable inline output position of
+	 * their own, currently the Product Collection block, whose items are
+	 * rendered without the classic loop hooks. The footer pass prints the data
+	 * and injects the .pmwProductId markers into the matching loop items.
+	 *
+	 * @param \WC_Product $product
+	 * @since 1.65.0
+	 */
+	public static function defer_product_data_layer_output( $product ) {
+
+		if (self::is_not_wc_product($product)) {
+			return;
+		}
+
+		self::defer_product_data_layer_script($product);
+	}
+
 	// OB is needed for the Gutenberg block
 	public static function ob_print_get_product_data_layer_script( $product, $set_position = true, $meta_tag = false ) {
 
@@ -653,6 +700,8 @@ class Product {
 
 	public static function get_product_data_layer_script_html_part_1( $tag, $product, $data, $set_position, $meta_tag ) {
 
+		self::$printed_product_ids[ $product->get_id() ] = true;
+
 		if ($meta_tag) {
 			?>
 			<meta name="pm-dataLayer-meta" content="<?php echo esc_html($product->get_id()); ?>" class="pmwProductId"
@@ -716,6 +765,17 @@ class Product {
 		self::$printing_deferred = true;
 
 		foreach ($product_ids as $product_id) {
+
+			/**
+			 * Another output path already printed this product, for instance
+			 * WooCommerce's archive template compatibility layer, which runs
+			 * the classic loop hooks inside block loop items. The marker
+			 * injection below still covers the ID, it is only the data layer
+			 * entry that must not be printed (and its position counted) twice.
+			 */
+			if (self::is_product_data_layer_printed($product_id)) {
+				continue;
+			}
 
 			$product = wc_get_product($product_id);
 

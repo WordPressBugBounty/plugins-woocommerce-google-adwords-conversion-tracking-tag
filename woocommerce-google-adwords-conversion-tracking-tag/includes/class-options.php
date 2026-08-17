@@ -127,6 +127,7 @@ class Options {
 				'capi'                   => [
 					'token'             => '',
 					'test_event_code'   => '',
+					'send_fb_login_id'  => false,
 					'user_transparency' => [
 						'send_additional_client_identifiers' => false,
 					],
@@ -293,6 +294,16 @@ class Options {
 				'hyros'      => [
 					'product_hash'    => '',
 					'application_tag' => '',
+				],
+				'mixpanel'   => [
+					'project_token'       => '',
+					'data_residency'      => 'us',
+					'session_recording'   => false,
+					'autocapture'         => false,
+					'user_identification' => false,
+					'ingestion_api'       => [
+						'enabled' => false,
+					],
 				],
 			],
 			'shop'       => [
@@ -478,6 +489,18 @@ class Options {
 
 	public static function is_facebook_capi_advanced_matching_enabled() {
 		return (bool) self::get_options_obj()->facebook->capi->user_transparency->send_additional_client_identifiers;
+	}
+
+	/**
+	 * Whether the Facebook app-scoped login ID should be sent with CAPI events.
+	 *
+	 * Requires a supported third party social login plugin to supply the ID.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function is_facebook_send_fb_login_id_enabled() {
+		return (bool) self::get_options_obj()->facebook->capi->send_fb_login_id;
 	}
 
 	public static function is_facebook_capi_active() {
@@ -1076,6 +1099,87 @@ class Options {
 	}
 
 	/**
+	 * Mixpanel
+	 *
+	 * @since 1.64.1
+	 */
+
+	public static function get_mixpanel_project_token() {
+		return self::get_options_obj()->pixels->mixpanel->project_token;
+	}
+
+	public static function is_mixpanel_active() {
+		return (bool) self::get_mixpanel_project_token();
+	}
+
+	/**
+	 * The Mixpanel data residency region the project is hosted in.
+	 *
+	 * Events sent to the wrong region are not ingested, so the region drives both
+	 * the browser SDK's api_host and the Ingestion API endpoint.
+	 *
+	 * @since 1.64.1
+	 *
+	 * @return string One of us, eu, in
+	 */
+	public static function get_mixpanel_data_residency() {
+
+		$region = self::get_options_obj()->pixels->mixpanel->data_residency;
+
+		return in_array($region, [ 'us', 'eu', 'in' ], true) ? $region : 'us';
+	}
+
+	/**
+	 * The Mixpanel API host matching the configured data residency region.
+	 *
+	 * @since 1.64.1
+	 *
+	 * @return string
+	 */
+	public static function get_mixpanel_api_host() {
+
+		$region = self::get_mixpanel_data_residency();
+
+		if ('eu' === $region) {
+			return 'https://api-eu.mixpanel.com';
+		}
+
+		if ('in' === $region) {
+			return 'https://api-in.mixpanel.com';
+		}
+
+		return 'https://api.mixpanel.com';
+	}
+
+	public static function is_mixpanel_session_recording_enabled() {
+		return (bool) self::get_options_obj()->pixels->mixpanel->session_recording;
+	}
+
+	public static function is_mixpanel_autocapture_enabled() {
+		return (bool) self::get_options_obj()->pixels->mixpanel->autocapture;
+	}
+
+	public static function is_mixpanel_user_identification_enabled() {
+		return (bool) self::get_options_obj()->pixels->mixpanel->user_identification;
+	}
+
+	public static function is_mixpanel_ingestion_api_enabled() {
+		return (bool) self::get_options_obj()->pixels->mixpanel->ingestion_api->enabled;
+	}
+
+	/**
+	 * The Mixpanel Ingestion API only becomes active once the project token is set,
+	 * since the token is the credential the API authenticates with.
+	 *
+	 * @since 1.64.1
+	 *
+	 * @return bool
+	 */
+	public static function is_mixpanel_ingestion_api_active() {
+		return self::is_mixpanel_active() && self::is_mixpanel_ingestion_api_enabled();
+	}
+
+	/**
 	 * Logger
 	 */
 
@@ -1336,6 +1440,30 @@ class Options {
 
 		// Fallback for edge cases where registry isn't loaded (shouldn't happen in normal flow)
 		return false;
+	}
+
+	/**
+	 * Whether any server-side destination exists that the "always send
+	 * server-side events" setting can apply to.
+	 *
+	 * This is deliberately broader than server_2_server_enabled(). The pixel
+	 * registry only knows about adapters, and an adapter is the dispatch target
+	 * for browser-originated funnel events (Meta CAPI and the like). GA4's
+	 * Measurement Protocol has no adapter, and shouldn't have one, because it
+	 * only sends purchases and refunds off WooCommerce order hooks and would
+	 * double-count against the browser tag on funnel events.
+	 *
+	 * It is still governed by this setting though: Google_MP_GA4 extends S2S,
+	 * and S2S::is_purchase_suppressed_by_consent() consults
+	 * is_always_send_s2s_active() before suppressing a purchase. So a shop that
+	 * runs Google only does have a destination this setting governs, and must
+	 * not be told the setting is inert.
+	 *
+	 * @return bool
+	 * @since 1.64.1
+	 */
+	public static function always_send_s2s_has_destination() {
+		return self::server_2_server_enabled() || (bool) self::is_ga4_mp_active();
 	}
 
 	/**
