@@ -508,8 +508,16 @@ class Product {
 			$order_item_data = $order_item->get_data();
 			$product         = $order_item->get_product();
 
+			// Skip the single line we cannot resolve, rather than returning an
+			// empty item list for the whole order. This used to bail out, so one
+			// product deleted after the order was placed cost every pixel the line
+			// items of that entire purchase, the products that still existed
+			// included: the conversion was reported with its value but with no
+			// products at all, which leaves dynamic remarketing and catalogue
+			// matching empty-handed.
 			if (self::is_not_wc_product($product)) {
-				return [];
+				self::log_problematic_product_id($order_item_data['product_id']);
+				continue;
 			}
 
 			$product_data = [
