@@ -130,6 +130,7 @@ class SSP_Destination_Error_Notification extends Notification {
 			'reddit'     => 'Reddit',
 			'openai'     => 'OpenAI',
 			'nextdoor'   => 'Nextdoor',
+			'bing'       => 'Microsoft Advertising',
 			'google_ga4' => 'Google Analytics 4',
 			'mixpanel'   => 'Mixpanel',
 		];

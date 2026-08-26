@@ -1465,6 +1465,14 @@ class Admin {
             'slug'  => 'microsoft',
         ];
         self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the Microsoft Advertising Conversions API token
+        add_settings_field(
+            'pmw_plugin_bing_capi_token',
+            esc_html__( 'Microsoft Conversions API: token', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_bing_capi_token'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
         // Add the field for the Microsoft Enhanced Conversions matching
         add_settings_field(
             'plugin_microsoft_enhanced_conversions',
@@ -2164,11 +2172,9 @@ class Admin {
     /**
      * The default admin design system: Nova, for every install.
      *
-     * Since 1.62.0 Nova is the default everywhere. Installs that predate Nova
-     * (recognizable by the missing pmw_default_admin_theme fresh-install
-     * marker, see Options::init()) get a one-time announcement above the Nova
-     * UI with a switch-back link; an explicit choice is persisted per user
-     * (see persist_theme_choice()).
+     * Since 1.62.0 Nova is the default everywhere, including installs that
+     * predate it. An explicit choice is persisted per user (see
+     * persist_theme_choice()).
      *
      * @return string 'wp' | 'classic'
      *
@@ -2318,6 +2324,7 @@ class Admin {
         if ( function_exists( 'wpm_fs' ) ) {
         }
         $ga4_credentials = Options::get_ga4_data_api_credentials();
+        $google_dm_credentials = Options::get_google_ads_dm_credentials();
         wp_localize_script( 'pmw-admin-wp', 'pmwAdminApi', [
             'root'                             => esc_url_raw( rest_url() ),
             'nonce'                            => wp_create_nonce( 'wp_rest' ),
@@ -2343,6 +2350,7 @@ class Admin {
             'gadsConversionAdjustmentsFeedUrl' => get_site_url() . Pixel_Manager::get_instance()->get_google_ads_conversion_adjustments_endpoint(),
             'recentLogUrl'                     => (string) Helpers::get_admin_url_link_to_recent_wc_log( 'pmw' ),
             'ga4DataApiClientEmail'            => ( isset( $ga4_credentials['client_email'] ) ? (string) $ga4_credentials['client_email'] : '' ),
+            'googleDmClientEmail'              => ( isset( $google_dm_credentials['client_email'] ) ? (string) $google_dm_credentials['client_email'] : '' ),
             'upgradeUrl'                       => Commercial_Links::upgrade_url(),
             'accountUrl'                       => Commercial_Links::account_url(),
             'supportUrl'                       => Commercial_Links::support_url(),
@@ -3710,7 +3718,7 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'Enter your Mixpanel project token. You can find it in Mixpanel under Settings > Project Settings > Project Token. It looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
-        echo '&nbsp;<code>a1b2c3d4e5f60718293a4b5c6d7e8f90</code>';
+        echo '&nbsp;<code>abcd1234abcd1234abcd1234abcd1234</code>';
     }
 
     /**
@@ -4319,6 +4327,45 @@ class Admin {
         }
         esc_html_e( 'The Adroll pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '&nbsp;<code>ABCD1EFGHIJKLMN2O3PQR</code>';
+    }
+
+    public static function option_html_bing_capi_token() {
+        ?>
+		<input class="pmw mono"
+				type="text"
+				id="pmw_plugin_bing_capi_token"
+				name="wgact_plugin_options[bing][capi][token]"
+				size="40"
+				onfocus="this.select();"
+				value="<?php 
+        echo esc_html( Options::get_bing_capi_token() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+		/>
+		<?php 
+        self::display_status_icon( Options::get_bing_capi_token(), Options::is_bing_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'bing_capi_token' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_bing_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the Microsoft Advertising UET tag', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
     }
 
     public static function option_html_bing_enhanced_conversions() {

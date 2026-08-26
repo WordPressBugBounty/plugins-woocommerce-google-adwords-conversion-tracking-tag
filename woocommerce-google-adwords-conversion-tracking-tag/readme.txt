@@ -2,9 +2,9 @@
 Contributors: alekv, wolfbaer, freemius
 Tags: conversion tracking, google ads, google analytics, facebook pixel, woocommerce
 Requires at least: 6.2
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.65.1
+Stable tag: 1.66.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -93,7 +93,7 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 * GroundTruth Ads – omnichannel engagement and conversion tracking (beta)
 * Hyros – ad attribution through the Hyros Universal Script with funnel milestone tags (beta)
 * LinkedIn Ads
-* Microsoft Ads (Bing Ads)
+* Microsoft Ads (Bing Ads) - UET tag tracking and server-side conversions through the Microsoft Advertising Conversions API
 * Microsoft Clarity – heatmaps and session recordings with e-commerce events (beta)
 * Mixpanel – product analytics with the full shopping funnel, server-side purchases through the Ingestion API, session replay and user identification (beta)
 * Nextdoor Ads – conversion tracking through the Nextdoor Universal Pixel (beta)
@@ -111,7 +111,7 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 **Premium Features**
 
 * [Automatic Conversion Recovery (ACR)](https://sweetcode.com/docs/pmw/features/acr?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=acr) – automatically recover missed conversions nightly
-* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, OpenAI, GA4 Measurement Protocol
+* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, OpenAI, Nextdoor, Microsoft Ads, GA4 Measurement Protocol
 * Advanced Order Duplication Prevention
 * Google Ads Enhanced Conversions – first-party data for improved attribution
 * Google Ads Conversion Adjustments – send refund data back to Google Ads
@@ -325,11 +325,25 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.66.0  =
+*Release date - 26.08.2026*
+
+* New: The debug report now states whether Meta's own Conversions API Gateway is connected to the pixel, and which events it mirrors. The Gateway copies every browser event into the server channel from Meta's side, so it explains a server event count of roughly twice the browser one while being invisible in the WordPress plugin list
+* Tweak: Removed the one-time notice that announced the Nova interface on installs that predate it. Nova has been the default since 1.62.0, and the Support tab still offers the switch back to the Classic interface
+* Tweak: TikTok for WooCommerce no longer tracks alongside the Pixel Manager when the TikTok pixel is configured here. The plugin offers no setting or filter for it, so its event senders are unhooked, which stops its browser pixel and its Events API events while leaving the catalog sync, the order sync and its settings screen untouched
+* Fix: Configurable Composite Products are reported with the price the shopper configured instead of the cheapest possible configuration, so `add_to_cart` no longer under-reports every upgraded option. The quantity of composites and bundles is now read from the container's own quantity input rather than from the first component's
+* Fix: The Meta `AddPaymentInfo` event now reports the cart's contents, value and currency, on the browser pixel and on the Conversions API; it was sent with no commerce data at all, which is what makes Meta ask for valid price and currency data for the event
+* Fix: In explicit consent mode on shops that run Complianz, the pixels are no longer treated as approved before the visitor has answered the cookie banner. Complianz relays each consent category separately through the WP Consent API, and a category missing from such a relay, or a missing consent cookie, was read as consent
+* Fix: Google for WooCommerce and Google Analytics for WooCommerce are switched off again when the Pixel Manager tracks Google Ads or Google Analytics. Both plugins decide whether to track earlier than our compatibility filters were registered, so shops running either one alongside the Pixel Manager sent every event twice for logged out visitors
+* Fix: Events that other plugins or custom code report to the Pixel Manager, an `add_to_cart` from a custom button for example, are no longer lost when they arrive while the plugin is still loading; they are held and processed as soon as it is ready. A shipping method reported by both the plugin and a snippet is now counted once
+* Fix: The checkout page of shops whose checkout builder also makes WooCommerce report it as the cart page, CheckoutWC in Distraction Free Portal mode for example, is recognized as the checkout again, so `begin_checkout` and the other checkout page events fire there. The ambiguity is now resolved the way WooCommerce core resolves it
+* Fix: Visits from bots and automated browsers are now suppressed from the very first event, instead of only from the first server-side send onwards; the events before that were tracked as regular traffic, and with server-side tracking switched off the whole visit was
+
 = 1.65.1  =
 *Release date - 18.08.2026*
 
 * Fix: The license upgrade page shows every license tier again when it is opened in a background tab, which is what a middle click or a cmd/ctrl click produces; the licensing SDK measures the window width once while the page loads, and browsers report zero for a tab that has never been in the foreground
-* Tweak: The purchase event of an order that contains a product WooCommerce can no longer resolve, which is what deleting a product after the order was placed leaves behind, now reports the products that do still exist instead of no products at all, and names the skipped line in the debug log; the order line items of every pixel are built defensively along the same lines, so one line that cannot be resolved can no longer cost a pixel its whole event; orders whose products all still exist were never affected, and the payloads of every pixel are unchanged
+* Tweak: The purchase event of an order that contains a product WooCommerce can no longer resolve, which deleting a product after the order was placed leaves behind, now reports the products that do still exist instead of none at all, and names the skipped line in the debug log; the line items of every pixel are built as defensively
 
 = 1.65.0  =
 *Release date - 17.08.2026*

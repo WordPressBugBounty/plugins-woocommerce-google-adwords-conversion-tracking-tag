@@ -82,6 +82,7 @@ class Server_Event_Processor {
 			'SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_Adapter',
+			'SweetCode\Pixel_Manager\Pixels\Bing\Bing_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\Mixpanel\Mixpanel_Adapter',
 		];
 

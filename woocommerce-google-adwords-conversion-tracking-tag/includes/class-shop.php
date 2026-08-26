@@ -985,6 +985,43 @@ class Shop {
         return self::$pmw_ist_order_received_page;
     }
 
+    /**
+     * PMW uses its own function to check if a visitor is on the cart page.
+     *
+     * Some checkout builders make is_cart() true on the checkout route as well
+     * (CheckoutWC in Distraction Free Portal mode, for example). Since PMW
+     * evaluates the cart before the checkout, such a shop would classify its
+     * checkout as a cart page and lose every checkout page event. WooCommerce
+     * core resolves the same ambiguity checkout-first in wc_body_class().
+     *
+     * @since 1.65.2
+     *
+     * @return bool
+     */
+    public static function pmw_is_cart_page() {
+        if ( !function_exists( 'is_cart' ) || !is_cart() ) {
+            return false;
+        }
+        // Only the cart claims this request. Nothing to resolve.
+        if ( !function_exists( 'is_checkout' ) || !is_checkout() ) {
+            return true;
+        }
+        /**
+         * Both claim the request. Let the configured pages decide,
+         * with the checkout taking precedence, like WooCommerce core does.
+         */
+        $checkout_page_id = wc_get_page_id( 'checkout' );
+        if ( $checkout_page_id > 0 && is_page( $checkout_page_id ) ) {
+            return false;
+        }
+        $cart_page_id = wc_get_page_id( 'cart' );
+        if ( $cart_page_id > 0 && is_page( $cart_page_id ) ) {
+            return true;
+        }
+        // Neither page matches. Follow WooCommerce core and resolve to the checkout.
+        return false;
+    }
+
     private static function get_subscription_value_multiplier() {
         return Options::get_options_obj()->shop->subscription_value_multiplier;
     }

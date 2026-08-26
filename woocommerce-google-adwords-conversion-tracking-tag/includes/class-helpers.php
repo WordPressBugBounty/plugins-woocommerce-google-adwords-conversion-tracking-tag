@@ -36,6 +36,35 @@ class Helpers {
         return self::generic_sanitization( $data, $raw );
     }
 
+    /**
+     * The user agent of the current HTTP request.
+     *
+     * This is the authoritative user agent for every event that is fired from
+     * the visitor's own browser, page loads and the /sse/ POST alike: it comes
+     * from the request headers, so unlike a value carried in a request body it
+     * cannot be forged by whoever calls a public endpoint. Server-side pixel
+     * classes use it both to reconcile what the browser claimed and to fill the
+     * field in when the payload carries nothing.
+     *
+     * Reads the $_SERVER superglobal instead of filter_input(INPUT_SERVER),
+     * because filter_input() only ever sees the snapshot PHP took when the
+     * request started. Anything that legitimately normalizes $_SERVER later in
+     * the request (a reverse-proxy mu-plugin, WP-CLI, the PHPUnit bootstrap) is
+     * invisible to it, which is also why the pixel classes reading it through
+     * filter_input() could never be covered by a test.
+     *
+     * @return string The sanitized user agent, or an empty string when the
+     *                request carries none.
+     *
+     * @since 1.65.2
+     */
+    public static function get_request_user_agent() {
+        if ( !isset( $_SERVER['HTTP_USER_AGENT'] ) || !is_string( $_SERVER['HTTP_USER_AGENT'] ) ) {
+            return '';
+        }
+        return sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) );
+    }
+
     private static function sanitize_string( $string, $raw = false ) {
         if ( $raw ) {
             return filter_var( $string, FILTER_UNSAFE_RAW );

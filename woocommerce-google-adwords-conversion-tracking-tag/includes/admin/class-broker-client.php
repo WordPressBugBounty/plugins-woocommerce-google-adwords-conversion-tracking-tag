@@ -178,6 +178,12 @@ class Broker_Client {
 			]
 		);
 
+		register_rest_route(self::$rest_namespace, '/broker/ads/datamanager/status', [
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => [ $this, 'handle_ads_datamanager_status' ],
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+
 		register_rest_route(self::$rest_namespace, '/broker/ga4/accounts', [
 			'methods'             => \WP_REST_Server::READABLE,
 			'callback'            => [ $this, 'handle_ga4_accounts' ],
@@ -380,10 +386,21 @@ class Broker_Client {
 	public function handle_ads_conversions_list( $request ) {
 
 		$path  = '/v1/ads/customers/' . rawurlencode($request['cid']) . '/conversions';
+		$query = [];
 		$login = $request->get_param('login');
 
 		if ($login && preg_match('/^\d+$/', $login)) {
-			$path .= '?login=' . rawurlencode($login);
+			$query[] = 'login=' . rawurlencode($login);
+		}
+
+		// all=1 includes unlabeled actions (imports, GA4 imports) so the Data
+		// Manager upload's conversion action picker can offer and classify them.
+		if ('1' === $request->get_param('all')) {
+			$query[] = 'all=1';
+		}
+
+		if (!empty($query)) {
+			$path .= '?' . implode('&', $query);
 		}
 
 		return self::proxy('GET', $path);
@@ -409,6 +426,140 @@ class Broker_Client {
 		}
 
 		return self::proxy('GET', $path);
+	}
+
+	/**
+	 * GET /broker/ads/datamanager/status: whether the site's stored Google
+	 * grant includes the Data Manager API scope. The Nova UI uses this to
+	 * decide whether the broker auth method can be offered for the
+	 * experimental Google Ads Data Manager upload.
+	 */
+	public function handle_ads_datamanager_status() {
+
+		if (!self::is_enrolled()) {
+			return new \WP_REST_Response(
+				[
+					'ok'                      => true,
+					'enrolled'                => false,
+					'datamanagerScopeGranted' => false,
+				],
+				200
+			);
+		}
+
+		$result = self::broker_request('GET', '/v1/ads/datamanager/status');
+
+		if (!$result['ok']) {
+			return self::error_response($result);
+		}
+
+		$body             = $result['body'];
+		$body['enrolled'] = true;
+
+		return new \WP_REST_Response($body, 200);
+	}
+
+	/**
+	 * Server-to-server: forward a Data Manager API events:ingest request to
+	 * the broker, which exchanges its stored Google grant for an access token
+	 * and relays the request to Google. Used by the experimental Google Ads
+	 * Data Manager upload when the auth method is set to broker.
+	 *
+	 * @param array $payload The full events:ingest request body.
+	 *
+	 * @return array { success: bool, code: int, request_id: string, error_message: string }
+	 *
+	 * @since 1.66.0
+	 */
+	public static function datamanager_ingest( $payload ) {
+
+		$result = self::broker_request('POST', '/v1/ads/datamanager/ingest', $payload, true);
+
+		$error_message = '';
+
+		if (!$result['ok'] && isset($result['body']['message'])) {
+			$error_message = (string) $result['body']['message'];
+		}
+
+		$request_id = '';
+
+		if (isset($result['body']['requestId']) && is_string($result['body']['requestId'])) {
+			$request_id = $result['body']['requestId'];
+		} elseif (!empty($result['requestId'])) {
+			$request_id = $result['requestId'];
+		}
+
+		return [
+			'success'       => $result['ok'],
+			'code'          => (int) $result['status'],
+			'request_id'    => $request_id,
+			'error_message' => $error_message,
+		];
+	}
+
+	/**
+	 * Server-to-server: every non-removed conversion action of a Google Ads
+	 * account, with type/category, for the Data Manager upload verification
+	 * (checking an entered conversion action ID against the chosen upload
+	 * mode). Returns null when the list cannot be fetched - verification is
+	 * best effort and must never block an upload.
+	 *
+	 * @param string $customer_id       The Google Ads customer ID, digits only.
+	 * @param string $login_customer_id Optional manager (MCC) customer ID.
+	 *
+	 * @return array|null List of { id, name, type, status, category, conversionLabel } or null.
+	 *
+	 * @since 1.66.0
+	 */
+	public static function list_all_ads_conversion_actions( $customer_id, $login_customer_id = '' ) {
+
+		if (!preg_match('/^\d+$/', (string) $customer_id)) {
+			return null;
+		}
+
+		$path = '/v1/ads/customers/' . rawurlencode($customer_id) . '/conversions?all=1';
+
+		if ($login_customer_id && preg_match('/^\d+$/', (string) $login_customer_id)) {
+			$path .= '&login=' . rawurlencode($login_customer_id);
+		}
+
+		$result = self::broker_request('GET', $path);
+
+		if (!$result['ok'] || !isset($result['body']['conversions']) || !is_array($result['body']['conversions'])) {
+			return null;
+		}
+
+		return $result['body']['conversions'];
+	}
+
+	/**
+	 * Server-to-server: relay a conversion adjustment (refund handling for
+	 * the Data Manager upload). Adjustments run through the Google Ads API on
+	 * the broker, which holds the developer token.
+	 *
+	 * @param array $payload { customerId, loginCustomerId?, conversionActionId,
+	 *                         orderId, adjustmentType, adjustmentDateTime,
+	 *                         adjustedValue?, currencyCode? }
+	 *
+	 * @return array { success: bool, code: int, error_message: string }
+	 *
+	 * @since 1.66.0
+	 */
+	public static function datamanager_adjust( $payload ) {
+
+		$result = self::broker_request('POST', '/v1/ads/datamanager/adjust', $payload);
+
+		$error_message = '';
+
+		if (!$result['ok'] && isset($result['body']['message'])) {
+			$error_message = (string) $result['body']['message'];
+		}
+
+		return [
+			'success'       => $result['ok'],
+			'code'          => (int) $result['status'],
+			'error_message' => $error_message,
+		];
 	}
 
 	public function handle_ga4_accounts() {
@@ -702,7 +853,7 @@ class Broker_Client {
 	 *     requestId: string|null The broker's X-Request-Id for support lookups.
 	 * }
 	 */
-	private static function broker_request( $method, $path, $body = null, $with_auth = true ) {
+	private static function broker_request( $method, $path, $body = null, $with_auth = true, $extra_headers = [] ) {
 
 		$headers = [
 			'Accept'        => 'application/json',
@@ -735,7 +886,7 @@ class Broker_Client {
 		$args = [
 			'method'  => $method,
 			'timeout' => 20,
-			'headers' => $headers,
+			'headers' => array_merge($headers, (array) $extra_headers),
 		];
 
 		// Always JSON-typed, even on body-less POSTs (disconnect): the broker's
@@ -745,7 +896,28 @@ class Broker_Client {
 			$args['body']                    = wp_json_encode(is_null($body) ? new \stdClass() : $body);
 		}
 
-		$response = wp_remote_request(self::get_broker_url() . $path, $args);
+		/**
+		 * Some optimization and security plugins clamp EVERY outbound request
+		 * to the WordPress default of 5 seconds through the http_request_args
+		 * filter, which overrides the explicit timeout above. Seen live: a
+		 * Data Manager relay that the broker completed in 11.6 seconds died
+		 * shop-side with "cURL error 28: Operation timed out after 5002
+		 * milliseconds". Re-assert the timeout after all other filters, for
+		 * this one request only.
+		 */
+		$broker_url      = self::get_broker_url();
+		$enforce_timeout = static function ( $parsed_args, $url ) use ( $broker_url ) {
+			if (is_string($url) && 0 === strpos($url, $broker_url)) {
+				$parsed_args['timeout'] = 20;
+			}
+			return $parsed_args;
+		};
+
+		add_filter('http_request_args', $enforce_timeout, PHP_INT_MAX, 2);
+
+		$response = wp_remote_request($broker_url . $path, $args);
+
+		remove_filter('http_request_args', $enforce_timeout, PHP_INT_MAX);
 
 		if (is_wp_error($response)) {
 			return [

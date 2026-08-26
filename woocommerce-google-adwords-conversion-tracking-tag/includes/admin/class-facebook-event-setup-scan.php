@@ -31,6 +31,18 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  *
  *   config.set("{PIXEL_ID}", "eventValidation", { "unverifiedEventNames": [], "restrictedEventNames": [ "AddToCart", "Purchase", ... ] });
  *
+ * The same config finally reveals whether Meta's own Conversions API Gateway
+ * (internally called OpenBridge) is connected to the pixel. When it is, every
+ * event the browser pixel fires is also POSTed to the gateway endpoint, which
+ * forwards it to Meta as a second, server-side event. That mirror carries the
+ * browser event's own event ID, so Meta deduplicates it, but it makes the raw
+ * server intake a multiple of the browser intake and adds a second server-side
+ * sender next to the Pixel Manager's Conversions API:
+ *
+ *   config.set("{PIXEL_ID}", "openbridge", { "endpoints": [ { "endpoint": "https://...", "alwaysRetry": true } ], "eventsFilter": { "filteringMode": "blocklist", "eventNames": [ "Microdata", ... ] } });
+ *   fbq.loadPlugin("openbridge3");
+ *   instance.optIn("{PIXEL_ID}", "OpenBridge", true);
+ *
  * This class fetches the config server-side, extracts those payloads and caches
  * the result in a transient so the check stays cheap on admin page loads.
  *
@@ -40,9 +52,9 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  */
 class Facebook_Event_Setup_Scan {
 
-	// The v2 suffix invalidates cached scans from before the
-	// restricted_events extraction was added. The old transient expires on its own.
-	const TRANSIENT_KEY = 'pmw_facebook_est_scan_v2';
+	// The v3 suffix invalidates cached scans from before the openbridge
+	// extraction was added. The old transient expires on its own.
+	const TRANSIENT_KEY = 'pmw_facebook_est_scan_v3';
 
 	/**
 	 * Get the scan results for all configured Facebook pixels.
@@ -56,7 +68,7 @@ class Facebook_Event_Setup_Scan {
 	 * @return array|false {
 	 *     scanned_at: int    Unix timestamp of the scan.
 	 *     pixel_ids:  array  The pixel IDs that were scanned.
-	 *     pixels:     array  Per pixel ID: [ 'error' => string, 'active_rules' => array, 'iwl_extractors' => array, 'restricted_events' => array ].
+	 *     pixels:     array  Per pixel ID: [ 'error' => string, 'active_rules' => array, 'iwl_extractors' => array, 'restricted_events' => array, 'openbridge' => array ].
 	 * } or false when no result is available.
 	 * @since 1.63.1
 	 */
@@ -112,6 +124,11 @@ class Facebook_Event_Setup_Scan {
 	/**
 	 * Check if the scan found Event Setup Tool rules or value extractors on any pixel.
 	 *
+	 * Deliberately limited to the Event Setup Tool findings, because this drives
+	 * the Event Setup Tool opportunity card. The restricted events and the
+	 * Conversions API Gateway have their own accessors, so a pixel that only
+	 * carries those never triggers a card about rules it does not have.
+	 *
 	 * @param array|false $results The result of get_scan_results().
 	 * @return bool
 	 * @since 1.63.1
@@ -124,6 +141,28 @@ class Facebook_Event_Setup_Scan {
 
 		foreach ($results['pixels'] as $pixel) {
 			if (!empty($pixel['active_rules']) || !empty($pixel['iwl_extractors'])) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Check if Meta's Conversions API Gateway (OpenBridge) is active on any pixel.
+	 *
+	 * @param array|false $results The result of get_scan_results().
+	 * @return bool
+	 * @since 1.66.0
+	 */
+	public static function has_openbridge( $results ) {
+
+		if (!is_array($results) || empty($results['pixels'])) {
+			return false;
+		}
+
+		foreach ($results['pixels'] as $pixel) {
+			if (!empty($pixel['openbridge']['active'])) {
 				return true;
 			}
 		}
@@ -156,12 +195,10 @@ class Facebook_Event_Setup_Scan {
 
 				$had_error = true;
 
-				$results['pixels'][$pixel_id] = [
-					'error'             => $body->get_error_message(),
-					'active_rules'      => [],
-					'iwl_extractors'    => [],
-					'restricted_events' => [],
-				];
+				$results['pixels'][$pixel_id] = array_merge(
+					self::empty_result(),
+					[ 'error' => $body->get_error_message() ]
+				);
 
 				continue;
 			}
@@ -232,16 +269,14 @@ class Facebook_Event_Setup_Scan {
 	 *     active_rules:      array  One entry per ACTIVE rule: [ 'event' => string, 'rule_id' => string ].
 	 *     iwl_extractors:    array  Unique event names that have value extractors configured.
 	 *     restricted_events: array  Event names Meta blocks for this pixel because of its business category.
+	 *     openbridge:        array  [ 'active' => bool, 'endpoints' => array, 'mirrored_events' => array ].
 	 * }
 	 * @since 1.63.1
 	 */
 	public static function parse_signals_config( $body, $pixel_id ) {
 
-		$result = [
-			'active_rules'      => [],
-			'iwl_extractors'    => [],
-			'restricted_events' => [],
-		];
+		$result = self::empty_result();
+		unset($result['error']);
 
 		$est_rules = self::extract_fbq_set_payload($body, 'estRules', $pixel_id);
 
@@ -300,7 +335,159 @@ class Facebook_Event_Setup_Scan {
 			}
 		}
 
+		$result['openbridge'] = self::parse_openbridge($body, $pixel_id);
+
 		return $result;
+	}
+
+	/**
+	 * Determine whether Meta's Conversions API Gateway (OpenBridge) is connected.
+	 *
+	 * All three markers have to line up before this reports an active gateway:
+	 * an openbridge config payload carrying at least one non-empty forwarding
+	 * endpoint, the openbridge3 plugin being loaded, and the pixel being opted
+	 * in to it. The openbridge3 plugin code ships in configs generically, so the
+	 * presence of the key alone would false-positive the same way a plain
+	 * substring search for "derived_event_name" does for Event Setup Tool rules.
+	 *
+	 * @param string $body
+	 * @param string $pixel_id
+	 * @return array {
+	 *     active:          bool   True when the gateway mirrors this pixel's browser events.
+	 *     endpoints:       array  The forwarding endpoint URLs Meta delivered.
+	 *     mirrored_events: array  The standard events the Pixel Manager sends that the gateway copies.
+	 * }
+	 * @since 1.66.0
+	 */
+	private static function parse_openbridge( $body, $pixel_id ) {
+
+		$result = [
+			'active'          => false,
+			'endpoints'       => [],
+			'mirrored_events' => [],
+		];
+
+		$config = self::extract_config_set_payload($body, $pixel_id, 'openbridge');
+
+		if (!is_array($config) || empty($config['endpoints']) || !is_array($config['endpoints'])) {
+			return $result;
+		}
+
+		foreach ($config['endpoints'] as $endpoint) {
+
+			if (is_array($endpoint) && !empty($endpoint['endpoint']) && is_string($endpoint['endpoint'])) {
+				$result['endpoints'][] = $endpoint['endpoint'];
+			}
+		}
+
+		if (empty($result['endpoints'])) {
+			return $result;
+		}
+
+		if (!self::has_openbridge_opt_in($body, $pixel_id)) {
+			return $result;
+		}
+
+		$result['active']          = true;
+		$result['mirrored_events'] = self::get_mirrored_events($config);
+
+		return $result;
+	}
+
+	/**
+	 * Check that the openbridge3 plugin is loaded and the pixel is opted in to it.
+	 *
+	 * @param string $body
+	 * @param string $pixel_id
+	 * @return bool
+	 * @since 1.66.0
+	 */
+	private static function has_openbridge_opt_in( $body, $pixel_id ) {
+
+		if (!preg_match('/loadPlugin\(\s*["\']openbridge\d*["\']\s*\)/i', $body)) {
+			return false;
+		}
+
+		$pattern = '/optIn\(\s*["\']' . preg_quote($pixel_id, '/') . '["\']\s*,\s*["\']OpenBridge["\']\s*,\s*(?:!0|true)\s*\)/i';
+
+		return (bool) preg_match($pattern, $body);
+	}
+
+	/**
+	 * Work out which of the events the Pixel Manager sends the gateway mirrors.
+	 *
+	 * The eventsFilter decides what the browser plugin forwards. In blocklist
+	 * mode every event that is NOT named is mirrored, in allowlist mode only the
+	 * named ones are. Without a filter the gateway mirrors everything. The
+	 * result is intersected with the standard events the Pixel Manager actually
+	 * fires, so the finding names events the merchant recognizes instead of
+	 * Meta's internal instrumentation events.
+	 *
+	 * @param array $config The decoded openbridge config payload.
+	 * @return array
+	 * @since 1.66.0
+	 */
+	private static function get_mirrored_events( $config ) {
+
+		// The standard events the Pixel Manager's Meta pixel fires in the browser.
+		$pmw_events = [
+			'PageView',
+			'ViewContent',
+			'Search',
+			'AddToCart',
+			'AddToWishlist',
+			'InitiateCheckout',
+			'AddPaymentInfo',
+			'Purchase',
+			'Lead',
+			'CompleteRegistration',
+			'Subscribe',
+		];
+
+		$mode  = '';
+		$names = [];
+
+		if (isset($config['eventsFilter']) && is_array($config['eventsFilter'])) {
+
+			$filter = $config['eventsFilter'];
+			$mode   = isset($filter['filteringMode']) && is_string($filter['filteringMode']) ? strtolower($filter['filteringMode']) : '';
+
+			if (!empty($filter['eventNames']) && is_array($filter['eventNames'])) {
+				foreach ($filter['eventNames'] as $name) {
+					if (is_string($name) && '' !== $name) {
+						$names[] = $name;
+					}
+				}
+			}
+		}
+
+		if ('allowlist' === $mode) {
+			return array_values(array_intersect($pmw_events, $names));
+		}
+
+		// Blocklist mode, and the no-filter case: everything not named is mirrored.
+		return array_values(array_diff($pmw_events, $names));
+	}
+
+	/**
+	 * The shape of one pixel's scan entry with no findings.
+	 *
+	 * @return array
+	 * @since 1.66.0
+	 */
+	private static function empty_result() {
+
+		return [
+			'error'             => '',
+			'active_rules'      => [],
+			'iwl_extractors'    => [],
+			'restricted_events' => [],
+			'openbridge'        => [
+				'active'          => false,
+				'endpoints'       => [],
+				'mirrored_events' => [],
+			],
+		];
 	}
 
 	/**

@@ -5,6 +5,7 @@ namespace SweetCode\Pixel_Manager\Admin;
 use Exception;
 use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Logger;
+use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Helpers;
@@ -82,6 +83,7 @@ class Debug_Info {
             $html .= 'Hosting provider: ' . Environment::get_hosting_provider() . PHP_EOL;
             $html = self::add_facebook_event_setup_info( $html );
             $html = self::add_facebook_restricted_events_info( $html );
+            $html = self::add_facebook_capi_gateway_info( $html );
             if ( Environment::is_woocommerce_active() ) {
                 $html .= PHP_EOL . '## WooCommerce ##' . PHP_EOL . PHP_EOL;
                 $html .= 'Default currency: ' . get_woocommerce_currency() . PHP_EOL . PHP_EOL;
@@ -363,6 +365,80 @@ class Debug_Info {
             return $html;
         } catch ( Exception $e ) {
             $html .= PHP_EOL . 'Meta business category restrictions scan error: ' . $e->getMessage() . PHP_EOL;
+        }
+        return $html;
+    }
+
+    /**
+     * Report whether Meta's own Conversions API Gateway (OpenBridge) is connected.
+     *
+     * The gateway is a Meta-hosted relay that copies every event the browser
+     * pixel fires and forwards it to Meta as a second, server-side event. It
+     * runs entirely on Meta's side, so it shows up nowhere in WordPress and
+     * survives removing the plugin that configured it. Together with the Pixel
+     * Manager's Conversions API it puts two server-side senders on one pixel,
+     * which is the standard explanation for a server intake that is roughly
+     * twice the browser intake in Meta Events Manager. It does not double count,
+     * because the mirror carries the browser event's own event ID.
+     *
+     * Reference: https://secure.helpscout.net/conversation/3405785588
+     *
+     * @param string $html
+     * @return string
+     * @since 1.66.0
+     */
+    private static function add_facebook_capi_gateway_info( $html ) {
+        try {
+            $pixel_ids = Facebook::get_pixel_ids();
+            if ( empty( $pixel_ids ) ) {
+                return $html;
+            }
+            $html .= PHP_EOL . '## Meta Conversions API Gateway ##' . PHP_EOL . PHP_EOL;
+            $results = Facebook_Event_Setup_Scan::get_scan_results( true );
+            if ( !is_array( $results ) || empty( $results['pixels'] ) ) {
+                $html .= 'Scan disabled or no results available.' . PHP_EOL;
+                return $html;
+            }
+            $pmw_capi_active = Options::is_facebook_capi_active();
+            $gateway_found = false;
+            foreach ( $results['pixels'] as $pixel_id => $pixel ) {
+                if ( !empty( $pixel['error'] ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': could not be scanned (' . $pixel['error'] . ')' . PHP_EOL;
+                    continue;
+                }
+                if ( empty( $pixel['openbridge']['active'] ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': OK (no gateway connected)' . PHP_EOL;
+                    continue;
+                }
+                $gateway_found = true;
+                $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': Meta Conversions API Gateway connected' . PHP_EOL;
+                $html .= '  Endpoints: ' . implode( ', ', $pixel['openbridge']['endpoints'] ) . PHP_EOL;
+                $html .= '  Mirrored events: ' . (( !empty( $pixel['openbridge']['mirrored_events'] ) ? implode( ', ', $pixel['openbridge']['mirrored_events'] ) : 'none of the events the Pixel Manager sends' )) . PHP_EOL;
+            }
+            $pmw_capi_state = ( $pmw_capi_active ? 'active' : 'inactive' );
+            $html .= PHP_EOL . 'Pixel Manager Conversions API: ' . $pmw_capi_state . PHP_EOL;
+            if ( $gateway_found ) {
+                $html .= PHP_EOL;
+                if ( $pmw_capi_active ) {
+                    $html .= 'Two server-side senders are active on this pixel. Every browser event is mirrored by the' . PHP_EOL;
+                    $html .= 'gateway into the server channel, so the raw server intake in Events Manager is roughly twice' . PHP_EOL;
+                    $html .= 'the browser intake. Conversions are NOT double counted: the mirror carries the browser' . PHP_EOL;
+                    $html .= 'event\'s own event ID, so Meta deduplicates the pair (verify under Event match quality ->' . PHP_EOL;
+                    $html .= 'Additional conversions reported).' . PHP_EOL;
+                } else {
+                    $html .= 'The gateway is the only server-side sender here, because the Pixel Manager\'s Conversions API' . PHP_EOL;
+                    $html .= 'is not active. It only mirrors events the browser pixel already sent, so orders where the' . PHP_EOL;
+                    $html .= 'browser pixel was blocked are not covered.' . PHP_EOL;
+                }
+                $html .= PHP_EOL;
+                $html .= 'Disconnect it in the Meta Events Manager (Data sources -> select the pixel -> Settings ->' . PHP_EOL;
+                $html .= 'Conversions API Gateway) and keep the Pixel Manager\'s Conversions API, which sends once per' . PHP_EOL;
+                $html .= 'paid order from the server and therefore also covers blocked browsers.' . PHP_EOL;
+                $html .= 'More information: ' . Documentation::get_link( 'facebook_capi_gateway' ) . PHP_EOL;
+            }
+            return $html;
+        } catch ( Exception $e ) {
+            $html .= PHP_EOL . 'Meta Conversions API Gateway scan error: ' . $e->getMessage() . PHP_EOL;
         }
         return $html;
     }

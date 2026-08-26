@@ -3,6 +3,7 @@
 namespace SweetCode\Pixel_Manager\Pixels;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
+use SweetCode\Pixel_Manager\Click_Ids;
 use SweetCode\Pixel_Manager\Admin\LTV;
 use SweetCode\Pixel_Manager\Admin\Order_Columns;
 use SweetCode\Pixel_Manager\Admin\Validations;
@@ -12,6 +13,7 @@ use SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry;
 use SweetCode\Pixel_Manager\Platforms\Platform_Manager;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_CAPI;
+use SweetCode\Pixel_Manager\Pixels\Google\Google_DMA;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_MP_GA4;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
 use SweetCode\Pixel_Manager\Pixels\Google\GTG_Proxy;
@@ -23,6 +25,7 @@ use SweetCode\Pixel_Manager\Pixels\Snapchat\Snapchat_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_CAPI;
 use SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_CAPI;
+use SweetCode\Pixel_Manager\Pixels\Bing\Bing_CAPI;
 use SweetCode\Pixel_Manager\Pixels\TripleWhale\Triple_Whale_API;
 use SweetCode\Pixel_Manager\Pixels\Mixpanel\Mixpanel_API;
 use SweetCode\Pixel_Manager\Pixels\VWO\VWO;
@@ -136,7 +139,6 @@ class Pixel_Manager {
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Google\\Google_Ads_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Google\\GA4_Descriptor',
             // Marketing pixels
-            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Bing_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Twitter_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\LinkedIn_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\AdRoll_Descriptor',
@@ -729,11 +731,85 @@ class Pixel_Manager {
     }
 
     /**
+     * Field names our browser bundles use for the visitor's user agent.
+     *
+     * Facebook, Pinterest and Snapchat nest it as `user_data.client_user_agent`,
+     * TikTok and Reddit as `user.user_agent`, and the camelCase spelling is
+     * Microsoft Ads' convention. The reconciliation below matches on the field
+     * name at any depth rather than on a per-pixel path, so a pixel that reuses
+     * any of these conventions is covered the day it is added, without anyone
+     * having to remember this function exists.
+     *
+     * Test_SSE_Client_User_Agent reads the JS sources and fails when a bundle
+     * starts sending the user agent under a name that is not listed here.
+     *
+     * @return string[]
+     *
+     * @since 1.65.2
+     */
+    private static function get_client_user_agent_field_names() {
+        return ['client_user_agent', 'user_agent', 'clientUserAgent'];
+    }
+
+    /**
+     * Replace every client-supplied user agent in an /sse/ payload fragment
+     * with the user agent of the request that carried it.
+     *
+     * Recurses because the field sits inside a per-pixel container whose name
+     * differs by destination, and a payload holds one such container per pixel.
+     *
+     * @param array  $data       Payload or nested fragment.
+     * @param string $user_agent The request's own user agent, '' when absent.
+     * @param int    $depth      Recursion guard.
+     * @return array
+     *
+     * @since 1.65.2
+     */
+    private static function reconcile_user_agent_fields( $data, $user_agent, $depth = 0 ) {
+        // Payloads are two to three levels deep; the guard is only here so a
+        // pathological body cannot turn into unbounded recursion.
+        if ( $depth > 8 ) {
+            return $data;
+        }
+        $field_names = self::get_client_user_agent_field_names();
+        foreach ( $data as $key => $value ) {
+            if ( is_array( $value ) ) {
+                $data[$key] = self::reconcile_user_agent_fields( $value, $user_agent, $depth + 1 );
+                continue;
+            }
+            if ( !in_array( $key, $field_names, true ) ) {
+                continue;
+            }
+            if ( '' === $user_agent ) {
+                // Nothing authoritative to substitute, so the client's copy is
+                // dropped rather than trusted by default.
+                unset($data[$key]);
+                continue;
+            }
+            $data[$key] = $user_agent;
+        }
+        return $data;
+    }
+
+    /**
      * Reconcile client_ip_address and client_user_agent in an /sse/ payload.
      *
-     * The client_user_agent field is always stripped because the request's own
-     * HTTP_USER_AGENT is authoritative for events fired from the same browser.
-     * Adapters re-derive it from the request.
+     * /sse/ is a public endpoint, so every value in the request body is
+     * attacker-controlled. Both identifiers the browser contributes are
+     * therefore reconciled against what the request itself proves.
+     *
+     * The user agent is replaced with the request's own HTTP_USER_AGENT, which
+     * is authoritative for events fired from the same browser and cannot be
+     * forged through the payload. When the request carries no user agent at all
+     * the field is dropped instead of trusted.
+     *
+     * Between 1.58.10 and 1.65.2 this method only unset the field and left the
+     * substitution to the adapters, which none of Facebook, Pinterest and
+     * Snapchat implemented. Those destinations therefore received an IP with no
+     * user agent for every non-purchase event, which Meta reports as unusable
+     * for matching. The adapters now carry the same fallback (see
+     * Facebook_CAPI::send_event_hit()), so the value is also restored for a
+     * payload that never contained the field.
      *
      * The client_ip_address field is kept only when it adds information the
      * server cannot see, defined as: a valid public IP whose family (IPv4/IPv6)
@@ -747,16 +823,17 @@ class Pixel_Manager {
      * @return array
      *
      * @since 1.58.10
+     * @since 1.65.2 The user agent is substituted instead of only stripped, and
+     *                the substitution reaches every pixel's payload shape.
      */
-    private static function strip_client_identifiers_from_sse_payload( $data ) {
+    private static function reconcile_client_identifiers_in_sse_payload( $data ) {
+        $data = self::reconcile_user_agent_fields( $data, Helpers::get_request_user_agent() );
         $server_ip = Geolocation::get_user_ip();
         $server_is_ipv6 = $server_ip && false !== filter_var( $server_ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 );
         foreach ( $data as $pixel_name => $pixel_payload ) {
             if ( !is_array( $pixel_payload ) || !isset( $pixel_payload['user_data'] ) || !is_array( $pixel_payload['user_data'] ) ) {
                 continue;
             }
-            // Always strip client-supplied user agent.
-            unset($data[$pixel_name]['user_data']['client_user_agent']);
             // Reconcile client-supplied IP.
             if ( !isset( $pixel_payload['user_data']['client_ip_address'] ) ) {
                 continue;
@@ -834,6 +911,9 @@ class Pixel_Manager {
                 }
                 if ( Options::is_openai_capi_active() ) {
                     OpenAI_CAPI::set_identifiers_on_session();
+                }
+                if ( Helpers::is_experiment() && Options::is_google_ads_dm_active() ) {
+                    Google_DMA::set_identifiers_on_session();
                 }
             }
             // TODO: That function should probably not go into the Google_MP_GA4 class
@@ -1427,6 +1507,7 @@ class Pixel_Manager {
         return [
             'uet_tag_id'           => Options::get_bing_uet_tag_id(),
             'enhanced_conversions' => Options::is_bing_enhanced_conversions_enabled(),
+            'capi'                 => Options::is_bing_capi_active(),
             'dynamic_remarketing'  => [
                 'id_type' => Product::get_dyn_r_id_type( 'bing' ),
             ],
@@ -2224,7 +2305,7 @@ class Pixel_Manager {
             $data['list_name'] = 'Order Received Page';
             $data['list_id'] = 'order_received_page';
             $data['page_type'] = 'order_received_page';
-        } elseif ( is_cart() ) {
+        } elseif ( Shop::pmw_is_cart_page() ) {
             $data['list_name'] = 'Cart';
             $data['list_id'] = 'cart';
             $data['page_type'] = 'cart';

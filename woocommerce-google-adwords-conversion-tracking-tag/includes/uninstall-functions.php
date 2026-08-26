@@ -109,7 +109,23 @@ if (!function_exists('pmw_delete_plugin_data')) {
 		// Per-user admin UI theme choice (Nova/Classic switcher).
 		delete_metadata('user', 0, 'pmw_admin_theme', '', true);
 
+		// Most recent Google Ads Data Manager upload outcome + backfill state (experimental feature)
+		delete_option('pmw_google_dma_last_upload');
+		delete_option('pmw_google_dma_backfill');
+
+		// Universal click ID snapshot on orders (premium feature)
+		delete_metadata('post', 0, '_pmw_click_ids', '', true);
+		if (function_exists('wc_get_container')) {
+			// HPOS order meta lives in its own table; the order-meta cleanup
+			// below covers both storages through the WC data store.
+			delete_metadata('order', 0, '_pmw_click_ids', '', true);
+		}
+		if (function_exists('as_unschedule_all_actions')) {
+			as_unschedule_all_actions('pmw_google_dma_backfill_run');
+		}
+
 		// --- Transients (named) ---
+		delete_transient('pmw_google_dma_delta_report');
 		delete_transient('pmw_tracking_accuracy_backfill_running');
 		delete_transient('pmw_tracking_accuracy_analysis');
 		delete_transient('pmw_tracking_accuracy_analysis_running');
@@ -127,6 +143,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 		// These are created with dynamic suffixes (per-key caches), so match by prefix.
 		$transient_like_prefixes = [
 			'pmw_ga4_data_api_access_token_',
+			'pmw_google_sa_token_',
 			'pmw_products_for_datalayer_',
 			'pmw_geolocation_geoip_response_',
 		];

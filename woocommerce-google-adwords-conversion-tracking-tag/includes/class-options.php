@@ -24,8 +24,7 @@ class Options {
 	 * Fresh-install marker, written once when Options creates the initial
 	 * defaults (see init()). Installs without it predate Nova. Since 1.62.0
 	 * Nova is the default UI for every install; the marker now identifies
-	 * fresh installs for the onboarding checklist and targets the one-time
-	 * "Nova is now the default" announcement at pre-Nova installs.
+	 * fresh installs for the onboarding checklist.
 	 *
 	 * @since 1.59.0
 	 */
@@ -82,6 +81,44 @@ class Options {
 		self::$options  = null;
 	}
 
+	/**
+	 * Reads a single value straight from the stored options, without
+	 * initializing the filtered options tree.
+	 *
+	 * Some third party plugins decide whether to load their own tracking before
+	 * shops can register their pmw_options filters. Google for WooCommerce makes
+	 * that decision on plugins_loaded priority 20, Google Analytics for
+	 * WooCommerce in its integration constructor on init priority 0. We still
+	 * have to answer "is this pixel configured?" that early, and going through
+	 * get_options_obj() there would run init() and cache the unfiltered tree for
+	 * the rest of the request, which is the very thing those shop filters exist
+	 * for.
+	 *
+	 * Once init() has run this delegates to the initialized tree, so callers
+	 * arriving later keep seeing the filtered values.
+	 *
+	 * @param array $path Key path into the options array, for example [ 'google', 'ads', 'conversion_id' ].
+	 *
+	 * @return mixed|null The stored value, or null if the path is not set.
+	 *
+	 * @since 1.65.2
+	 */
+	private static function get_stored_option_value( array $path ) {
+
+		$node = self::$did_init ? self::$options : get_option(PMW_DB_OPTIONS_NAME);
+
+		foreach ($path as $key) {
+
+			if (!is_array($node) || !isset($node[ $key ])) {
+				return null;
+			}
+
+			$node = $node[ $key ];
+		}
+
+		return $node;
+	}
+
 	private function __construct() {
 		// Do nothing
 	}
@@ -118,6 +155,9 @@ class Options {
 			'bing'       => [
 				'uet_tag_id'           => '',
 				'enhanced_conversions' => false,
+				'capi'                 => [
+					'token' => '',
+				],
 				'consent_mode'         => [
 					'is_active' => true,
 				],
@@ -147,6 +187,16 @@ class Options {
 					'enhanced_conversions'     => false,
 					'conversion_adjustments'   => [
 						'conversion_name' => '',
+					],
+					'data_manager'             => [
+						'is_active'            => false,
+						'mode'                 => 'multi_source', // 'multi_source' | 'separate_action'
+						'operating_account_id' => '',
+						'login_account_id'     => '',
+						'conversion_action_id' => '',
+						'auth_method'          => 'service_account', // 'service_account' | 'broker'
+						'credentials'          => [],
+						'validate_only'        => false,
 					],
 				],
 				'analytics'    => [
@@ -583,6 +633,21 @@ class Options {
 		return (bool) self::get_options_obj()->bing->enhanced_conversions;
 	}
 
+	public static function get_bing_capi_token() {
+		return self::get_options_obj()->bing->capi->token;
+	}
+
+	/**
+	 * The Microsoft Advertising Conversions API uses the UET tag ID as its
+	 * endpoint, so it needs both the tag ID and the token.
+	 *
+	 * @return bool
+	 * @since 1.65.2
+	 */
+	public static function is_bing_capi_active() {
+		return self::is_bing_active() && (bool) self::get_bing_capi_token();
+	}
+
 	public static function is_bing_consent_mode_active() {
 		return (bool) self::get_options_obj()->bing->consent_mode->is_active;
 	}
@@ -676,6 +741,21 @@ class Options {
 		return (bool) self::get_google_ads_conversion_id();
 	}
 
+	/**
+	 * Google Ads activity check that is safe to call before init.
+	 *
+	 * Used by the Google for WooCommerce compatibility filter, which that plugin
+	 * reads on plugins_loaded priority 20.
+	 *
+	 * @return bool
+	 *
+	 * @see Options::get_stored_option_value()
+	 * @since 1.65.2
+	 */
+	public static function is_google_ads_active_early() {
+		return (bool) self::get_stored_option_value([ 'google', 'ads', 'conversion_id' ]);
+	}
+
 	public static function get_google_ads_conversion_label() {
 		return self::get_options_obj()->google->ads->conversion_label;
 	}
@@ -702,6 +782,60 @@ class Options {
 
 	public static function is_google_ads_conversion_adjustments_conversion_name_set() {
 		return (bool) self::get_google_ads_conversion_adjustments_conversion_name();
+	}
+
+	/**
+	 * Google Ads Data Manager API upload (experimental)
+	 */
+
+	public static function is_google_ads_dm_enabled() {
+		return (bool) self::get_options_obj()->google->ads->data_manager->is_active;
+	}
+
+	public static function is_google_ads_dm_active() {
+		return self::is_google_ads_dm_enabled()
+			&& self::get_google_ads_dm_operating_account_id()
+			&& self::get_google_ads_dm_conversion_action_id()
+			&& (
+				'broker' === self::get_google_ads_dm_auth_method()
+				|| !empty(self::get_google_ads_dm_credentials())
+			);
+	}
+
+	public static function get_google_ads_dm_mode() {
+		return self::get_options_obj()->google->ads->data_manager->mode;
+	}
+
+	public static function get_google_ads_dm_operating_account_id() {
+		return self::get_options_obj()->google->ads->data_manager->operating_account_id;
+	}
+
+	public static function get_google_ads_dm_login_account_id() {
+		return self::get_options_obj()->google->ads->data_manager->login_account_id;
+	}
+
+	public static function get_google_ads_dm_conversion_action_id() {
+		return self::get_options_obj()->google->ads->data_manager->conversion_action_id;
+	}
+
+	public static function get_google_ads_dm_auth_method() {
+		return self::get_options_obj()->google->ads->data_manager->auth_method;
+	}
+
+	public static function get_google_ads_dm_credentials() {
+		return (array) self::get_options_obj()->google->ads->data_manager->credentials;
+	}
+
+	public static function get_google_ads_dm_credentials_client_email() {
+		return self::get_options_obj()->google->ads->data_manager->credentials->client_email;
+	}
+
+	public static function get_google_ads_dm_credentials_private_key() {
+		return self::get_options_obj()->google->ads->data_manager->credentials->private_key;
+	}
+
+	public static function is_google_ads_dm_validate_only() {
+		return (bool) self::get_options_obj()->google->ads->data_manager->validate_only;
 	}
 
 	public static function get_google_ads_merchant_id() {
@@ -752,6 +886,21 @@ class Options {
 
 	public static function is_google_analytics_active() {
 		return self::is_ga4_enabled();
+	}
+
+	/**
+	 * Google Analytics activity check that is safe to call before init.
+	 *
+	 * Used by the Google Analytics for WooCommerce compatibility filter, which
+	 * that plugin reads in its integration constructor on init priority 0.
+	 *
+	 * @return bool
+	 *
+	 * @see Options::get_stored_option_value()
+	 * @since 1.65.2
+	 */
+	public static function is_google_analytics_active_early() {
+		return (bool) self::get_stored_option_value([ 'google', 'analytics', 'ga4', 'measurement_id' ]);
 	}
 
 	public static function get_ga4_mp_api_secret() {
@@ -1869,9 +2018,33 @@ class Options {
 	 */
 	public static function get_ssp_purchase_events_url() {
 
-		$api_base = defined( 'PMW_SSP_API_BASE' ) ? PMW_SSP_API_BASE : 'https://ssp.sweetcode.cloud';
+		return self::get_ssp_api_base() . '/v1/sync/purchase-events';
+	}
 
-		return $api_base . '/v1/sync/purchase-events';
+	/**
+	 * Get the SSP dispatch status URL.
+	 *
+	 * Asks the SSP whether it already dispatched a given dispatch key. Used
+	 * after an inconclusive purchase POST (timeout, 5xx) to decide whether the
+	 * direct-send fallback would duplicate an event the SSP already delivered.
+	 *
+	 * @return string Full URL for the SSP dispatch status endpoint.
+	 * @since 1.66.0
+	 */
+	public static function get_ssp_dispatch_status_url() {
+
+		return self::get_ssp_api_base() . '/v1/sync/dispatch-status';
+	}
+
+	/**
+	 * The SSP API base, with the PMW_SSP_API_BASE override for local dev.
+	 *
+	 * @return string
+	 * @since 1.66.0
+	 */
+	private static function get_ssp_api_base() {
+
+		return defined( 'PMW_SSP_API_BASE' ) ? PMW_SSP_API_BASE : 'https://ssp.sweetcode.cloud';
 	}
 
 	/**

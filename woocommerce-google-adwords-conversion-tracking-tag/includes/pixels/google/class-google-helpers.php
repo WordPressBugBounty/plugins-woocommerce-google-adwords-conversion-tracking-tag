@@ -525,8 +525,9 @@ class Google_Helpers {
      * @return bool
      */
     public static function is_valid_braid( $braid ) {
-        // Regular expression pattern for gbraid and wbraid
-        $pattern = '/^[a-zA-Z0-9]{1,128}$/';
+        // Regular expression pattern for gbraid and wbraid.
+        // Braid values are base64url-shaped, so dashes and underscores must pass.
+        $pattern = '/^[a-zA-Z0-9_-]{1,128}$/';
         // Check if the braid matches the pattern
         return (bool) preg_match( $pattern, $braid );
     }

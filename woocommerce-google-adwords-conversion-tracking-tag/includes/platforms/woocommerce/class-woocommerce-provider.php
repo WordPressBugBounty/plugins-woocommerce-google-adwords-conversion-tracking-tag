@@ -47,12 +47,18 @@ class WooCommerce_Provider implements Shop_Provider {
 			return 'search';
 		}
 
-		if (function_exists('is_cart') && is_cart()) {
-			return 'cart';
-		}
-
+		/**
+		 * The order received page is an endpoint of the checkout page, so it has to be
+		 * resolved before both the cart and the checkout. Shop::pmw_is_cart_page()
+		 * keeps the checkout out of the cart branch on shops where a checkout builder
+		 * makes is_cart() true on the checkout route too.
+		 */
 		if (Shop::pmw_is_order_received_page()) {
 			return 'order_received_page';
+		}
+
+		if (Shop::pmw_is_cart_page()) {
+			return 'cart';
 		}
 
 		if (function_exists('is_checkout') && is_checkout()) {

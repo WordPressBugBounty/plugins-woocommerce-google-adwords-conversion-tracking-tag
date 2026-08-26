@@ -84,6 +84,10 @@ class WCPM {
             flush_rewrite_rules();
         } );
         Deprecated_Filters::load_deprecated_filters();
+        // Registered here, on plugins_loaded, because Google for WooCommerce and
+        // Google Analytics for WooCommerce both decide whether to track before our
+        // init hook runs. See the method docblock.
+        Environment::third_party_plugin_tweaks_on_plugins_loaded();
         if ( Environment::is_woocommerce_active() ) {
             add_action( 'before_woocommerce_init', [__CLASS__, 'declare_woocommerce_compatibilities'] );
             // Registered here, on plugins_loaded, because WooCommerce decides whether to
