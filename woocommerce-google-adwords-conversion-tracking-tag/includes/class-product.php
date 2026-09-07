@@ -525,9 +525,9 @@ class Product {
 				'variation_id'        => $order_item_data['variation_id'],
 				'name'                => $order_item_data['name'],
 				'quantity'            => $order_item_data['quantity'],
-				'price'               => self::pmw_get_order_item_price($order_item),
-				'price_tax_included'  => self::pmw_get_order_item_price($order_item, true),
-				'price_tax_excluded'  => self::pmw_get_order_item_price($order_item, false),
+				'price'               => self::pmw_get_order_item_price($order_item, null, $order),
+				'price_tax_included'  => self::pmw_get_order_item_price($order_item, true, $order),
+				'price_tax_excluded'  => self::pmw_get_order_item_price($order_item, false, $order),
 				'subtotal'            => (float) Helpers::format_decimal($order_item_data['subtotal'], 2),
 				'subtotal_tax'        => (float) Helpers::format_decimal($order_item_data['subtotal_tax'], 2),
 				'total'               => (float) Helpers::format_decimal($order_item_data['total'], 2),
@@ -841,24 +841,35 @@ class Product {
 	/**
 	 * Get the price of an order item.
 	 *
-	 * @param      $order_item
-	 * @param null $include_tax
+	 * @param                         $order_item
+	 * @param null                    $include_tax
+	 * @param \WC_Abstract_Order|null $order The order the item belongs to. Pass it whenever
+	 *                                       the caller has it: resolving it from the item costs
+	 *                                       an order read per line and can come up empty.
 	 * @return float
 	 */
-	public static function pmw_get_order_item_price( $order_item, $include_tax = null ) {
+	public static function pmw_get_order_item_price( $order_item, $include_tax = null, $order = null ) {
 
 		if (null === $include_tax) {
 			$include_tax = self::output_product_prices_with_tax();
 		}
 
+		$order = self::resolve_order_item_order($order_item, $order);
+
 		// Bundle/Composite container: its own line is 0 ("priced individually")
 		// or carries the whole price (static), while the children carry the rest.
 		// Report the assembled per-unit price so the single collapsed line matches
 		// what was paid for the bundle. Must run before the get_item_total() path,
-		// which would return the container's own (possibly 0) line amount.
-		$container_price = self::maybe_get_container_order_item_unit_price($order_item, $include_tax);
-		if (null !== $container_price) {
-			return $container_price;
+		// which would return the container's own (possibly 0) line amount. Rolling
+		// the children up needs the order, so without one there is nothing to add
+		// to the container line and the item-only price below is all there is.
+		if ($order) {
+
+			$container_price = self::maybe_get_container_order_item_unit_price($order_item, $include_tax, $order);
+
+			if (null !== $container_price) {
+				return $container_price;
+			}
 		}
 
 		if (Environment::is_woo_discount_rules_active()) {
@@ -874,7 +885,84 @@ class Product {
 			}
 		}
 
-		return (float) wc_format_decimal($order_item->get_order()->get_item_total($order_item, $include_tax), 2);
+		// No order to ask: price the line from the item itself instead of calling
+		// a method on the false that resolving the order returned.
+		if (!$order) {
+			return (float) wc_format_decimal(self::get_order_item_unit_price($order_item, $include_tax), 2);
+		}
+
+		return (float) wc_format_decimal($order->get_item_total($order_item, $include_tax), 2);
+	}
+
+	/**
+	 * The order an order item belongs to, or null when it cannot be resolved.
+	 *
+	 * WC_Order_Item::get_order() falls back to wc_get_order(), which returns false
+	 * whenever that lookup comes up empty: a persistent object cache serving a stale
+	 * miss, a database replica that has not caught up with the just-written order, or
+	 * an order whose type no longer resolves. Calling a method on that false turned
+	 * server-side purchase tracking into a fatal error inside the checkout request,
+	 * after the payment had already been captured, so the customer saw a failed
+	 * checkout and paid a second time. Every caller that already holds the order
+	 * passes it in, which also saves one order read per line item.
+	 *
+	 * @param object                  $order_item
+	 * @param \WC_Abstract_Order|null $order
+	 * @return \WC_Abstract_Order|null
+	 * @since 1.67.0
+	 */
+	private static function resolve_order_item_order( $order_item, $order = null ) {
+
+		if ($order instanceof \WC_Abstract_Order) {
+			return $order;
+		}
+
+		if (!is_callable([ $order_item, 'get_order' ])) {
+			return null;
+		}
+
+		$order = $order_item->get_order();
+
+		if ($order instanceof \WC_Abstract_Order) {
+			return $order;
+		}
+
+		Logger::warning(
+			'Could not resolve the order of order item '
+			. ( is_callable([ $order_item, 'get_id' ]) ? (int) $order_item->get_id() : 0 )
+			. ' (order ID ' . ( is_callable([ $order_item, 'get_order_id' ]) ? (int) $order_item->get_order_id() : 0 )
+			. '). Pricing the line from the item alone.'
+		);
+
+		return null;
+	}
+
+	/**
+	 * The per-unit price of an order item, computed from the item alone.
+	 *
+	 * Mirrors WC_Abstract_Order::get_item_total() for the case where the order object
+	 * is unavailable, so one unresolvable order still reports real line prices instead
+	 * of failing the whole purchase. The one thing it cannot reproduce is the
+	 * woocommerce_order_amount_item_total filter, which takes the order as an argument.
+	 *
+	 * @param object $order_item
+	 * @param bool   $include_tax
+	 * @return float
+	 * @since 1.67.0
+	 */
+	private static function get_order_item_unit_price( $order_item, $include_tax ) {
+
+		if (!is_callable([ $order_item, 'get_total' ]) || !is_callable([ $order_item, 'get_quantity' ])) {
+			return 0.0;
+		}
+
+		$quantity = (int) $order_item->get_quantity();
+
+		if (!$quantity) {
+			return 0.0;
+		}
+
+		return self::get_order_item_line_amount($order_item, $include_tax) / $quantity;
 	}
 
 	/*
@@ -960,17 +1048,18 @@ class Product {
 	 * (container line + all child lines, every unit). Returns null when the item
 	 * is not a container.
 	 *
-	 * @param object   $order_item
-	 * @param bool|null $include_tax
+	 * @param object                  $order_item
+	 * @param bool|null               $include_tax
+	 * @param \WC_Abstract_Order|null $order The order the item belongs to, when the caller has it.
 	 * @return float|null
 	 */
-	public static function maybe_get_container_order_item_line_amount( $order_item, $include_tax = null ) {
+	public static function maybe_get_container_order_item_line_amount( $order_item, $include_tax = null, $order = null ) {
 
 		if (!is_callable([ $order_item, 'get_order' ]) || !self::is_container_order_item($order_item)) {
 			return null;
 		}
 
-		$order = $order_item->get_order();
+		$order = self::resolve_order_item_order($order_item, $order);
 
 		if (!$order) {
 			return null;
@@ -994,13 +1083,14 @@ class Product {
 	 * i.e. the rolled-up line amount divided by the container quantity. Returns
 	 * null when the item is not a container.
 	 *
-	 * @param object   $order_item
-	 * @param bool|null $include_tax
+	 * @param object                  $order_item
+	 * @param bool|null               $include_tax
+	 * @param \WC_Abstract_Order|null $order The order the item belongs to, when the caller has it.
 	 * @return float|null
 	 */
-	public static function maybe_get_container_order_item_unit_price( $order_item, $include_tax = null ) {
+	public static function maybe_get_container_order_item_unit_price( $order_item, $include_tax = null, $order = null ) {
 
-		$line_amount = self::maybe_get_container_order_item_line_amount($order_item, $include_tax);
+		$line_amount = self::maybe_get_container_order_item_line_amount($order_item, $include_tax, $order);
 
 		if (null === $line_amount) {
 			return null;

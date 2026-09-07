@@ -641,12 +641,71 @@ class Pixel_Manager {
     }
 
     /**
+     * Whether the current REST request targets the Google Ads conversion
+     * adjustments CSV feed, under either REST URL form.
+     *
+     * @return bool
+     *
+     * @since 1.66.1
+     */
+    private function is_gads_csv_request() {
+        if ( !isset( $GLOBALS['wp']->query_vars['rest_route'] ) || !is_string( $GLOBALS['wp']->query_vars['rest_route'] ) ) {
+            return false;
+        }
+        $route = '/' . ltrim( untrailingslashit( $GLOBALS['wp']->query_vars['rest_route'] ), '/' );
+        $expected_route = '/' . $this->rest_namespace . $this->gads_conversion_adjustments_route;
+        return $expected_route === $route;
+    }
+
+    /**
+     * Filter callback for rest_authentication_errors.
+     *
+     * WordPress core reads every Basic Auth header on a REST request as an
+     * Application Password login (wp_validate_application_password(), hooked
+     * on determine_current_user). When the username is not a WordPress user,
+     * or the password is not one of that user's application passwords, core
+     * records a WP_Error and rest_application_password_check_errors() turns
+     * it into a 401 "invalid_username" / "incorrect_password" response before
+     * the route's permission_callback is ever consulted.
+     *
+     * The credentials a merchant returns from the
+     * `pmw_google_ads_conversion_adjustments_credentials` filter are feed
+     * credentials, not a WordPress login, so on an HTTPS shop every fetch by
+     * Google Ads with the correct credentials was rejected by core with
+     * "invalid credentials". Returning true here for the feed route tells the
+     * REST server that authentication has been dealt with, and leaves the
+     * actual check to self::is_gads_csv_auth_ok() in the route's
+     * permission_callback. The route is public unless the filter is
+     * registered, so nothing is opened up that was not open before.
+     *
+     * Every other route is left untouched.
+     *
+     * @param WP_Error|null|true $result Authentication result so far.
+     * @return WP_Error|null|true
+     *
+     * @since 1.66.1
+     */
+    public function bypass_core_basic_auth_for_gads_csv( $result ) {
+        if ( !empty( $result ) ) {
+            return $result;
+        }
+        if ( !$this->is_gads_csv_request() ) {
+            return $result;
+        }
+        return true;
+    }
+
+    /**
      * Permission check for the Google Ads conversion adjustments CSV route.
      *
      * Returns true (publicly readable) unless the merchant has registered the
      * `pmw_google_ads_conversion_adjustments_credentials` filter to require
-     * HTTP Basic Auth. This matches Google Ads' scheduled bulk-upload UI which
-     * supports a Username and Password for the source URL.
+     * HTTP Basic Auth. This matches the HTTPS data source in Google Ads Data
+     * Manager, which asks for a Username and Password for the source URL.
+     *
+     * WordPress core would otherwise claim the same Basic Auth header for
+     * Application Passwords and reject the request before this check runs;
+     * self::bypass_core_basic_auth_for_gads_csv() keeps core out of the way.
      *
      * The filter must return either:
      *   - null / empty / non-array → no auth required (default)
@@ -1529,6 +1588,31 @@ class Pixel_Manager {
             'exclusion_patterns'  => apply_filters( 'pmw_facebook_tracking_exclusion_patterns', [] ),
             'fbevents_js_url'     => Helpers::get_facebook_fbevents_js_url(),
         ];
+        // Meta's automatic configuration (autoConfig) is the opt-in for the
+        // AutomaticSetup feature bundle of fbevents.js: automatic event
+        // detection (InferredEvents), the microdata scraping and enrichment,
+        // AutomaticParameters, SmartSetup and Meta's regex and AI matching
+        // extensions. Opting out before fbq("init") makes the pixel
+        // configuration's own opt-in calls no-ops, because they are issued with
+        // the "do not override an opt-out" flag. It does NOT stop the
+        // configuration from being fetched, nor the Event Setup Tool rules, the
+        // CAPI Gateway (openbridge) or Meta's base automatic advanced matching,
+        // which carry their own opt-ins. Off by default, since the bundle also
+        // carries future Meta pixel features.
+        $auto_config_disabled_pixel_ids = [];
+        foreach ( $data['pixel_ids'] as $pixel_id ) {
+            /**
+             * Filters whether Meta's automatic configuration stays enabled for a pixel.
+             *
+             * @since 1.66.1
+             */
+            if ( !apply_filters( 'pmw_facebook_auto_config', true, $pixel_id ) ) {
+                $auto_config_disabled_pixel_ids[] = $pixel_id;
+            }
+        }
+        if ( $auto_config_disabled_pixel_ids ) {
+            $data['auto_config_disabled_pixel_ids'] = $auto_config_disabled_pixel_ids;
+        }
         /**
          * Filters Facebook mobile bridge app id.
          *
@@ -2341,6 +2425,41 @@ class Pixel_Manager {
         $data['order_duplication_prevention'] = Shop::is_order_duplication_prevention_active();
         $data['view_item_list_trigger'] = Shop::view_item_list_trigger_settings();
         $data['variations_output'] = Options::is_shop_variations_output_active();
+        /**
+         * Fire a view_item event with the parent product on a variable product
+         * page, on page load.
+         *
+         * With Variations Output enabled the Pixel Manager fires no view_item at
+         * all on a variable product page until the visitor picks a variation: for
+         * dynamic remarketing the reported ID has to match an item in the
+         * uploaded catalog, and that catalog holds the variations, not the parent.
+         * WooCommerce preselects no variation out of the box, so on those shops
+         * the product page view goes unreported altogether and the visitor joins
+         * no remarketing audience for that product.
+         *
+         * Off by default, because a parent ID the catalog does not contain makes
+         * the ad platforms report an unmatched item. A shop whose feed carries
+         * parent products can switch it on and keep variation level reporting
+         * everywhere else; the variation's own view_item still follows once a
+         * variation is selected. The product ID is passed so the decision can be
+         * made per product.
+         *
+         * Replaces the jQuery pmwLoad snippet the Tips & Tricks page used to
+         * document, which broke whenever the tracking library was restructured.
+         *
+         * @since 1.66.1
+         */
+        $is_variable_product_page = 'product' === $data['page_type'] && isset( $data['product_type'] ) && 'variable' === $data['product_type'];
+        $fire_parent_view_item = false;
+        if ( $is_variable_product_page ) {
+            /**
+             * Filters whether a variable product page fires a parent view_item.
+             *
+             * @since 1.66.1
+             */
+            $fire_parent_view_item = true === apply_filters( 'pmw_fire_parent_view_item_on_variable_products', false, get_the_id() );
+        }
+        $data['parent_view_item_on_variable_products'] = $fire_parent_view_item;
         /**
          * Automatically fire the begin_checkout event when the checkout page loads
          * with a non-empty cart and no begin_checkout has fired for that cart yet.

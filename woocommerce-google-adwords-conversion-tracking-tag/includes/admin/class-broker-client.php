@@ -48,6 +48,18 @@ class Broker_Client {
 	/** Transient holding the broker-issued enrollment challenge (10 min). */
 	const CHALLENGE_TRANSIENT = 'pmw_broker_challenge';
 
+	/**
+	 * Option holding VERIFIED reconnect incidents per provider:
+	 * [ 'google' => [ 'flagged_at' => int, 'notified' => bool, 'dismissed' => bool ], 'meta' => ... ]
+	 * An entry only exists while the broker reports needs_reconnect, which it
+	 * flags exclusively on definitive auth failures (Google invalid_grant,
+	 * Meta OAuthException/expiry). Transient errors never create an incident.
+	 */
+	const HEALTH_OPTION = 'pmw_broker_health';
+
+	/** Daily WP-Cron hook polling the broker for verified reconnect flags. */
+	const HEALTH_CRON_HOOK = 'pmw_broker_health_check';
+
 	public static function get_instance() {
 		if (is_null(self::$instance)) {
 			self::$instance = new self();
@@ -57,6 +69,10 @@ class Broker_Client {
 
 	public function __construct() {
 		add_action('rest_api_init', [ $this, 'register_routes' ]);
+		add_action(self::HEALTH_CRON_HOOK, [ __CLASS__, 'run_health_check' ]);
+		add_action('admin_init', [ __CLASS__, 'manage_health_cron_schedule' ]);
+		add_action('admin_init', [ __CLASS__, 'handle_notice_dismissal' ]);
+		add_action('admin_notices', [ __CLASS__, 'render_reconnect_notices' ]);
 	}
 
 	/**
@@ -278,6 +294,240 @@ class Broker_Client {
 		return untrailingslashit(home_url());
 	}
 
+	// ─── Connection health: verified reconnect alerts ───────────
+	//
+	// Two detection channels feed the same incident state:
+	//  1. Inline: any broker response carrying code NEEDS_RECONNECT (server-to-
+	//     server uploads, wizard calls) flags the incident the moment the first
+	//     call fails.
+	//  2. Daily WP-Cron: polls the broker status endpoints, which reflect the
+	//     broker's own daily credential verification, so revocation on an
+	//     otherwise idle site is caught within a day.
+	// One email per incident to the site admin, plus a dismissible admin
+	// notice. The incident clears itself as soon as a status check sees the
+	// connection healthy again (immediately after a reconnect).
+
+	private static function get_health() {
+		$health = get_option(self::HEALTH_OPTION);
+		return is_array($health) ? $health : [];
+	}
+
+	private static function save_health( $health ) {
+
+		if (empty($health)) {
+			delete_option(self::HEALTH_OPTION);
+		} else {
+			update_option(self::HEALTH_OPTION, $health, false);
+		}
+	}
+
+	/**
+	 * Keep the daily health check scheduled exactly while the feature is
+	 * active and the site is enrolled. Runs on admin_init; both checks are
+	 * cheap (one option read each).
+	 */
+	public static function manage_health_cron_schedule() {
+
+		$active    = Helpers::is_experiment() && self::is_enrolled();
+		$scheduled = wp_next_scheduled(self::HEALTH_CRON_HOOK);
+
+		if ($active && !$scheduled) {
+			wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', self::HEALTH_CRON_HOOK);
+		} elseif (!$active && $scheduled) {
+			wp_unschedule_event($scheduled, self::HEALTH_CRON_HOOK);
+		}
+	}
+
+	/**
+	 * Daily cron: sync incident state with the broker. Only OK responses
+	 * change anything; an unreachable broker must never raise (or clear)
+	 * an alert.
+	 */
+	public static function run_health_check() {
+
+		if (!Helpers::is_experiment() || !self::is_enrolled()) {
+			self::save_health([]);
+			return;
+		}
+
+		$google = self::broker_request('GET', '/v1/status');
+
+		if ($google['ok']) {
+			if (!empty($google['body']['needsReconnect'])) {
+				self::flag_reconnect_incident('google');
+			} else {
+				self::clear_reconnect_incident('google');
+			}
+		}
+
+		$meta = self::broker_request('GET', '/v1/meta/status');
+
+		if ($meta['ok']) {
+			if (!empty($meta['body']['needsReconnect'])) {
+				self::flag_reconnect_incident('meta');
+			} else {
+				self::clear_reconnect_incident('meta');
+			}
+		}
+	}
+
+	/**
+	 * Record a verified reconnect incident and email the site admin once.
+	 * Idempotent: a provider that is already flagged is left untouched, so
+	 * repeated failing calls never send repeated emails.
+	 *
+	 * @param string $provider 'google' or 'meta'.
+	 */
+	private static function flag_reconnect_incident( $provider ) {
+
+		$health = self::get_health();
+
+		if (isset($health[ $provider ])) {
+			return;
+		}
+
+		$health[ $provider ] = [
+			'flagged_at' => time(),
+			'notified'   => false,
+			'dismissed'  => false,
+		];
+
+		$health[ $provider ]['notified'] = self::send_reconnect_email($provider);
+
+		self::save_health($health);
+	}
+
+	private static function clear_reconnect_incident( $provider ) {
+
+		$health = self::get_health();
+
+		if (!isset($health[ $provider ])) {
+			return;
+		}
+
+		unset($health[ $provider ]);
+		self::save_health($health);
+	}
+
+	private static function get_provider_label( $provider ) {
+		return 'meta' === $provider ? 'Meta' : 'Google';
+	}
+
+	/** Settings page deep link that opens the provider's card (pmw_open). */
+	private static function get_reconnect_url( $provider ) {
+		return admin_url('admin.php?page=pmw&pmw_open=' . rawurlencode($provider) . '#pixels');
+	}
+
+	/**
+	 * One-time incident email to the site admin.
+	 *
+	 * @param string $provider 'google' or 'meta'.
+	 *
+	 * @return bool Whether wp_mail accepted the message.
+	 */
+	private static function send_reconnect_email( $provider ) {
+
+		$to = get_option('admin_email');
+
+		if (!$to || !is_email($to)) {
+			return false;
+		}
+
+		$label     = self::get_provider_label($provider);
+		$site_name = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+
+		$subject = sprintf(
+		/* translators: 1: site name, 2: provider name (Google or Meta) */
+			esc_html__('[%1$s] Action needed: reconnect your %2$s account in the Pixel Manager', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			$site_name,
+			$label
+		);
+
+		$message = sprintf(
+		/* translators: 1: provider name (Google or Meta), 2: site name */
+			esc_html__('The Pixel Manager connection to your %1$s account on %2$s is no longer valid and needs to be re-authorized. This happens when the authorization is revoked, the password is reset with a global sign-out, or the account that granted access is closed.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			$label,
+			$site_name
+		)
+			. "\n\n"
+			. esc_html__('Features that depend on this connection will not work until it is reconnected. Reconnecting takes one click plus a login:', 'woocommerce-google-adwords-conversion-tracking-tag')
+			. "\n\n"
+			. self::get_reconnect_url($provider)
+			. "\n\n"
+			. esc_html__('You will only receive this email once per incident.', 'woocommerce-google-adwords-conversion-tracking-tag');
+
+		return (bool) wp_mail($to, $subject, $message);
+	}
+
+	/**
+	 * Red admin notice per open incident, for users who can fix it.
+	 * Dismissible per incident: a new incident shows the notice again.
+	 */
+	public static function render_reconnect_notices() {
+
+		if (!Environment::can_current_user_edit_options()) {
+			return;
+		}
+
+		$health = self::get_health();
+
+		foreach ([ 'google', 'meta' ] as $provider) {
+
+			if (empty($health[ $provider ]) || !empty($health[ $provider ]['dismissed'])) {
+				continue;
+			}
+
+			$dismiss_url = wp_nonce_url(
+				add_query_arg('pmw_broker_dismiss', $provider),
+				'pmw_broker_dismiss_' . $provider
+			);
+
+			echo '<div class="notice notice-error"><p><strong>'
+				. sprintf(
+				/* translators: %s: provider name (Google or Meta) */
+					esc_html__('Pixel Manager: The connection to your %s account needs to be re-authorized.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+					esc_html(self::get_provider_label($provider))
+				)
+				. '</strong> '
+				. esc_html__('Features that depend on it will not work until you reconnect.', 'woocommerce-google-adwords-conversion-tracking-tag')
+				. ' <a href="' . esc_url(self::get_reconnect_url($provider)) . '">'
+				. esc_html__('Reconnect now', 'woocommerce-google-adwords-conversion-tracking-tag')
+				. '</a> | <a href="' . esc_url($dismiss_url) . '">'
+				. esc_html__('Dismiss', 'woocommerce-google-adwords-conversion-tracking-tag')
+				. '</a></p></div>';
+		}
+	}
+
+	/** Handle the notice's Dismiss link (nonce-checked, per provider). */
+	public static function handle_notice_dismissal() {
+
+		if (!isset($_GET['pmw_broker_dismiss'])) {
+			return;
+		}
+
+		$provider = sanitize_key(wp_unslash($_GET['pmw_broker_dismiss']));
+
+		if (!in_array($provider, [ 'google', 'meta' ], true)) {
+			return;
+		}
+
+		if (!Environment::can_current_user_edit_options()) {
+			return;
+		}
+
+		check_admin_referer('pmw_broker_dismiss_' . $provider);
+
+		$health = self::get_health();
+
+		if (isset($health[ $provider ])) {
+			$health[ $provider ]['dismissed'] = true;
+			self::save_health($health);
+		}
+
+		wp_safe_redirect(remove_query_arg([ 'pmw_broker_dismiss', '_wpnonce' ]));
+		exit;
+	}
+
 	// ─── Route handlers ───────────
 
 	/**
@@ -307,6 +557,13 @@ class Broker_Client {
 
 		$body             = $result['body'];
 		$body['enrolled'] = true;
+
+		// A healthy status clears an open incident immediately, so the admin
+		// notice disappears right after a reconnect (the settings page calls
+		// this endpoint on load).
+		if (!empty($body['connected']) && empty($body['needsReconnect'])) {
+			self::clear_reconnect_incident('google');
+		}
 
 		return new \WP_REST_Response($body, 200);
 	}
@@ -633,6 +890,11 @@ class Broker_Client {
 		$body             = $result['body'];
 		$body['enrolled'] = true;
 
+		// A healthy status clears an open incident immediately (see handle_status).
+		if (!empty($body['connected']) && empty($body['needsReconnect'])) {
+			self::clear_reconnect_incident('meta');
+		}
+
 		return new \WP_REST_Response($body, 200);
 	}
 
@@ -945,6 +1207,14 @@ class Broker_Client {
 		}
 
 		$ok = $status >= 200 && $status < 300 && ( !isset($decoded['ok']) || false !== $decoded['ok'] );
+
+		// Inline incident detection: the broker returns NEEDS_RECONNECT only on
+		// VERIFIED dead credentials (Google invalid_grant, Meta OAuthException),
+		// so the very first failing call, wizard or server-to-server upload,
+		// raises the alert without waiting for the daily health check.
+		if (!$ok && isset($decoded['code']) && 'NEEDS_RECONNECT' === $decoded['code']) {
+			self::flag_reconnect_incident(0 === strpos($path, '/v1/meta') ? 'meta' : 'google');
+		}
 
 		return [
 			'ok'        => $ok,

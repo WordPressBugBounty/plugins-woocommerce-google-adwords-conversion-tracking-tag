@@ -86,8 +86,11 @@ if (!function_exists('pmw_delete_plugin_data')) {
 			'wgact_ratings',
 			'pmw_opportunities',
 			'pmw_gtg_handler_cache',
+			'pmw_gtg_404_monitor',
 			'pmw_default_admin_theme',
 			'pmw_broker',
+			'pmw_broker_health',
+			'pmw_click_ids_capture_start',
 
 			// Tracking accuracy
 			'pmw_tracking_accuracy_db_version',
@@ -138,6 +141,8 @@ if (!function_exists('pmw_delete_plugin_data')) {
 		delete_transient('_pmw_pro_version_demo_active');
 		delete_transient('pmw_test_transient');
 		delete_transient('pmw_broker_challenge');
+
+		wp_clear_scheduled_hook('pmw_broker_health_check');
 
 		// --- Transients (prefixed; cleaned up via direct query) ---
 		// These are created with dynamic suffixes (per-key caches), so match by prefix.

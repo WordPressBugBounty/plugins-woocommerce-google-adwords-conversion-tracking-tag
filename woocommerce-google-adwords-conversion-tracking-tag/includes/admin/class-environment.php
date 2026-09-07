@@ -3,7 +3,6 @@
 namespace SweetCode\Pixel_Manager\Admin;
 
 use ActionScheduler_Versions;
-use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
@@ -14,10 +13,25 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 
 class Environment {
 
+	/**
+	 * The option that carries the cache layers which failed to purge during
+	 * the most recent purge run, so the admin notice can surface them.
+	 *
+	 * @since 1.66.1
+	 */
+	const PURGE_FAILURES_OPTION = 'pmw_cache_purge_failures';
+
 	private static $last_order_id         = null;
 	private static $last_order            = null;
 	private static $transients_enabled    = null;
 	private static $external_object_cache = null;
+
+	/**
+	 * Cache layers that failed to purge during the current run.
+	 *
+	 * @since 1.66.1
+	 */
+	private static $purge_failures = [];
 
 	public static function is_allowed_notification_page( $page = null ) {
 
@@ -217,6 +231,14 @@ class Environment {
 	public static function purge_entire_cache() {
 
 		/**
+		 * Start a fresh failure record for this run. Whatever is left in it
+		 * when the last layer is done gets persisted for the admin notice.
+		 *
+		 * @since 1.66.1
+		 */
+		self::$purge_failures = [];
+
+		/**
 		 * Purge the first cache layer.
 		 * WordPress cache plugins.
 		 * If a plugin does both first and second layer caching, then put it here.
@@ -240,6 +262,84 @@ class Environment {
 		 */
 		delete_transient('pmw_google_tag_id');
 		delete_transient('pmw_google_tag_id_information');
+
+		self::persist_purge_failures();
+	}
+
+	/**
+	 * Note that a cache layer we detected as present could not be purged.
+	 *
+	 * A purge that silently does nothing is worse than no purge at all: the
+	 * shop keeps serving the previous release's tracking library, whose
+	 * content-hashed chunks the current release no longer ships, and the
+	 * library then disables itself rather than track without a consent
+	 * module. Ticket 3426583170 ran for days on exactly that.
+	 *
+	 * @param string $cache The human-readable name of the cache layer.
+	 * @param string $reason Why the purge did not happen.
+	 *
+	 * @return void
+	 * @since 1.66.1
+	 */
+	private static function record_purge_failure( $cache, $reason ) {
+
+		self::$purge_failures[] = [
+			'cache'  => $cache,
+			'reason' => $reason,
+		];
+
+		Logger::error('Cache purge failed for ' . $cache . ': ' . $reason);
+	}
+
+	/**
+	 * Persist the failures of the run that just finished so the admin notice
+	 * can surface them, and clear the record when everything purged cleanly.
+	 *
+	 * @return void
+	 * @since 1.66.1
+	 */
+	private static function persist_purge_failures() {
+
+		if (empty(self::$purge_failures)) {
+			delete_option(self::PURGE_FAILURES_OPTION);
+			return;
+		}
+
+		update_option(
+			self::PURGE_FAILURES_OPTION,
+			[
+				'time'     => time(),
+				'failures' => self::$purge_failures,
+			],
+			false
+		);
+	}
+
+	/**
+	 * The cache layers that failed to purge during the most recent run, if any.
+	 *
+	 * @return array
+	 * @since 1.66.1
+	 */
+	public static function get_purge_failures() {
+
+		$record = get_option(self::PURGE_FAILURES_OPTION);
+
+		if (!is_array($record) || empty($record['failures'])) {
+			return [];
+		}
+
+		return $record['failures'];
+	}
+
+	/**
+	 * Forget the recorded purge failures.
+	 *
+	 * @return void
+	 * @since 1.66.1
+	 */
+	public static function clear_purge_failures() {
+		delete_option(self::PURGE_FAILURES_OPTION);
 	}
 
 	private static function purge_first_layer_cache() {
@@ -258,7 +358,7 @@ class Environment {
 		}                                                                              // works
 		if (self::is_nitropack_active()) {
 			self::purge_nitropack_cache();
-		}                                                                              // works
+		}                                                                              // code-reviewed 1.66.1 against nitropack 1.20.0
 		if (self::is_w3_total_cache_active()) {
 			self::purge_w3_total_cache();
 		}                                                                              // works
@@ -298,15 +398,15 @@ class Environment {
 
 		if (self::is_hosting_kinsta()) {
 			self::purge_kinsta_cache();
-		}                                                                           // TODO test
+		}                                                                           // code-reviewed 1.66.1, not verified on a live Kinsta shop
 
 		if (self::is_nginx_helper_active()) {
 			self::purge_nginx_helper_cache();
-		}                                                                           // TODO test
+		}                                                                           // code-reviewed 1.66.1 against nginx-helper 2.3.5
 
 		if (self::is_proxy_cache_purge_active()) {
 			self::purge_proxy_cache_purge_cache();
-		}                                                                           // TODO test
+		}                                                                           // code-reviewed 1.66.1 against varnish-http-purge 5.x
 
 		//        if (self::is_hosting_pagely()) $this->purge_pagely_cache();
 
@@ -331,17 +431,42 @@ class Environment {
 		return 'localhost';
 	}
 
+	/**
+	 * Purge the Kinsta cache.
+	 *
+	 * Kinsta's MU plugin exposes a purge endpoint on the site itself, and the
+	 * request has to go to the loopback address so it reaches the origin
+	 * rather than Kinsta's edge.
+	 *
+	 * That means the TLS certificate presented on https://localhost/ is the
+	 * shop's certificate, which never matches the host name "localhost", so
+	 * certificate verification has to be off. It used to be tied to
+	 * Geolocation::is_localhost(), which reports whether the *visitor* is on a
+	 * private network. On a live shop that is false, verification was left on,
+	 * and every purge failed on the handshake. wp_remote_get() returns a
+	 * WP_Error for that instead of throwing, so the try/catch never saw it and
+	 * nothing was logged.
+	 *
+	 * @return void
+	 * @since 1.66.1
+	 */
 	private static function purge_kinsta_cache() {
 
+		$response = wp_remote_get('https://' . self::localhost_domain() . '/kinsta-clear-cache-all', [
+			// The loopback certificate can never match "localhost". See the docblock.
+			'sslverify' => false,
+			'timeout'   => 5,
+		]);
 
-		try {
-			wp_remote_get('https://' . self::localhost_domain() . '/kinsta-clear-cache-all', [
-				'sslverify' => !Geolocation::is_localhost(),
-				'timeout'   => 5,
-			]);
+		if (is_wp_error($response)) {
+			self::record_purge_failure('Kinsta', $response->get_error_message());
+			return;
+		}
 
-		} catch (\Exception $e) {
-			Logger::error($e->getMessage());
+		$code = wp_remote_retrieve_response_code($response);
+
+		if ($code < 200 || $code >= 400) {
+			self::record_purge_failure('Kinsta', 'The purge endpoint answered with HTTP ' . $code . '.');
 		}
 	}
 
@@ -357,9 +482,25 @@ class Environment {
 	 * Purge the Nginx Helper cache.
 	 * Can be Nginx or Redis.
 	 *
+	 * Nginx Helper registers `rt_nginx_helper_purge_all` for exactly this
+	 * purpose ("expose action to allow other plugins to purge the cache"), so
+	 * we go through the documented action first and only reach into the global
+	 * $nginx_purger when no listener is attached.
+	 *
 	 * @return void
+	 * @since 1.66.1 Prefer the documented action, and report a purge we could not run.
 	 */
 	private static function purge_nginx_helper_cache() {
+
+		if (has_action('rt_nginx_helper_purge_all')) {
+			/**
+			 * Fires Nginx Helper's purge-everything routine.
+			 *
+			 * @since 1.66.1
+			 */
+			do_action('rt_nginx_helper_purge_all');
+			return;
+		}
 
 		global $nginx_purger;
 
@@ -368,24 +509,46 @@ class Environment {
 			&& method_exists($nginx_purger, 'purge_all')
 		) {
 			$nginx_purger->purge_all();
+			return;
 		}
+
+		self::record_purge_failure(
+			'Nginx Helper',
+			'Nginx Helper is active but exposes neither the rt_nginx_helper_purge_all action nor a purger object.'
+		);
 	}
 
 	/**
-	 * Purge the Proxy Cache Purge cache.
+	 * Purge the Proxy Cache Purge (Varnish HTTP Purge) cache.
+	 *
+	 * We used to construct a fresh VarnishPurger and call execute_purge() on
+	 * it. execute_purge() only flushes the URLs collected in that instance's
+	 * $purge_urls, and a fresh instance has none, so the call returned without
+	 * sending a single PURGE request. It also re-ran the constructor, which
+	 * registers filters and writes site options.
+	 *
+	 * A full flush is a single regex purge against the home URL, which is what
+	 * the plugin's own "Purge Cache" admin bar entry issues. purge_url() is
+	 * public and static for that reason and has been since at least 4.7.2.
 	 *
 	 * @return void
+	 * @since 1.66.1
 	 */
 	private static function purge_proxy_cache_purge_cache() {
+
+		if (!is_callable([ '\VarnishPurger', 'purge_url' ])) {
+			self::record_purge_failure(
+				'Proxy Cache Purge',
+				'Proxy Cache Purge is active but does not expose VarnishPurger::purge_url().'
+			);
+			return;
+		}
+
 		try {
-			if (class_exists('\VarnishPurger')) {
-				$varnishPurger = new \VarnishPurger();
-				if (method_exists($varnishPurger, 'execute_purge')) {
-					$varnishPurger->execute_purge();
-				}
-			}
+			// The vhp-regex query is the plugin's marker for "flush everything".
+			\VarnishPurger::purge_url(home_url('/?vhp-regex'));
 		} catch (\Exception $e) {
-			Logger::error($e->getMessage());
+			self::record_purge_failure('Proxy Cache Purge', $e->getMessage());
 		}
 	}
 
@@ -461,19 +624,81 @@ class Environment {
 		}
 	}
 
+	/**
+	 * Purge the NitroPack cache.
+	 *
+	 * NitroPack does not keep its credentials in options of its own. It stores
+	 * them inside a site config array, and `nitropack-siteId` /
+	 * `nitropack-siteSecret` exist only as the name attributes of the two
+	 * inputs on its connect screen (`view/connect.php`). Reading them with
+	 * get_option() therefore always yielded false, the SDK was constructed
+	 * with empty credentials, and NitroPack's API answered every purge with
+	 * "Invalid request - missing parameters". The purge had never worked on
+	 * any NitroPack shop.
+	 *
+	 * nitropack_sdk_purge() is NitroPack's own public entry point. It resolves
+	 * the credentials from the site config, purges the local cache and issues
+	 * the remote complete purge, and it has been part of its functions.php
+	 * across every version we could check back to 1.10.
+	 *
+	 * do_action('nitropack_integration_purge_all') is not an alternative:
+	 * NitroPack fires that action to tell downstream integrations (its
+	 * LiteSpeed integration, its purge log) to purge. It never purges its own
+	 * cache in response to it.
+	 *
+	 * @return void
+	 * @since 1.66.1
+	 */
 	public static function purge_nitropack_cache() {
-		try {
-			if (class_exists('\NitroPack\SDK\Api\Cache')) {
-				$siteId     = get_option('nitropack-siteId');
-				$siteSecret = get_option('nitropack-siteSecret');
-				( new \NitroPack\SDK\Api\Cache($siteId, $siteSecret) )->purge();
-			}
 
-		} catch (\Exception $e) {
-			Logger::error($e->getMessage());
+		if (!function_exists('nitropack_sdk_purge')) {
+			self::record_purge_failure(
+				'NitroPack',
+				'NitroPack is active but does not expose nitropack_sdk_purge().'
+			);
+			return;
 		}
 
-//        do_action('nitropack_integration_purge_all');
+		try {
+			if (nitropack_sdk_purge()) {
+				return;
+			}
+		} catch (\Exception $e) {
+			self::record_purge_failure('NitroPack', $e->getMessage());
+			return;
+		}
+
+		/**
+		 * A false answer from nitropack_sdk_purge() only means it could not
+		 * build an SDK, so the site is not connected to a NitroPack account.
+		 * Such an install caches nothing, so there is nothing to warn about.
+		 * Anything else is a connection that exists but does not work.
+		 */
+		if (!self::is_nitropack_connected()) {
+			return;
+		}
+
+		self::record_purge_failure(
+			'NitroPack',
+			'NitroPack rejected the purge. Its site connection is incomplete.'
+		);
+	}
+
+	/**
+	 * Whether NitroPack holds credentials for this site.
+	 *
+	 * @return bool
+	 * @since 1.66.1
+	 */
+	private static function is_nitropack_connected() {
+
+		if (!function_exists('nitropack_get_site_config')) {
+			return false;
+		}
+
+		$config = nitropack_get_site_config();
+
+		return is_array($config) && !empty($config['siteId']) && !empty($config['siteSecret']);
 	}
 
 	public static function purge_hummingbird_cache() {
@@ -1245,6 +1470,15 @@ class Environment {
 		add_filter('woocommerce_ga_disable_tracking', function ( $disabled ) {
 			return $disabled || Options::is_google_analytics_active_early();
 		});
+
+		/**
+		 * LiteSpeed Cache
+		 *
+		 * LiteSpeed reads its delay-until-interaction exclusion lists on init priority 5,
+		 * before our own init hook runs, so these have to be registered here. Everything
+		 * else LiteSpeed related stays in third_party_plugin_tweaks_on_init().
+		 */
+		self::exclude_pmw_from_litespeed_delay_js();
 	}
 
 	/**
@@ -1395,14 +1629,20 @@ class Environment {
 		/**
 		 * LiteSpeed Cache compatibility
 		 *
-		 * Exclude PMW scripts from LiteSpeed's JS optimization (minification/combination).
-		 * Defer and inline optimization are fine and don't need exclusion.
+		 * Exclude PMW scripts from LiteSpeed's JS optimization (minification/combination)
+		 * and keep the ?ver cache buster on PMW's entry script. Plain deferring and inline
+		 * optimization are fine and don't need exclusion.
+		 *
+		 * The delay-until-interaction exclusions are registered much earlier, from
+		 * third_party_plugin_tweaks_on_plugins_loaded(), because LiteSpeed reads them
+		 * on init priority 5.
 		 *
 		 * @since 1.59.0
 		 */
 
 		if (self::is_litespeed_active()) {
 			add_filter('litespeed_optimize_js_excludes', [ __CLASS__, 'litespeed_optimize_js_excludes' ]);
+			self::preserve_pmw_cache_buster_from_litespeed();
 
 			/**
 			 * Fires Litespeed nonce.
@@ -1928,6 +2168,103 @@ class Environment {
 
 		add_filter('pre_update_option_FLYING_PRESS_CONFIG', $filter_callback);
 		add_filter('option_FLYING_PRESS_CONFIG', $filter_callback);
+	}
+
+	/**
+	 * Exclude PMW scripts from LiteSpeed's delay-until-interaction.
+	 *
+	 * LiteSpeed's "Load JS Deferred" setting has two modes. "Deferred" only changes the
+	 * load order and is harmless. "Delayed" holds every script back until the visitor
+	 * clicks, scrolls or moves the mouse. Shoppers routinely leave the order confirmation
+	 * page without doing any of that, so in Delayed mode the purchase event is never sent.
+	 * Guest Mode optimization always runs in Delayed mode.
+	 *
+	 * Unlike WP Rocket and FlyingPress, the exclusion cannot be limited to the cart,
+	 * checkout and order confirmation pages: LiteSpeed reads both lists once, on init
+	 * priority 5, long before WooCommerce's conditional tags can answer. The exclusion is
+	 * therefore site wide, and only PMW's own scripts and its inline data layer are
+	 * excluded. The vendor libraries are loaded by PMW at runtime, so they never appear
+	 * in the HTML LiteSpeed rewrites and need no exclusion of their own.
+	 *
+	 * Both filters have to be registered before init priority 5, which is why this runs
+	 * from third_party_plugin_tweaks_on_plugins_loaded() rather than from the init hook.
+	 * Registering them unconditionally keeps is_plugin_active() and Options out of
+	 * plugins_loaded; a filter nobody applies costs nothing.
+	 *
+	 * @return void
+	 *
+	 * @since 1.66.1
+	 */
+	protected static function exclude_pmw_from_litespeed_delay_js() {
+
+		// Guest Mode optimization always delays JS until interaction.
+		add_filter('litespeed_optm_gm_js_exc', [ __CLASS__, 'litespeed_optimize_js_excludes' ]);
+
+		// Outside Guest Mode the same list covers "Deferred" and "Delayed". Only opt out
+		// of "Delayed" (value 2) and leave plain deferring alone.
+		add_filter('litespeed_optm_js_defer_exc', function ( $excludes ) {
+
+			/**
+			 * Reads LiteSpeed's own "Load JS Deferred" setting. 2 means "Delayed".
+			 *
+			 * @since 1.66.1
+			 */
+			if (2 !== (int) apply_filters('litespeed_conf', 'optm-js_defer')) {
+				return $excludes;
+			}
+
+			return self::litespeed_optimize_js_excludes($excludes);
+		});
+	}
+
+	/**
+	 * Keep the ?ver cache buster on PMW's scripts when LiteSpeed strips query strings.
+	 *
+	 * LiteSpeed's "Remove Query Strings" (Page Optimization -> Tuning) drops the ?ver
+	 * marker from every internal script URL. PMW's entry script loads its pixel code as
+	 * webpack chunks whose file names change with every release, so once the URL is
+	 * versionless a long lived browser or CDN cache keeps replaying the pre-update entry
+	 * script, which then requests chunk names that no longer exist. The visible symptom
+	 * is a 404 on a *.chunk.min.js file plus a ChunkLoadError, and with the consent chunk
+	 * missing PMW falls back to deny-by-default and stops tracking altogether.
+	 *
+	 * LiteSpeed offers an opt-out marker for exactly this case: a src containing
+	 * _litespeed_rm_qs=0 is returned untouched (optimize.cls.php, remove_query_strings()).
+	 * The marker is added at priority 20, well before LiteSpeed's own filter at 999.
+	 *
+	 * @return void
+	 *
+	 * @since 1.66.1
+	 */
+	protected static function preserve_pmw_cache_buster_from_litespeed() {
+
+		add_filter('script_loader_src', function ( $src, $handle ) {
+
+			if (!in_array($handle, [ 'pmw', 'pmw-lazy' ], true)) {
+				return $src;
+			}
+
+			// Nothing to protect if the URL carries no query string anyway.
+			if (!is_string($src) || strpos($src, '?') === false) {
+				return $src;
+			}
+
+			if (strpos($src, '_litespeed_rm_qs=') !== false) {
+				return $src;
+			}
+
+			/**
+			 * Reads LiteSpeed's own "Remove Query Strings" setting. Nothing to
+			 * protect while it is switched off.
+			 *
+			 * @since 1.66.1
+			 */
+			if (!apply_filters('litespeed_conf', 'optm-qs_rm')) {
+				return $src;
+			}
+
+			return $src . '&_litespeed_rm_qs=0';
+		}, 20, 2);
 	}
 
 	/**

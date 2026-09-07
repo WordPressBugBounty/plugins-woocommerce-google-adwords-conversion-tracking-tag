@@ -31,7 +31,14 @@ class Google_Helpers {
         return apply_filters( 'pmw_enable_ga_4_mp_event_debug_mode', $debug_mode );
     }
 
-    public static function get_order_item_data( $order_item ) {
+    /**
+     * Build the Google item payload for a single order line item.
+     *
+     * @param object                  $order_item
+     * @param \WC_Abstract_Order|null $order The order the item belongs to, when the caller has it.
+     * @return array
+     */
+    public static function get_order_item_data( $order_item, $order = null ) {
         $product = $order_item->get_product();
         if ( Product::is_not_wc_product( $product ) ) {
             return [];
@@ -65,7 +72,7 @@ class Google_Helpers {
             'category'       => implode( ',', Product::get_product_category( $product->get_id() ) ),
             'category_array' => Product::get_product_category( $product->get_id() ),
             'variant'        => ( (string) ($product->get_type() === 'variation') ? Product::get_formatted_variant_text( $product ) : '' ),
-            'price'          => Product::pmw_get_order_item_price( $order_item ),
+            'price'          => Product::pmw_get_order_item_price( $order_item, null, $order ),
         ];
     }
 
@@ -460,7 +467,7 @@ class Google_Helpers {
         $item_index = 1;
         foreach ( $refund->get_items() as $item_id => $item ) {
             //            $product = new WC_Product($refund_item->get_product_id());
-            $order_item_data = self::get_order_item_data( $item );
+            $order_item_data = self::get_order_item_data( $item, $refund );
             $data['pr' . $item_index . 'id'] = $order_item_data['id'];
             $data['pr' . $item_index . 'qt'] = -1 * $order_item_data['quantity'];
             $data['pr' . $item_index . 'pr'] = $order_item_data['price'];

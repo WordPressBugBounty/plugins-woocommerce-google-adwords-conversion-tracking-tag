@@ -189,14 +189,15 @@ class Options {
 						'conversion_name' => '',
 					],
 					'data_manager'             => [
-						'is_active'            => false,
-						'mode'                 => 'multi_source', // 'multi_source' | 'separate_action'
-						'operating_account_id' => '',
-						'login_account_id'     => '',
-						'conversion_action_id' => '',
-						'auth_method'          => 'service_account', // 'service_account' | 'broker'
-						'credentials'          => [],
-						'validate_only'        => false,
+						// All four are written by the Google connect assistant
+						// at the account/conversion-action selection step -
+						// there is no manual entry and no enable toggle: the
+						// upload runs as soon as these are on record and the
+						// site is enrolled with the connect broker.
+						'operating_account_id'   => '',
+						'login_account_id'       => '',
+						'conversion_action_id'   => '',
+						'conversion_action_name' => '',
 					],
 				],
 				'analytics'    => [
@@ -788,22 +789,18 @@ class Options {
 	 * Google Ads Data Manager API upload (experimental)
 	 */
 
-	public static function is_google_ads_dm_enabled() {
-		return (bool) self::get_options_obj()->google->ads->data_manager->is_active;
-	}
-
+	/**
+	 * Active without any toggle: the shop connected its Google account (site
+	 * enrolled with the connect broker), the browser conversion tag is
+	 * configured, and the connect flow put a conversion action on record.
+	 * Uploads go into that same action and Google deduplicates them against
+	 * the tag by transaction ID.
+	 */
 	public static function is_google_ads_dm_active() {
-		return self::is_google_ads_dm_enabled()
+		return self::is_google_ads_conversion_active()
 			&& self::get_google_ads_dm_operating_account_id()
 			&& self::get_google_ads_dm_conversion_action_id()
-			&& (
-				'broker' === self::get_google_ads_dm_auth_method()
-				|| !empty(self::get_google_ads_dm_credentials())
-			);
-	}
-
-	public static function get_google_ads_dm_mode() {
-		return self::get_options_obj()->google->ads->data_manager->mode;
+			&& \SweetCode\Pixel_Manager\Admin\Broker_Client::is_enrolled();
 	}
 
 	public static function get_google_ads_dm_operating_account_id() {
@@ -818,24 +815,8 @@ class Options {
 		return self::get_options_obj()->google->ads->data_manager->conversion_action_id;
 	}
 
-	public static function get_google_ads_dm_auth_method() {
-		return self::get_options_obj()->google->ads->data_manager->auth_method;
-	}
-
-	public static function get_google_ads_dm_credentials() {
-		return (array) self::get_options_obj()->google->ads->data_manager->credentials;
-	}
-
-	public static function get_google_ads_dm_credentials_client_email() {
-		return self::get_options_obj()->google->ads->data_manager->credentials->client_email;
-	}
-
-	public static function get_google_ads_dm_credentials_private_key() {
-		return self::get_options_obj()->google->ads->data_manager->credentials->private_key;
-	}
-
-	public static function is_google_ads_dm_validate_only() {
-		return (bool) self::get_options_obj()->google->ads->data_manager->validate_only;
+	public static function get_google_ads_dm_conversion_action_name() {
+		return self::get_options_obj()->google->ads->data_manager->conversion_action_name;
 	}
 
 	public static function get_google_ads_merchant_id() {

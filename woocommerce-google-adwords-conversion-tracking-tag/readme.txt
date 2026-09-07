@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.66.0
+Stable tag: 1.67.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -324,6 +324,24 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.67.0  =
+*Release date - 07.09.2026*
+
+* New: The new `pmw_fire_parent_view_item_on_variable_products` filter fires a `view_item` with the parent product when a variable product page loads. With variations reported separately, no `view_item` went out at all until the shopper picked a variation, and WooCommerce preselects none by default, so those page views were unreported
+* New: The new `pmw_facebook_auto_config` filter switches Meta's automatic configuration off per pixel, which stops Meta's automatic event detection, its microdata scraping and its SmartSetup instrumentation. The snippet our troubleshooting page documented for this defined a placeholder `fbq` and stopped the Meta pixel from loading at all
+* Tweak: The Meta Event Setup Tool warning and the debug report now name every rule and value extractor by its ID and by the URL it is scoped to. Meta sometimes keeps delivering rules after they were deleted in the Events Manager, and only Meta support can remove those, for which they need those IDs
+* Tweak: The debug report now has a Google Tag Gateway section that counts gateway requests which ended in a WordPress 404 that day, and names the last one. Nothing in the plugin could show that gateway traffic was being dropped, which is what made the resulting server load so hard to trace
+* Tweak: The Pinterest events now use Pinterest's own standard event names throughout. Product views move from PageVisit to ViewContent, and starting a checkout is reported as InitiateCheckout instead of Checkout. Expect reported Pinterest Checkout conversions to drop, because checkout starts were previously counted as completed orders
+* Tweak: The Freemius section of the debug report now states whether the in-dashboard account page exists, why it does not, and which link the plugin hands out in its place. None of that was visible anywhere, so a shop reporting a dead account link could not be diagnosed from a debug report
+* Fix: Purchase tracking no longer ends in a fatal error when WooCommerce cannot resolve the order behind an order line item. That broke the checkout response after the payment had already been captured, so those customers read it as a failed payment and ordered again, which charged them twice
+* Fix: On LiteSpeed Cache the Pixel Manager excludes itself from "Load JS Deferred: Delayed", which held every script back until the visitor clicked or scrolled and lost purchases on the order confirmation page. It also keeps its `?ver` cache buster when "Remove Query Strings" is on, so browsers stop replaying a pre-update script that requests chunk files no longer shipped
+* Fix: The automatic cache purge after a Pixel Manager update now clears NitroPack, Kinsta and Proxy Cache Purge, which failed silently and left those shops serving the previous release's tracking library, so it disabled itself and tracked nothing. A cache that cannot be cleared now raises an admin notice, and a stale library names itself in the console
+* Fix: `pmw.trackCustomFacebookEvent()` now honors the visitor's current marketing consent, the same gate every other Meta event passes. It only checked whether the pixel had loaded at some point, so a custom event fired from a shop's own snippet still reached Meta after the visitor withdrew consent in the cookie banner
+* Fix: A jQuery snippet that fires a Pixel Manager event from a `pmwLoad` handler no longer sends the page into an endless loop that freezes the browser and floods the server with requests, which our own documented parent `view_item` snippet did. Legacy jQuery handlers on the lifecycle events also ran twice per page load and now run once
+* Fix: The deprecated `wpmLoad` event again reaches listeners that register after the tracking library has loaded. Printing the deprecation warning also switched off the compatibility dispatch, so a snippet registering from `_pmwq` or from any late-loading script was warned that the event is deprecated and then never called, while identical code running earlier still worked
+* Fix: Requests to the Google Tag Gateway service worker, which Google's tag registers under the measurement path, are answered by the gateway instead of falling through to a full WordPress 404 page. Every visitor triggered one, which flooded 404 logs and put shops with regular traffic under load they had no way to explain
+* Fix: The Google Tag Gateway proxy no longer writes several log lines per tracking request at the info level, which grew a normal shop's daily log to several megabytes and buried the entries the logger was turned on to find. That detail is now logged at the debug level; warnings and errors are unchanged
 
 = 1.66.0  =
 *Release date - 26.08.2026*

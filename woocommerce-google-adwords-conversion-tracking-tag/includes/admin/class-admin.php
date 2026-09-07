@@ -2324,7 +2324,6 @@ class Admin {
         if ( function_exists( 'wpm_fs' ) ) {
         }
         $ga4_credentials = Options::get_ga4_data_api_credentials();
-        $google_dm_credentials = Options::get_google_ads_dm_credentials();
         wp_localize_script( 'pmw-admin-wp', 'pmwAdminApi', [
             'root'                             => esc_url_raw( rest_url() ),
             'nonce'                            => wp_create_nonce( 'wp_rest' ),
@@ -2350,7 +2349,6 @@ class Admin {
             'gadsConversionAdjustmentsFeedUrl' => get_site_url() . Pixel_Manager::get_instance()->get_google_ads_conversion_adjustments_endpoint(),
             'recentLogUrl'                     => (string) Helpers::get_admin_url_link_to_recent_wc_log( 'pmw' ),
             'ga4DataApiClientEmail'            => ( isset( $ga4_credentials['client_email'] ) ? (string) $ga4_credentials['client_email'] : '' ),
-            'googleDmClientEmail'              => ( isset( $google_dm_credentials['client_email'] ) ? (string) $google_dm_credentials['client_email'] : '' ),
             'upgradeUrl'                       => Commercial_Links::upgrade_url(),
             'accountUrl'                       => Commercial_Links::account_url(),
             'supportUrl'                       => Commercial_Links::support_url(),

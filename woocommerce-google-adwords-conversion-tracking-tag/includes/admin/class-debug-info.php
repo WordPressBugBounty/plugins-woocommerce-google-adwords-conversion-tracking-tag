@@ -7,6 +7,7 @@ use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
+use SweetCode\Pixel_Manager\Pixels\Google\GTG_Monitor;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Social_Login;
@@ -175,6 +176,10 @@ class Debug_Info {
                 }
             }
             //        $html .= PHP_EOL;
+            $html .= PHP_EOL . '## Google Tag Gateway ##' . PHP_EOL . PHP_EOL;
+            $measurement_path = Options::get_google_tag_gateway_measurement_path();
+            $html .= 'Measurement path:                          ' . (( $measurement_path ? $measurement_path : 'not configured' )) . PHP_EOL;
+            $html .= GTG_Monitor::get_stats_for_debug_info();
             $html .= PHP_EOL . '## Theme ##' . PHP_EOL . PHP_EOL;
             $is_child_theme = ( is_child_theme() ? 'yes' : 'no' );
             $html .= 'Is child theme:      ' . $is_child_theme . PHP_EOL;
@@ -239,10 +244,50 @@ class Debug_Info {
             $html .= 'Freemius SDK active:  ' . $fs_sdk_active_version . PHP_EOL;
             $html .= 'api.freemius.com:     ' . self::try_connect_to_server( 'https://api.freemius.com' ) . PHP_EOL;
             $html .= 'wp.freemius.com:      ' . self::try_connect_to_server( 'https://wp.freemius.com' ) . PHP_EOL;
+            $html .= self::get_freemius_dashboard_page_state();
             return $html;
         } catch ( Exception $e ) {
             $html .= PHP_EOL . 'Freemius error: ' . $e->getMessage() . PHP_EOL;
         }
+        return $html;
+    }
+
+    /**
+     * Report whether Freemius' in-dashboard Account page exists on this install.
+     *
+     * The SDK drops that page whenever it sits in activation mode or the install
+     * is white-labelled, and a premium install falls into activation mode on its
+     * own whenever a license activation could not be completed (a site that cannot
+     * reach api.freemius.com, for one), even though the stored license still
+     * unlocks the premium code. Commercial_Links then hands out a fallback URL, so
+     * the "Account & billing" link leaves WordPress and the shop admin loses the
+     * route to their license and to the beta-releases opt-in.
+     *
+     * Nothing about that state is visible from the outside, which is why the
+     * resolved link target is printed next to it.
+     *
+     * Reference: https://secure.helpscout.net/conversation/3435856296
+     *
+     * @return string
+     * @since 1.66.1
+     */
+    private static function get_freemius_dashboard_page_state() {
+        $fs = wpm_fs();
+        $html = 'Registered:           ' . (( method_exists( $fs, 'is_registered' ) && $fs->is_registered() ? 'yes' : 'no' )) . PHP_EOL;
+        $html .= 'Premium code active:  ' . (( Helpers::is_pmw_pro_version_active() ? 'yes' : 'no' )) . PHP_EOL;
+        // The sticky flag behind most unexpected activation modes. The SDK raises it
+        // when the premium version is activated without an enabled license, and only
+        // clears it once a license activation actually goes through.
+        $requires_license_activation = 'unknown';
+        if ( method_exists( $fs, 'get_storage' ) ) {
+            $storage = $fs->get_storage();
+            $requires_license_activation = ( empty( $storage->require_license_activation ) ? 'no' : 'yes' );
+        }
+        $activation_mode = method_exists( $fs, 'is_activation_mode' ) && $fs->is_activation_mode();
+        $html .= 'Activation mode:      ' . (( $activation_mode ? 'yes' : 'no' )) . ' (license activation required: ' . $requires_license_activation . ')' . PHP_EOL;
+        $html .= 'Whitelabeled:         ' . (( method_exists( $fs, 'is_whitelabeled' ) && $fs->is_whitelabeled() ? 'yes' : 'no' )) . PHP_EOL;
+        $html .= 'Account page:         ' . (( Commercial_Links::has_freemius_dashboard_pages() ? 'available' : 'NOT available' )) . PHP_EOL;
+        $html .= 'Account link:         ' . Commercial_Links::account_url() . PHP_EOL;
         return $html;
     }
 
@@ -269,6 +314,20 @@ class Debug_Info {
                 return $html;
             }
             $html .= PHP_EOL . '## Meta Event Setup Tool ##' . PHP_EOL . PHP_EOL;
+            // Meta's automatic configuration can be switched off per pixel. It
+            // does not stop the Event Setup Tool rules, which carry their own
+            // opt-in, but it is the neighbouring question when reading this
+            // section, so report the state here.
+            foreach ( $pixel_ids as $pixel_id ) {
+                /**
+                 * Filters whether Meta's automatic configuration stays enabled for a pixel.
+                 *
+                 * @since 1.66.1
+                 */
+                if ( !apply_filters( 'pmw_facebook_auto_config', true, $pixel_id ) ) {
+                    $html .= 'Pixel ' . $pixel_id . ': autoConfig disabled through the pmw_facebook_auto_config filter' . PHP_EOL;
+                }
+            }
             $results = Facebook_Event_Setup_Scan::get_scan_results( true );
             if ( !is_array( $results ) || empty( $results['pixels'] ) ) {
                 $html .= 'Scan disabled or no results available.' . PHP_EOL;
@@ -281,17 +340,29 @@ class Debug_Info {
                     continue;
                 }
                 $event_names = Facebook_Event_Setup_Scan::get_active_rule_event_names( $pixel );
-                $iwl_extractors = ( !empty( $pixel['iwl_extractors'] ) ? $pixel['iwl_extractors'] : [] );
-                if ( empty( $event_names ) && empty( $iwl_extractors ) ) {
+                $extractor_names = Facebook_Event_Setup_Scan::get_extractor_event_names( $pixel );
+                if ( empty( $event_names ) && empty( $extractor_names ) ) {
                     $html .= 'Pixel ' . $pixel_id . ': OK (no active Event Setup Tool rules found)' . PHP_EOL;
                     continue;
                 }
                 $findings_detected = true;
                 if ( !empty( $event_names ) ) {
                     $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': ' . count( $pixel['active_rules'] ) . ' active Event Setup Tool rule(s) firing: ' . implode( ', ', $event_names ) . PHP_EOL;
+                    // One line per rule, because Meta support needs the rule ID
+                    // to remove a rule that survived its deletion.
+                    foreach ( $pixel['active_rules'] as $rule ) {
+                        $rule_id = ( !empty( $rule['rule_id'] ) ? $rule['rule_id'] : 'unknown ID' );
+                        $html .= '  Rule ' . $rule_id . ' -> ' . $rule['event'] . PHP_EOL;
+                    }
                 }
-                if ( !empty( $iwl_extractors ) ) {
-                    $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': Event Setup Tool value extractors configured for: ' . implode( ', ', $iwl_extractors ) . PHP_EOL;
+                if ( !empty( $extractor_names ) ) {
+                    $html .= self::show_warning( true ) . 'Pixel ' . $pixel_id . ': Event Setup Tool value extractors configured for: ' . implode( ', ', $extractor_names ) . PHP_EOL;
+                    foreach ( $pixel['iwl_extractors'] as $extractor ) {
+                        $extractor_id = ( !empty( $extractor['extractor_id'] ) ? $extractor['extractor_id'] : 'unknown ID' );
+                        $html .= '  Extractor ' . $extractor_id . ' -> ' . $extractor['event'];
+                        $html .= ( !empty( $extractor['url'] ) ? ' on ' . $extractor['url'] : '' );
+                        $html .= PHP_EOL;
+                    }
                 }
             }
             if ( $findings_detected ) {
@@ -299,6 +370,10 @@ class Debug_Info {
                 $html .= 'These rules fire additional browser events without deduplication and mostly without values,' . PHP_EOL;
                 $html .= 'which corrupts event counts and purchase values in Meta. Remove them in the Meta Events Manager:' . PHP_EOL;
                 $html .= 'Data sources -> select the pixel -> Settings -> Event setup -> Manage' . PHP_EOL;
+                $html .= 'The list there is filtered by the URL the Event Setup Tool is opened on, so open it on the' . PHP_EOL;
+                $html .= 'URL a rule or extractor is scoped to. Meta also keeps delivering rules that were already' . PHP_EOL;
+                $html .= 'deleted. If a rule listed above no longer shows up in the Events Manager, only Meta support' . PHP_EOL;
+                $html .= 'can remove it, and they need the IDs above.' . PHP_EOL;
                 $html .= 'More information: ' . Documentation::get_link( 'facebook_event_setup_tool' ) . PHP_EOL;
             }
             if ( !empty( $results['scanned_at'] ) ) {

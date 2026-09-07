@@ -26,6 +26,7 @@ use SweetCode\Pixel_Manager\Deprecated_Filters;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Pixels\Google\GTG_Monitor;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Product;
 use SweetCode\Pixel_Manager\SSP_Purchase_Proxy;
@@ -79,6 +80,7 @@ class WCPM {
             if ( class_exists( '\\SweetCode\\Pixel_Manager\\Pixels\\Google\\GTG_Proxy' ) ) {
                 \SweetCode\Pixel_Manager\Pixels\Google\GTG_Proxy::unschedule_config_refresh();
             }
+            wp_clear_scheduled_hook( Broker_Client::HEALTH_CRON_HOOK );
             // Flush rewrite rules once on deactivation to clean up any stale rules
             // that may have been registered by earlier versions of the GTG proxy code
             flush_rewrite_rules();
@@ -389,6 +391,10 @@ class WCPM {
             add_filter( 'plugin_action_links_' . PMW_PLUGIN_BASENAME, [$this, 'pmw_settings_link'] );
         }
         Deprecated_Filters::load_deprecated_filters();
+        // Watch for Google Tag Gateway traffic that falls through to WordPress 404s.
+        // Runs even without a measurement path, because browsers keep requesting
+        // gateway URLs under a previously configured path for a while.
+        GTG_Monitor::init();
         // Register abilities with the WordPress Abilities API (WP 6.9+)
         Abilities::init();
         // inject pixels into front end

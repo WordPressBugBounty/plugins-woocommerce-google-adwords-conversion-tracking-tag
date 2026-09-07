@@ -56,21 +56,21 @@ class Facebook_Event_Setup_Tool extends Opportunity {
 
 		foreach (self::get_findings() as $finding) {
 
-			if (!empty($finding['events'])) {
+			if (!empty($finding['rules'])) {
 				$descriptions[] = sprintf(
-					/* translators: 1: the Meta pixel ID, 2: comma separated list of event names */
+					/* translators: 1: the Meta pixel ID, 2: comma separated list of events with their rule IDs */
 					esc_html__(
 						'Pixel %1$s fires these additional events: %2$s',
 						'woocommerce-google-adwords-conversion-tracking-tag'
 					),
 					$finding['pixel_id'],
-					implode(', ', $finding['events'])
+					implode(', ', $finding['rules'])
 				);
 			}
 
 			if (!empty($finding['extractors'])) {
 				$descriptions[] = sprintf(
-					/* translators: 1: the Meta pixel ID, 2: comma separated list of event names */
+					/* translators: 1: the Meta pixel ID, 2: comma separated list of events with their extractor IDs and URLs */
 					esc_html__(
 						'Pixel %1$s also has Event Setup Tool value extraction rules for these events: %2$s',
 						'woocommerce-google-adwords-conversion-tracking-tag'
@@ -82,7 +82,12 @@ class Facebook_Event_Setup_Tool extends Opportunity {
 		}
 
 		$descriptions[] = esc_html__(
-			'To fix this, open the Meta Events Manager and remove the rules under: Data sources > select your pixel > Settings > Event setup > Manage. The Pixel Manager already tracks all shop events with deduplication and accurate values.',
+			'To fix this, open the Meta Events Manager and remove the rules under: Data sources > select your pixel > Settings > Event setup > Manage. The list there only shows the rules of the URL the Event Setup Tool is opened on, so open it on the URL listed above. The Pixel Manager already tracks all shop events with deduplication and accurate values.',
+			'woocommerce-google-adwords-conversion-tracking-tag'
+		);
+
+		$descriptions[] = esc_html__(
+			'Meta sometimes keeps delivering rules that were already deleted. If a rule listed here no longer appears in the Events Manager, only Meta support can remove it. Send them the IDs above and tell them the rules are still delivered as active in the public pixel configuration.',
 			'woocommerce-google-adwords-conversion-tracking-tag'
 		);
 
@@ -110,7 +115,13 @@ class Facebook_Event_Setup_Tool extends Opportunity {
 	/**
 	 * Get the scan findings, one entry per pixel that has rules or extractors.
 	 *
-	 * @return array Entries with the keys pixel_id, events and extractors.
+	 * The rule and extractor IDs are part of the description because Meta
+	 * support needs them whenever a rule survives its deletion in the Events
+	 * Manager, and the extractor URL because the Event Setup Tool only lists
+	 * the entries of the URL it is opened on.
+	 *
+	 * @return array Entries with the keys pixel_id, rules and extractors, both
+	 *               as ready to print label strings.
 	 */
 	private static function get_findings() {
 
@@ -124,20 +135,102 @@ class Facebook_Event_Setup_Tool extends Opportunity {
 
 		foreach ($results['pixels'] as $pixel_id => $pixel) {
 
-			$events     = Facebook_Event_Setup_Scan::get_active_rule_event_names($pixel);
-			$extractors = !empty($pixel['iwl_extractors']) ? $pixel['iwl_extractors'] : [];
+			$rules      = self::get_rule_labels($pixel);
+			$extractors = self::get_extractor_labels($pixel);
 
-			if (empty($events) && empty($extractors)) {
+			if (empty($rules) && empty($extractors)) {
 				continue;
 			}
 
 			$findings[] = [
 				'pixel_id'   => $pixel_id,
-				'events'     => $events,
+				'rules'      => $rules,
 				'extractors' => $extractors,
 			];
 		}
 
 		return $findings;
+	}
+
+	/**
+	 * Get one label per active rule, e.g. "Purchase (rule ID 1354287195403260)".
+	 *
+	 * @param array $pixel One entry of the 'pixels' array of the scan results.
+	 * @return array
+	 * @since 1.66.1
+	 */
+	private static function get_rule_labels( $pixel ) {
+
+		$labels = [];
+
+		if (empty($pixel['active_rules'])) {
+			return $labels;
+		}
+
+		foreach ($pixel['active_rules'] as $rule) {
+
+			if (empty($rule['event'])) {
+				continue;
+			}
+
+			$labels[] = empty($rule['rule_id'])
+				? $rule['event']
+				: sprintf(
+					/* translators: 1: the event name, 2: the Meta Event Setup Tool rule ID */
+					esc_html__('%1$s (rule ID %2$s)', 'woocommerce-google-adwords-conversion-tracking-tag'),
+					$rule['event'],
+					$rule['rule_id']
+				);
+		}
+
+		return $labels;
+	}
+
+	/**
+	 * Get one label per value extractor, e.g. "Purchase (extractor ID 959937071660420 on https://example.com/checkout/)".
+	 *
+	 * @param array $pixel One entry of the 'pixels' array of the scan results.
+	 * @return array
+	 * @since 1.66.1
+	 */
+	private static function get_extractor_labels( $pixel ) {
+
+		$labels = [];
+
+		if (empty($pixel['iwl_extractors'])) {
+			return $labels;
+		}
+
+		foreach ($pixel['iwl_extractors'] as $extractor) {
+
+			if (empty($extractor['event'])) {
+				continue;
+			}
+
+			if (empty($extractor['extractor_id'])) {
+				$labels[] = $extractor['event'];
+				continue;
+			}
+
+			if (empty($extractor['url'])) {
+				$labels[] = sprintf(
+					/* translators: 1: the event name, 2: the Meta Event Setup Tool extractor ID */
+					esc_html__('%1$s (extractor ID %2$s)', 'woocommerce-google-adwords-conversion-tracking-tag'),
+					$extractor['event'],
+					$extractor['extractor_id']
+				);
+				continue;
+			}
+
+			$labels[] = sprintf(
+				/* translators: 1: the event name, 2: the Meta Event Setup Tool extractor ID, 3: the URL the extractor is scoped to */
+				esc_html__('%1$s (extractor ID %2$s on %3$s)', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				$extractor['event'],
+				$extractor['extractor_id'],
+				$extractor['url']
+			);
+		}
+
+		return $labels;
 	}
 }

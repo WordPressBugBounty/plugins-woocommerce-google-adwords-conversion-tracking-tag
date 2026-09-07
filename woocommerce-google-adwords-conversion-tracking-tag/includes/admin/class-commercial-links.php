@@ -51,6 +51,12 @@ class Commercial_Links {
 	const SC_PRICING_URL = 'https://sweetcode.com/pricing';
 	const SC_TRIAL_URL   = 'https://sweetcode.com/plugins/pmw/?open-checkout=&trial=&billing-cycle=annual&utm_source=plugin&utm_medium=start-free-trial-button&utm_campaign=freemius-pages-unavailable#pricing-section';
 
+	// Freemius' own hosted customer portal, the SDK's "User Dashboard". It is the
+	// only account destination that stays reachable when the in-dashboard Account
+	// page is gone, and it carries everything a paying customer goes looking for:
+	// license keys, sites, invoices, subscription, and the beta-releases opt-in.
+	const FS_USER_DASHBOARD_URL = 'https://users.freemius.com';
+
 	/**
 	 * Whether Freemius' own in-dashboard pages (Pricing, Account) actually exist
 	 * on this install.
@@ -125,6 +131,18 @@ class Commercial_Links {
 	/**
 	 * Pro account / license / billing management target.
 	 *
+	 * The fallback splits by tier. A shop without an active license that cannot
+	 * reach the in-dashboard Account page has nothing to manage yet, so it gets
+	 * our pricing page. A paying customer does: sending them to a pricing page
+	 * they already bought from is a dead end, and it cuts them off from their
+	 * license, their invoices and the beta-releases opt-in. They go to Freemius'
+	 * hosted customer portal instead, which needs no in-dashboard page at all.
+	 *
+	 * The Account page disappears whenever the SDK sits in activation mode, and a
+	 * premium install lands there on its own whenever a license activation could
+	 * not be completed (a site that cannot reach api.freemius.com, for one), even
+	 * though the stored license still unlocks the premium code.
+	 *
 	 * @return string
 	 */
 	public static function account_url() {
@@ -135,6 +153,10 @@ class Commercial_Links {
 
 		if (self::has_freemius_dashboard_pages()) {
 			return wpm_fs()->get_account_url();
+		}
+
+		if (Helpers::is_pmw_pro_version_active()) {
+			return self::FS_USER_DASHBOARD_URL;
 		}
 
 		return self::SC_PRICING_URL;

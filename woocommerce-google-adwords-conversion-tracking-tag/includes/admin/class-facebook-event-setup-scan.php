@@ -22,7 +22,7 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  * The config file delivers the rules like this:
  *
  *   fbq.set("estRules", "{PIXEL_ID}", [ { "condition": {...}, "derived_event_name": "Purchase", "rule_status": "ACTIVE", "rule_id": "..." }, ... ]);
- *   fbq.set("iwlExtractors", "{PIXEL_ID}", [ { "domain_uri": "...", "event_type": "Purchase", "extractor_config": {...} }, ... ]);
+ *   fbq.set("iwlExtractors", "{PIXEL_ID}", [ { "id": "...", "domain_uri": "...", "event_type": "Purchase", "extractor_config": {...} }, ... ]);
  *
  * The same config also carries Meta's business category event restrictions.
  * Pixels in restricted business categories (e.g. health and wellness) get an
@@ -52,9 +52,9 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  */
 class Facebook_Event_Setup_Scan {
 
-	// The v3 suffix invalidates cached scans from before the openbridge
-	// extraction was added. The old transient expires on its own.
-	const TRANSIENT_KEY = 'pmw_facebook_est_scan_v3';
+	// The v4 suffix invalidates cached scans from before the extractor IDs and
+	// their URL scope were stored. The old transient expires on its own.
+	const TRANSIENT_KEY = 'pmw_facebook_est_scan_v4';
 
 	/**
 	 * Get the scan results for all configured Facebook pixels.
@@ -63,6 +63,11 @@ class Facebook_Event_Setup_Scan {
 	 * configured pixel IDs. A new remote scan only runs while an admin is on the
 	 * Pixel Manager settings page (or when $force_fetch is set, which the debug
 	 * info uses), so regular admin page loads never trigger remote requests.
+	 *
+	 * Meta keeps delivering rules and extractors that were already deleted in
+	 * the Events Manager, so a finding is not proof that the merchant can still
+	 * see them there. Only Meta support can remove those orphans, and they need
+	 * the rule and extractor IDs for it, which is why the IDs are kept here.
 	 *
 	 * @param bool $force_fetch Run the remote scan even outside the settings page when the cache is stale.
 	 * @return array|false {
@@ -267,7 +272,7 @@ class Facebook_Event_Setup_Scan {
 	 * @param string $pixel_id The pixel ID the payloads belong to.
 	 * @return array {
 	 *     active_rules:      array  One entry per ACTIVE rule: [ 'event' => string, 'rule_id' => string ].
-	 *     iwl_extractors:    array  Unique event names that have value extractors configured.
+	 *     iwl_extractors:    array  One entry per value extractor: [ 'event' => string, 'extractor_id' => string, 'url' => string ].
 	 *     restricted_events: array  Event names Meta blocks for this pixel because of its business category.
 	 *     openbridge:        array  [ 'active' => bool, 'endpoints' => array, 'mirrored_events' => array ].
 	 * }
@@ -310,9 +315,18 @@ class Facebook_Event_Setup_Scan {
 
 				$event_type = isset($extractor['event_type']) ? $extractor['event_type'] : '';
 
-				if ('' !== $event_type && !in_array($event_type, $result['iwl_extractors'], true)) {
-					$result['iwl_extractors'][] = $event_type;
+				if ('' === $event_type) {
+					continue;
 				}
+
+				// The IDs and the URL scope are kept because Meta support needs
+				// them to remove extractors that survived their deletion in the
+				// Events Manager.
+				$result['iwl_extractors'][] = [
+					'event'        => $event_type,
+					'extractor_id' => isset($extractor['id']) ? (string) $extractor['id'] : '',
+					'url'          => isset($extractor['domain_uri']) ? (string) $extractor['domain_uri'] : '',
+				];
 			}
 		}
 
@@ -508,6 +522,30 @@ class Facebook_Event_Setup_Scan {
 		foreach ($pixel['active_rules'] as $rule) {
 			if (!empty($rule['event']) && !in_array($rule['event'], $event_names, true)) {
 				$event_names[] = $rule['event'];
+			}
+		}
+
+		return $event_names;
+	}
+
+	/**
+	 * Get the unique event names of all value extractors of one pixel scan entry.
+	 *
+	 * @param array $pixel One entry of the 'pixels' array of get_scan_results().
+	 * @return array
+	 * @since 1.66.1
+	 */
+	public static function get_extractor_event_names( $pixel ) {
+
+		$event_names = [];
+
+		if (empty($pixel['iwl_extractors'])) {
+			return $event_names;
+		}
+
+		foreach ($pixel['iwl_extractors'] as $extractor) {
+			if (!empty($extractor['event']) && !in_array($extractor['event'], $event_names, true)) {
+				$event_names[] = $extractor['event'];
 			}
 		}
 

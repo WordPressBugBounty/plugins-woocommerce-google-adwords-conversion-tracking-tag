@@ -304,6 +304,46 @@ class Helpers {
     }
 
     /**
+     * Normalize a first or last name the way the OpenAI Ads platform hashes it:
+     * lowercase, with all whitespace and ASCII punctuation removed. Non-ASCII
+     * characters are preserved (no accent stripping, no transliteration), so
+     * "O'Connor" becomes "oconnor" and "José" becomes "josé".
+     *
+     * Reference: https://developers.openai.com/ads/conversions-api
+     *
+     * @param string $string
+     * @return string
+     * @since 1.66.1
+     */
+    public static function normalize_for_openai_name( $string ) {
+        $string = (string) $string;
+        $string = ( function_exists( 'mb_strtolower' ) ? mb_strtolower( $string, 'UTF-8' ) : strtolower( $string ) );
+        // All whitespace, including non-breaking spaces and other Unicode spaces
+        $string = preg_replace( '/[\\s\\x{00A0}\\x{2000}-\\x{200B}\\x{202F}\\x{3000}]+/u', '', $string );
+        // ASCII punctuation only: 0x21-0x2F, 0x3A-0x40, 0x5B-0x60, 0x7B-0x7E
+        return preg_replace( '/[!-\\/:-@\\[-`{-~]/', '', $string );
+    }
+
+    /**
+     * Normalize a phone number the way the OpenAI Ads platform hashes it:
+     * the digits of the E.164 form without the leading + or leading zeroes,
+     * 8 to 15 digits long. Returns an empty string when the number cannot be
+     * brought into that form, so the caller leaves the identifier out instead
+     * of hashing a value OpenAI can never match.
+     *
+     * Reference: https://developers.openai.com/ads/conversions-api
+     *
+     * @param string $phone_e164 E.164 formatted number (or the raw input when parsing failed).
+     * @return string
+     * @since 1.66.1
+     */
+    public static function normalize_for_openai_phone( $phone_e164 ) {
+        $digits = ltrim( preg_replace( '/[^0-9]/', '', (string) $phone_e164 ), '0' );
+        $length = strlen( $digits );
+        return ( $length >= 8 && $length <= 15 ? $digits : '' );
+    }
+
+    /**
      * Remove punctuation from a string.
      *
      * @param string $string
@@ -514,13 +554,13 @@ class Helpers {
             $user_data['last_name'] = self::get_user_object_last_name( $raw_user_data['last_name'] );
         }
         if ( !empty( $raw_user_data['phone'] ) ) {
-            $user_data['phone'] = self::get_user_object_phone( $raw_user_data['phone'], $current_user );
+            $user_data['phone'] = self::get_user_object_phone( $raw_user_data['phone'], $current_user, $raw_user_data['country'] );
         }
         if ( !empty( $raw_user_data['city'] ) ) {
             $user_data['city'] = self::get_user_object_city( $raw_user_data['city'] );
         }
         if ( !empty( $raw_user_data['state'] ) ) {
-            $user_data['state'] = self::get_user_object_state( $raw_user_data['state'] );
+            $user_data['state'] = self::get_user_object_state( $raw_user_data['state'], $raw_user_data['country'] );
         }
         if ( !empty( $raw_user_data['postcode'] ) ) {
             $user_data['postcode'] = self::get_user_object_postcode( $raw_user_data['postcode'] );
@@ -601,6 +641,7 @@ class Helpers {
             'facebook'  => self::hash_string( strtolower( $first_name ) ),
             'pinterest' => self::hash_string( strtolower( $first_name ) ),
             'snapchat'  => self::hash_string( self::normalize_for_snapchat( $first_name ) ),
+            'openai'    => self::hash_string( self::normalize_for_openai_name( $first_name ) ),
         ];
     }
 
@@ -612,24 +653,69 @@ class Helpers {
             'facebook'  => self::hash_string( strtolower( $last_name ) ),
             'pinterest' => self::hash_string( strtolower( $last_name ) ),
             'snapchat'  => self::hash_string( self::normalize_for_snapchat( $last_name ) ),
+            'openai'    => self::hash_string( self::normalize_for_openai_name( $last_name ) ),
         ];
     }
 
-    private static function get_user_object_phone( $phone, $current_user ) {
+    /**
+     * Builds the per-destination phone number representations.
+     *
+     * Every destination gets its value derived from the E.164 form of the
+     * number, never from the raw string the customer typed. Meta matches on
+     * exact hashes, so a number entered as "612 34 56 78" only matches once it
+     * has been normalized to digits with the country code prefixed
+     * ("34612345678"). Hashing the raw input instead made the ph parameter
+     * contribute nothing to matching for every customer who did not happen to
+     * type an already normalized number.
+     *
+     * The country needed to resolve a national number to E.164 comes from the
+     * billing country of the order or the user profile when one is available,
+     * because a Conversions API event can be emitted from a background job
+     * where geolocating the current request would resolve the server rather
+     * than the customer.
+     *
+     * https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters
+     *
+     * @param string      $phone
+     * @param WP_User|null $current_user
+     * @param string|null $country Billing country code of the order or user, if known.
+     *
+     * @return array
+     */
+    private static function get_user_object_phone( $phone, $current_user, $country = null ) {
         $phone = self::trim_string( $phone );
-        $phone_e164 = self::get_e164_formatted_phone_number( strtolower( $phone ), self::get_user_country_code( $current_user ) );
-        return [
-            'raw'       => $phone,
-            'e164'      => $phone_e164,
-            'facebook'  => self::hash_string( str_replace( '+', '', strtolower( $phone ) ) ),
-            'pinterest' => self::hash_string( preg_replace( '/[^0-9]/', '', $phone_e164 ) ),
-            'snapchat'  => self::hash_string( str_replace( '+', '', $phone_e164 ) ),
-            'tiktok'    => self::hash_string( $phone_e164 ),
-            'sha256'    => [
+        $country = ( $country ? $country : self::get_user_country_code( $current_user ) );
+        $phone_e164 = self::get_e164_formatted_phone_number( strtolower( $phone ), $country );
+        // Digits only, country code included. Also the safe form when the
+        // number could not be parsed and get_e164_formatted_phone_number()
+        // returned the input unchanged.
+        $phone_digits = preg_replace( '/[^0-9]/', '', $phone_e164 );
+        $phone_object = [
+            'raw'      => $phone,
+            'e164'     => $phone_e164,
+            'snapchat' => self::hash_string( str_replace( '+', '', $phone_e164 ) ),
+            'tiktok'   => self::hash_string( $phone_e164 ),
+            'sha256'   => [
                 'raw'  => self::hash_string( $phone ),
                 'e164' => self::hash_string( $phone_e164 ),
             ],
         ];
+        /**
+         * A number that carries no digits at all would hash to the hash of the
+         * empty string, which is the same constant for every visitor. Leave the
+         * parameter out instead of sending an identifier that can never match.
+         */
+        if ( $phone_digits ) {
+            $phone_object['facebook'] = self::hash_string( $phone_digits );
+            $phone_object['pinterest'] = self::hash_string( $phone_digits );
+        }
+        // OpenAI wants the E.164 digits without the + and without leading
+        // zeroes, 8 to 15 digits long. A number outside that range is left out.
+        $phone_openai = self::normalize_for_openai_phone( $phone_e164 );
+        if ( $phone_openai ) {
+            $phone_object['openai'] = self::hash_string( $phone_openai );
+        }
+        return $phone_object;
     }
 
     private static function get_user_object_city( $city ) {
@@ -643,7 +729,7 @@ class Helpers {
         ];
     }
 
-    private static function get_user_object_state( $state ) {
+    private static function get_user_object_state( $state, $country = '' ) {
         $state = self::trim_string( $state );
         return [
             'raw'       => $state,
@@ -651,7 +737,32 @@ class Helpers {
             'facebook'  => self::hash_string( preg_replace( '/[a-zA-Z]{2}-/', '', strtolower( $state ) ) ),
             'pinterest' => self::hash_string( strtolower( $state ) ),
             'snapchat'  => self::hash_string( self::normalize_for_snapchat( $state ) ),
+            'openai'    => self::get_region_name( $state, $country ),
         ];
+    }
+
+    /**
+     * Resolve a WooCommerce state code ("CA") to the region name WooCommerce
+     * knows for that country ("California"). Falls back to the code itself
+     * when the country has no state list or the code is unknown, and to the
+     * code with a leading "XX-" country prefix stripped when it arrives in
+     * ISO 3166-2 form.
+     *
+     * @param string $state   State code or name as stored by WooCommerce.
+     * @param string $country Two-letter country code.
+     * @return string
+     * @since 1.66.1
+     */
+    public static function get_region_name( $state, $country = '' ) {
+        $state = (string) $state;
+        $code = preg_replace( '/^[A-Za-z]{2}-/', '', $state );
+        if ( $country && function_exists( 'WC' ) && WC() && isset( WC()->countries ) && method_exists( WC()->countries, 'get_states' ) ) {
+            $states = WC()->countries->get_states( strtoupper( (string) $country ) );
+            if ( is_array( $states ) && isset( $states[$code] ) && is_string( $states[$code] ) && '' !== $states[$code] ) {
+                return html_entity_decode( wp_strip_all_tags( $states[$code] ), ENT_QUOTES, 'UTF-8' );
+            }
+        }
+        return $code;
     }
 
     private static function get_user_object_postcode( $postcode ) {

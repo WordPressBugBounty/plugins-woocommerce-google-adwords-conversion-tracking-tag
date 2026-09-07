@@ -262,7 +262,22 @@ class GTG_Proxy {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- We need the raw URI for path matching
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
 
-		// Skip static files immediately - these should never be proxied
+		$measurement_path = Options::get_google_tag_gateway_measurement_path();
+
+		// Requests under the measurement path always belong to the proxy and
+		// must be matched before the static file skip: Google's tag requests
+		// .js files under the measurement path, e.g. the Tag Gateway service
+		// worker (<measurement_path>/_/service_worker/<version>/sw.js). If
+		// those fall through, every visitor triggers a full WordPress 404
+		// page load.
+		if ( $measurement_path && self::is_measurement_path_request( $request_uri, $measurement_path ) ) {
+			// This is our request - handle it
+			self::handle_rewrite_request();
+			// We should never reach here because handle_rewrite_request calls die()
+			return $do_parse;
+		}
+
+		// Skip static files - outside the measurement path these should never be proxied
 		if (preg_match('/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map)(\?|$)/i', $request_uri)) {
 			return $do_parse;
 		}
@@ -272,26 +287,7 @@ class GTG_Proxy {
 			return $do_parse;
 		}
 
-		$measurement_path = Options::get_google_tag_gateway_measurement_path();
-
 		if (!$measurement_path) {
-			return $do_parse;
-		}
-
-		// Check if the request starts with our measurement path (primary proxy requests)
-		// Must match exact path or path followed by / or ? to avoid matching
-		// unrelated paths (e.g., measurement path "/m" must not match "/my-account/")
-		if (
-			strpos($request_uri, $measurement_path) === 0
-			&& (
-				strlen($request_uri) === strlen($measurement_path)
-				|| '/' === $request_uri[strlen($measurement_path)]
-				|| '?' === $request_uri[strlen($measurement_path)]
-			)
-		) {
-			// This is our request - handle it
-			self::handle_rewrite_request();
-			// We should never reach here because handle_rewrite_request calls die()
 			return $do_parse;
 		}
 
@@ -316,6 +312,29 @@ class GTG_Proxy {
 	}
 
 	/**
+	 * Check whether a request URI falls under the measurement path
+	 *
+	 * Matches the exact path or the path followed by / or ? to avoid matching
+	 * unrelated paths (e.g., measurement path "/m" must not match "/my-account/").
+	 *
+	 * @param string $request_uri      The raw request URI.
+	 * @param string $measurement_path The configured measurement path.
+	 * @return bool True if the request targets the measurement path.
+	 *
+	 * @since 1.66.1
+	 */
+	public static function is_measurement_path_request( $request_uri, $measurement_path ) {
+
+		if ( ! $measurement_path || strpos( $request_uri, $measurement_path ) !== 0 ) {
+			return false;
+		}
+
+		return strlen( $request_uri ) === strlen( $measurement_path )
+			|| '/' === $request_uri[ strlen( $measurement_path ) ]
+			|| '?' === $request_uri[ strlen( $measurement_path ) ];
+	}
+
+	/**
 	 * Handle secondary Google Tag requests
 	 *
 	 * These are requests made by gtag.js itself after the initial script load.
@@ -335,7 +354,7 @@ class GTG_Proxy {
 				'params'     => array_keys( $_get ),
 				'gtm_param'  => isset( $_get['gtm'] ) ? $_get['gtm'] : '',
 			],
-			'info'
+			'debug'
 		);
 
 		// Build the path that Google expects
@@ -381,7 +400,7 @@ class GTG_Proxy {
 				'measurement_path' => $measurement_path,
 				'method'           => isset( $_server['REQUEST_METHOD'] ) ? $_server['REQUEST_METHOD'] : 'unknown',
 			],
-			'info'
+			'debug'
 		);
 
 		if (!$measurement_path || strpos($request_uri, $measurement_path) !== 0) {
@@ -406,6 +425,15 @@ class GTG_Proxy {
 		// Get query parameters
 		$_get = Helpers::get_input_vars(INPUT_GET);
 
+		// Handle Google Tag Gateway service worker requests
+		// Google's tag registers a service worker at
+		// <measurement_path>/_/service_worker/<version>/sw.js?path=<measurement_path>
+		// These requests carry no tag ID, so they need dedicated handling.
+		if ( 0 === strpos( $path, '_/service_worker/' ) ) {
+			self::handle_service_worker_request( $path, $_get );
+			// handle_service_worker_request uses die(), so we never reach here
+		}
+
 		// Check if we have the 's' parameter (standard proxy format)
 		// Format: /measurement-path/?id=TAG&s=/gtag/js
 		if (!empty($_get['s'])) {
@@ -422,6 +450,66 @@ class GTG_Proxy {
 		// No path specified - error
 		status_header(400);
 		die('No path specified');
+	}
+
+	/**
+	 * Handle Google Tag Gateway service worker requests
+	 *
+	 * Google's tag registers a service worker at
+	 * <measurement_path>/_/service_worker/<version>/sw.js?path=<measurement_path>.
+	 * The request carries no tag ID, so the site's configured Google tag is used
+	 * to build the FPS URL. Google rolls this endpoint out in stages, so an
+	 * upstream 404 is a normal response here; it is passed through as a cheap
+	 * early termination instead of a full WordPress 404 page load.
+	 *
+	 * @param string $path The path after the measurement path.
+	 * @param array  $_get The GET parameters.
+	 * @return void
+	 *
+	 * @since 1.66.1
+	 */
+	private static function handle_service_worker_request( $path, $_get ) {
+
+		$tag_id = isset( $_get['id'] ) && '' !== $_get['id']
+			? sanitize_text_field( $_get['id'] )
+			: Google_Helpers::get_google_tag_id_information()['active'];
+
+		if ( empty( $tag_id ) ) {
+			self::log_proxy_event( 'Service worker request without a resolvable tag ID', [ 'path' => $path ], 'warning' );
+			status_header( 404 );
+			die();
+		}
+
+		// Per-request detail stays at debug, like every other proxy request log
+		// line; this fires once per visitor and would otherwise reintroduce the
+		// log growth that 1.66.1 removed.
+		self::log_proxy_event(
+			'Handling service worker request',
+			[
+				'path'   => $path,
+				'tag_id' => $tag_id,
+			],
+			'debug'
+		);
+
+		// Forward all query parameters (e.g. path=<measurement_path>) to FPS
+		$params = $_get;
+		unset( $params['id'], $params['geo'], $params['mpath'] );
+
+		$destination_path = '/' . $path;
+		if ( ! empty( $params ) ) {
+			$destination_path .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
+		}
+
+		$geo = isset( $_get['geo'] ) ? sanitize_text_field( $_get['geo'] ) : '';
+
+		$_server = Helpers::get_input_vars( INPUT_SERVER );
+		$method  = isset( $_server['REQUEST_METHOD'] ) ? $_server['REQUEST_METHOD'] : 'GET';
+
+		$response = self::process_and_return_proxy_response( $tag_id, $destination_path, $geo, $method, '' );
+
+		// Output response and terminate
+		self::output_proxy_response( $response, true );
 	}
 
 	/**
@@ -472,7 +560,7 @@ class GTG_Proxy {
 				'mpath'  => $mpath,
 				'method' => $request->get_method(),
 			],
-			'info'
+			'debug'
 		);
 
 		// If no ID or path provided, check if it's a direct path request
@@ -511,7 +599,7 @@ class GTG_Proxy {
 				'geo'    => $geo,
 				'mpath'  => $mpath,
 			],
-			'info'
+			'debug'
 		);
 
 		// Build destination path following reference implementation logic
@@ -554,7 +642,7 @@ class GTG_Proxy {
 				'body_size' => strlen( $body ),
 				'client_ip' => self::get_client_ip(),
 			],
-			'info'
+			'debug'
 		);
 
 		// Check rate limiting (disabled by default, can be enabled via filter)
@@ -651,7 +739,7 @@ class GTG_Proxy {
 				'body_size'    => isset( $response['body'] ) ? strlen( $response['body'] ) : 0,
 				'content_type' => isset( $response['headers']['content-type'] ) ? $response['headers']['content-type'] : 'unknown',
 			],
-			'info'
+			'debug'
 		);
 
 		// Validate response body size (5MB limit - gtag.js is typically 100-200KB)
@@ -674,7 +762,7 @@ class GTG_Proxy {
 				'tag_id'      => $tag_id,
 				'status_code' => $status_code,
 			],
-			'info'
+			'debug'
 		);
 
 		return new \WP_REST_Response( $response, $status_code );
@@ -1219,6 +1307,14 @@ class GTG_Proxy {
 	 * Log proxy events for debugging.
 	 *
 	 * Uses the PMW Logger which respects logging settings.
+	 *
+	 * Per-request events belong at `debug`, never at `info`. This proxy handles
+	 * every Google tracking request a visitor's browser makes, so one info line
+	 * per request buries everything a human turned the logger on to find: on a
+	 * support ticket that came down to a single purchase dispatch line, one
+	 * day's log was 3.7 MB and 9,662 of its 9,666 lines came from here.
+	 * Reserve `info` for events somebody would go looking for. Warnings and
+	 * errors are unaffected.
 	 *
 	 * @param string $message The message to log.
 	 * @param array  $context Additional context data.

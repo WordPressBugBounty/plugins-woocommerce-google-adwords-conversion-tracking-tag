@@ -1153,11 +1153,6 @@ class Validations {
 				'disable_tracking_for' => [],
 			],
 			'google'     => [
-				'ads'       => [
-					'data_manager' => [
-						'credentials' => Options::get_google_ads_dm_credentials(),
-					],
-				],
 				'analytics' => [
 					'ga4' => [
 						'data_api' => [
@@ -1267,13 +1262,10 @@ class Validations {
 
 			// Google
 			'google.ads.conversion_adjustments.conversion_name',
-			'google.ads.data_manager.auth_method',
 			'google.ads.data_manager.conversion_action_id',
-			'google.ads.data_manager.is_active',
+			'google.ads.data_manager.conversion_action_name',
 			'google.ads.data_manager.login_account_id',
-			'google.ads.data_manager.mode',
 			'google.ads.data_manager.operating_account_id',
-			'google.ads.data_manager.validate_only',
 			'google.ads.enhanced_conversions',
 			'google.ads.google_business_vertical',
 			'google.ads.phone_conversion_label',
@@ -1429,8 +1421,7 @@ class Validations {
 
 	/**
 	 * Validates the shape of a Google Cloud service account credentials JSON
-	 * (as pasted by the merchant). Shared by the GA4 Data API and the Google Ads
-	 * Data Manager API credential imports.
+	 * (as pasted by the merchant). Used by the GA4 Data API credential import.
 	 *
 	 * @param array $credentials The decoded credentials JSON.
 	 *
@@ -1543,14 +1534,6 @@ class Validations {
 		$re = '/^\d{4,16}$/m';
 
 		return self::validate_with_regex($re, $string);
-	}
-
-	public static function is_gads_dm_mode( $string ) {
-		return in_array($string, [ 'multi_source', 'separate_action' ], true);
-	}
-
-	public static function is_gads_dm_auth_method( $string ) {
-		return in_array($string, [ 'service_account', 'broker' ], true);
 	}
 
 	public static function is_hotjar_site_id( $string ) {
@@ -2201,8 +2184,6 @@ class Validations {
 			'google.ads.data_manager.operating_account_id'      => [ 'is_gads_customer_id', __('Invalid Google Ads customer ID. It should contain 8 to 12 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'google.ads.data_manager.login_account_id'          => [ 'is_gads_customer_id', __('Invalid Google Ads customer ID. It should contain 8 to 12 digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'google.ads.data_manager.conversion_action_id'      => [ 'is_gads_conversion_action_id', __('Invalid conversion action ID. It should contain only digits.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
-			'google.ads.data_manager.mode'                      => [ 'is_gads_dm_mode', __('Invalid upload mode.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
-			'google.ads.data_manager.auth_method'               => [ 'is_gads_dm_auth_method', __('Invalid authentication method.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
 			// Google Analytics 4
 			'google.analytics.ga4.measurement_id'               => [ 'is_google_analytics_4_measurement_id', __('Invalid Google Analytics 4 measurement ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
