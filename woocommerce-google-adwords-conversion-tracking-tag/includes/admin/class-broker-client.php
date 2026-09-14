@@ -284,6 +284,46 @@ class Broker_Client {
 	}
 
 	/**
+	 * Whether the site's Google account is currently CONNECTED on the broker,
+	 * as of the last broker response this site saw. Enrollment survives a
+	 * disconnect by design, so features that need a working Google grant
+	 * (the Data Manager upload, refund adjustments) must check this, never
+	 * is_enrolled(). Sites enrolled before this flag existed fall back to
+	 * is_enrolled() until the next status response records the real state.
+	 *
+	 * @return bool
+	 */
+	public static function is_google_connected() {
+
+		$state = self::get_state();
+
+		if (!array_key_exists('google_connected', $state)) {
+			return self::is_enrolled();
+		}
+
+		return !empty($state['google_connected']);
+	}
+
+	/** Record the connection state carried by a broker response. */
+	private static function set_google_connected( $connected ) {
+
+		$state = self::get_state();
+
+		if (empty($state['site_token'])) {
+			return;
+		}
+
+		$connected = (bool) $connected;
+
+		if (array_key_exists('google_connected', $state) && $state['google_connected'] === $connected) {
+			return;
+		}
+
+		$state['google_connected'] = $connected;
+		self::save_state($state);
+	}
+
+	/**
 	 * The site base URL the broker enrolls: the frontend home URL, https,
 	 * no trailing slash. Must match where /wp-json/pmw/v1/broker/challenge
 	 * is publicly reachable.
@@ -353,6 +393,8 @@ class Broker_Client {
 		$google = self::broker_request('GET', '/v1/status');
 
 		if ($google['ok']) {
+			self::set_google_connected(!empty($google['body']['connected']));
+
 			if (!empty($google['body']['needsReconnect'])) {
 				self::flag_reconnect_incident('google');
 			} else {
@@ -379,6 +421,12 @@ class Broker_Client {
 	 * @param string $provider 'google' or 'meta'.
 	 */
 	private static function flag_reconnect_incident( $provider ) {
+
+		// A verified dead Google grant also deactivates everything that
+		// depends on the connection, so uploads stop retrying against it.
+		if ('google' === $provider) {
+			self::set_google_connected(false);
+		}
 
 		$health = self::get_health();
 
@@ -558,6 +606,8 @@ class Broker_Client {
 		$body             = $result['body'];
 		$body['enrolled'] = true;
 
+		self::set_google_connected(!empty($body['connected']));
+
 		// A healthy status clears an open incident immediately, so the admin
 		// notice disappears right after a reconnect (the settings page calls
 		// this endpoint on load).
@@ -632,6 +682,14 @@ class Broker_Client {
 		if (!$result['ok']) {
 			return self::error_response($result);
 		}
+
+		// The Google grant is gone: everything that depends on it deactivates
+		// (Data Manager upload, refund adjustments), the stale last-upload
+		// record disappears from the UI, and a pending reconnect incident is
+		// moot because the disconnect was deliberate.
+		self::set_google_connected(false);
+		self::clear_reconnect_incident('google');
+		delete_option('pmw_google_dma_last_upload');
 
 		return new \WP_REST_Response($result['body'], 200);
 	}

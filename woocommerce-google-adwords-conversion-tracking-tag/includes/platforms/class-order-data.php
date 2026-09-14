@@ -189,4 +189,33 @@ abstract class Order_Data {
 	 * @return mixed
 	 */
 	abstract public function get_native_order();
+
+	/**
+	 * Resolve the platform-native order for anything outside this codebase.
+	 *
+	 * Every third-party filter that carries an order is documented with the
+	 * platform's own order object (`WC_Order` on WooCommerce), and shop
+	 * snippets type-hint it, run `instanceof` on it, or call methods that
+	 * live on the native order only. An Order_Data reaching such a callback
+	 * throws a TypeError on a type hint and, worse, no-ops silently on an
+	 * `instanceof` early return. So the wrapper stops here: it is the
+	 * internal payload surface, never a filter argument.
+	 *
+	 * A native order (or anything else) passes through unchanged, which
+	 * makes this safe to call at every filter site regardless of the path
+	 * the order took to get there.
+	 *
+	 * @since 1.67.1
+	 *
+	 * @param mixed $order An Order_Data, a native order, or neither.
+	 * @return mixed The native order when $order is an Order_Data, else $order.
+	 */
+	public static function unwrap( $order ) {
+
+		if ($order instanceof self) {
+			return $order->get_native_order();
+		}
+
+		return $order;
+	}
 }

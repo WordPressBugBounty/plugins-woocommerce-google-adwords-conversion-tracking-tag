@@ -26,7 +26,7 @@ class HTTP {
 			'timeout'     => 5,
 			'redirection' => 5,
 			'httpversion' => '1.0',
-			'blocking'    => Options::is_http_request_logging_enabled(),
+			'blocking'    => Helpers::should_all_s2s_requests_be_sent_blocking(),
 			'headers'     => [],
 			'cookies'     => [],
 			'sslverify'   => !Geolocation::is_localhost(),

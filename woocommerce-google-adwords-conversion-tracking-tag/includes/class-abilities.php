@@ -315,7 +315,7 @@ class Abilities {
 	private static function register_get_settings_schema() {
 		\wp_register_ability('pmw/get-settings-schema', [
 			'label'               => __('Get Settings Schema', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'description'         => __('Retrieves the machine-readable catalog of all configurable Pixel Manager for WooCommerce settings, grouped by tracking destination (pixel) and plugin area. Each setting includes its dot-notation path, type, description (including where to find the value), default, whether it is required to activate the pixel, whether it is an advanced feature and what its benefit is, whether it requires the Pro version, and whether it is a secret. Use this before reading or updating settings.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Retrieves the machine-readable catalog of all configurable Pixel Manager for WooCommerce settings, grouped by tracking destination (pixel) and plugin area. Each setting includes its dot-notation path, type, description (including where to find the value), default, whether it is required to activate the pixel, whether it is an advanced feature and what its benefit is, whether it requires the Pro version, and whether it is a secret. Settings that belong to the Pro version are always listed, but on a site without an active Pro license they are marked writable false and pmw/update-settings refuses them. Use this before reading or updating settings.', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'category'            => 'tracking',
 			'output_schema'       => [
 				'type'       => 'object',
@@ -343,11 +343,12 @@ class Abilities {
 											'required'    => [ 'type' => 'boolean', 'description' => 'Required for the pixel to become active' ],
 											'advanced'    => [ 'type' => 'boolean', 'description' => 'Optional feature on top of the base setup' ],
 											'benefit'     => [ 'type' => 'string', 'description' => 'Why a shop would enable the advanced feature' ],
-											'pro'         => [ 'type' => 'boolean', 'description' => 'Only takes effect with the Pro version' ],
+											'pro'         => [ 'type' => 'boolean', 'description' => 'Belongs to the Pro version' ],
+											'writable'    => [ 'type' => 'boolean', 'description' => 'Whether this license can write the setting. False means pmw/update-settings will refuse it.' ],
 											'secret'      => [ 'type' => 'boolean', 'description' => 'Value is never returned in reads' ],
 											'enum'        => [ 'type' => 'array', 'description' => 'Allowed values, when the setting is an enumeration' ],
 											'format_hint' => [ 'type' => 'string', 'description' => 'Hint about the expected value format' ],
-											'default'     => [ 'description' => 'Default value' ],
+											'default'     => [ 'type' => [ 'string', 'boolean', 'integer', 'number', 'array', 'null' ], 'description' => 'Default value' ],
 										],
 									],
 								],
@@ -402,7 +403,7 @@ class Abilities {
 								'label'  => [ 'type' => 'string' ],
 								'secret' => [ 'type' => 'boolean', 'description' => 'Whether the value is redacted' ],
 								'is_set' => [ 'type' => 'boolean', 'description' => 'Whether the setting has a non-empty value' ],
-								'value'  => [ 'description' => 'Current value, null for secrets' ],
+								'value'  => [ 'type' => [ 'string', 'boolean', 'integer', 'number', 'array', 'null' ], 'description' => 'Current value, null for secrets' ],
 							],
 						],
 					],
@@ -519,7 +520,7 @@ class Abilities {
 	private static function register_update_settings() {
 		\wp_register_ability('pmw/update-settings', [
 			'label'               => __('Update Settings', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'description'         => __('Updates one or more Pixel Manager for WooCommerce settings by dot-notation path. Only the submitted settings are changed, all other settings are preserved. Each value is validated with the same rules as the admin UI (including format checks for IDs and tokens), and every save creates an automatic settings backup. Use pmw/get-settings-schema to discover the available paths, types and value formats.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Updates one or more Pixel Manager for WooCommerce settings by dot-notation path. Only the submitted settings are changed, all other settings are preserved. Each value is validated with the same rules as the admin UI (including format checks for IDs and tokens), and every save creates an automatic settings backup. A setting that belongs to the Pro version is refused with status forbidden on a site without an active Pro license, and nothing is written for it. Use pmw/get-settings-schema to discover the available paths, types and value formats.', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'category'            => 'tracking',
 			'input_schema'        => [
 				'type'       => 'object',
@@ -544,10 +545,9 @@ class Abilities {
 							'type'       => 'object',
 							'properties' => [
 								'path'    => [ 'type' => 'string' ],
-								'status'  => [ 'type' => 'string', 'description' => 'updated, unchanged, invalid or unknown' ],
+								'status'  => [ 'type' => 'string', 'description' => 'updated, unchanged, invalid, unknown or forbidden (Pro setting on a site without an active Pro license)' ],
 								'message' => [ 'type' => 'string', 'description' => 'Validation error message, when invalid' ],
-								'value'   => [ 'description' => 'The saved (normalized) value, null for secrets' ],
-								'note'    => [ 'type' => 'string', 'description' => 'Additional information, e.g. that the setting requires a Pro license to take effect' ],
+								'value'   => [ 'type' => [ 'string', 'boolean', 'integer', 'number', 'array', 'null' ], 'description' => 'The saved (normalized) value, null for secrets' ],
 							],
 						],
 					],

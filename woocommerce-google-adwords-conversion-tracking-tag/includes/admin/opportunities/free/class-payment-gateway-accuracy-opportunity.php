@@ -2,10 +2,12 @@
 
 namespace SweetCode\Pixel_Manager\Admin\Opportunities\Free;
 
+use SweetCode\Pixel_Manager\Admin\Commercial_Links;
 use SweetCode\Pixel_Manager\Admin\Debug_Info;
 use SweetCode\Pixel_Manager\Admin\Documentation;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Admin\Opportunities\Opportunity;
+use SweetCode\Pixel_Manager\Helpers;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -141,6 +143,42 @@ class Payment_Gateway_Accuracy extends Opportunity {
 			'</a>'
 		);
 
+		$custom_buttons = [
+			[
+				'label'           => esc_html__('Diagnostics', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				'class'           => 'advanced-section-link',
+				'url'             => '#',
+				'data_attributes' => [
+					'as-section' => 'diagnostics',
+				],
+			],
+		];
+
+		// This card is the moment a free shop sees, in its own numbers, what
+		// browser-only tracking loses. Pro is the fix, so say so here, with the
+		// trial as the next step. Pro shops already have both features.
+		if (!Helpers::is_pmw_pro_version_active()) {
+
+			$descriptions[] = sprintf(
+				/* translators: 1: opening anchor tag, 2: closing anchor tag */
+				esc_html__(
+					'Pixel Manager Pro recovers these orders. Server-side tracking reports the purchase from your server when the confirmation page never loads, and %1$sAutomatic Conversion Recovery%2$s re-sends every conversion that was still missed. You can try both free for 14 days.',
+					'woocommerce-google-adwords-conversion-tracking-tag'
+				),
+				'<a href="' . esc_url(Documentation::get_link('acr')) . '" target="_blank">',
+				'</a>'
+			);
+
+			$cta = Commercial_Links::premium_cta();
+
+			$custom_buttons[] = [
+				'label'  => $cta['label'],
+				'class'  => 'pmw-opportunity-pro-cta',
+				'url'    => $cta['url'],
+				'target' => '_blank',
+			];
+		}
+
 		return [
 			'id'             => 'payment-gateway-accuracy',
 			'title'          => esc_html__(
@@ -149,16 +187,7 @@ class Payment_Gateway_Accuracy extends Opportunity {
 			),
 			'description'    => $descriptions,
 			'impact'         => 'high',
-			'custom_buttons' => [
-				[
-					'label'           => esc_html__('Diagnostics', 'woocommerce-google-adwords-conversion-tracking-tag'),
-					'class'           => 'advanced-section-link',
-					'url'             => '#',
-					'data_attributes' => [
-						'as-section' => 'diagnostics',
-					],
-				],
-			],
+			'custom_buttons' => $custom_buttons,
 			'learn_more_link'  => Documentation::get_link('payment_gateway_tracking_accuracy'),
 			'since'            => 1733443200, // December 6, 2024 timestamp
 			'repeat_interval'  => MONTH_IN_SECONDS, // Re-show after 1 month if still applicable

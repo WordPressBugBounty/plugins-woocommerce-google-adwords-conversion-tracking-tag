@@ -840,21 +840,12 @@ class Abilities_Settings {
 				'category' => 'attribution',
 				'is_pixel' => true,
 				'settings' => [
-					'enabled'          => [
+					'enabled' => [
 						'path'        => 'pixels.triple_whale.enabled',
 						'type'        => 'boolean',
 						'label'       => 'Enable Triple Whale',
-						'description' => 'Enables the Triple Whale pixel. The shop is identified by its domain, which must match the Shop URL configured in Triple Whale under Settings > Store. No pixel ID is required.',
+						'description' => 'Adds Triple Whale\'s browser pixel (the Triple Pixel) and checkout events to the shop. The shop is identified by its domain, which must match the Shop URL in Triple Whale under Settings > Store; no pixel ID is required. A WooCommerce store is connected to Triple Whale over the WooCommerce REST API during Triple Whale onboarding; that connection delivers the orders, revenue and refunds and Triple Whale attributes the orders it imports itself. The Pixel Manager does not replace it. Beta, built from Triple Whale\'s public documentation.',
 						'required'    => true,
-					],
-					'orders_api_token' => [
-						'path'        => 'pixels.triple_whale.orders_api.token',
-						'type'        => 'string',
-						'label'       => 'Orders API key',
-						'description' => 'Triple Whale API key with the "Orders: Write" scope. Created in Triple Whale under Data > APIs. Enables server-side order sync to the Triple Whale Orders API.',
-						'advanced'    => true,
-						'benefit'     => 'Sends order records (including refunds) directly to Triple Whale, so attribution works without connecting the store\'s REST API to Triple Whale.',
-						'secret'      => true,
 					],
 				],
 			],
@@ -933,6 +924,45 @@ class Abilities_Settings {
 					],
 				],
 			],
+			'klaviyo'       => [
+				'label'    => 'Klaviyo',
+				'category' => 'marketing',
+				'is_pixel' => true,
+				'settings' => [
+					'public_api_key'     => [
+						'path'        => 'pixels.klaviyo.public_api_key',
+						'type'        => 'string',
+						'label'       => 'Public API key',
+						'description' => 'Klaviyo public API key, also called the Site ID: 6 letters and digits. Found in Klaviyo under Settings > Account > API keys. Enabling it makes the Pixel Manager take over the onsite tracking of the official Klaviyo plugin, while the plugin keeps handling orders, catalog, profiles, forms and list consent.',
+						'required'    => true,
+					],
+					'coexistence'        => [
+						'path'        => 'pixels.klaviyo.coexistence',
+						'type'        => 'string',
+						'label'       => 'Klaviyo plugin coexistence',
+						'description' => 'How the Pixel Manager shares Klaviyo tracking with the official Klaviyo plugin. auto (default) takes over the plugin\'s browser tracking when the plugin is active and its version is tested, fills only the gaps when the version is untested, and runs standalone when the plugin is absent. takeover forces the takeover, gap_fill only sends the events the plugin never sends, off sends nothing to Klaviyo.',
+						'enum'        => [ 'auto', 'takeover', 'gap_fill', 'off' ],
+						'advanced'    => true,
+					],
+					'identify_customers' => [
+						'path'        => 'pixels.klaviyo.identify_customers',
+						'type'        => 'boolean',
+						'label'       => 'Customer identification',
+						'description' => 'Identifies known customers to Klaviyo with their email address, phone number and name, so onsite events attach to the right Klaviyo profile.',
+						'advanced'    => true,
+						'benefit'     => 'Attaches browsing, cart and checkout events to the customer\'s Klaviyo profile, which is what abandoned cart and browse abandonment flows trigger on.',
+					],
+					'events_api.token'   => [
+						'path'        => 'pixels.klaviyo.events_api.token',
+						'type'        => 'string',
+						'label'       => 'Events API private key',
+						'description' => 'Klaviyo private API key starting with pk_, created in Klaviyo under Settings > Account > API keys with the Events write scope. Used for server-side purchase and refund events when the Pixel Manager runs without the official Klaviyo plugin.',
+						'secret'      => true,
+						'advanced'    => true,
+						'benefit'     => 'Reports purchases and refunds to Klaviyo server-side, which survives ad blockers and browser restrictions. Only used when the official Klaviyo plugin is absent, since Klaviyo otherwise produces Placed Order itself.',
+					],
+				],
+			],
 			'consent'       => [
 				'label'    => 'Consent management',
 				'category' => 'plugin',
@@ -988,6 +1018,24 @@ class Abilities_Settings {
 						'label'       => 'Subscription value multiplier',
 						'description' => 'Multiplies the reported value of subscription sign-ups, useful to reflect expected lifetime value. Must be at least 1.0.',
 					],
+					'order_list_info'               => [
+						'path'        => 'shop.order_list_info',
+						'type'        => 'boolean',
+						'label'       => 'Tracking info in the order list',
+						'description' => 'Adds a Pixel Manager column to the WooCommerce order list showing which orders were tracked, for spot checks without opening each order.',
+					],
+					'ltv_order_calculation'         => [
+						'path'        => 'shop.ltv.order_calculation.is_active',
+						'type'        => 'boolean',
+						'label'       => 'Lifetime value calculation on orders',
+						'description' => 'Calculates each customer\'s cumulative lifetime value and adds it to the order data, the basis for value-based bidding and high-value-customer audiences. Refunds and cancellations update the affected customer automatically.',
+					],
+					'order_extra_details'           => [
+						'path'        => 'shop.order_extra_details.is_active',
+						'type'        => 'boolean',
+						'label'       => 'Extra order data output',
+						'description' => 'Displays the data that was sent to the marketing pixels on the order details page, and through the order URL in the browser console, to help debug tracking. It does not send any extra data to the pixels.',
+					],
 				],
 			],
 			'general'       => [
@@ -1018,6 +1066,63 @@ class Abilities_Settings {
 						'type'        => 'string',
 						'label'       => 'Google tag gateway measurement path',
 						'description' => 'First-party measurement path for the Google tag gateway, e.g. "/metrics". Leave empty to disable the gateway.',
+					],
+					'load_deprecated_functions'          => [
+						'path'        => 'general.modules.load_deprecated_functions',
+						'type'        => 'boolean',
+						'label'       => 'Load deprecated functions',
+						'description' => 'Keeps the older Pixel Manager function and event names available for backward compatibility. Switching it off ships less JavaScript, so only keep it on when custom front-end code relies on the old names.',
+					],
+					'delete_plugin_data_on_uninstall'    => [
+						'path'        => 'general.delete_plugin_data_on_uninstall',
+						'type'        => 'boolean',
+						'label'       => 'Delete plugin data on uninstall',
+						'description' => 'When enabled, deleting the plugin also removes all of its settings, backups and stored data from the database. It only takes effect on delete, not on deactivate.',
+					],
+				],
+			],
+			'server_side'   => [
+				'label'    => 'Server-side tracking',
+				'category' => 'plugin',
+				'is_pixel' => false,
+				'settings' => [
+					'pageview_events_s2s' => [
+						'path'        => 'general.pageview_events_s2s',
+						'type'        => 'boolean',
+						'label'       => 'Send PageView events server-to-server',
+						'description' => 'Sends PageView events to Meta and Snapchat from the server, which makes them more reliable when browser tracking is blocked. It runs on every page load, so it adds server load.',
+					],
+					'always_send_s2s'     => [
+						'path'        => 'general.always_send_s2s',
+						'type'        => 'boolean',
+						'label'       => 'Always send server-side events',
+						'description' => 'Sends server-side events even when the browser pixels never loaded, for example because a consent banner or an ad blocker stopped them. Browser tracking is unaffected.',
+					],
+				],
+			],
+			'logging'       => [
+				'label'    => 'Logging',
+				'category' => 'plugin',
+				'is_pixel' => false,
+				'settings' => [
+					'logger_active'     => [
+						'path'        => 'general.logger.is_active',
+						'type'        => 'boolean',
+						'label'       => 'Enable logger',
+						'description' => 'Records the plugin\'s activity to a log file that can be downloaded from the Support tab. Turn it on while diagnosing a tracking issue or before contacting support.',
+					],
+					'logger_level'      => [
+						'path'        => 'general.logger.level',
+						'type'        => 'string',
+						'label'       => 'Log level',
+						'description' => 'How much detail to record. Use error or warning for normal operation, and info or debug while diagnosing a problem.',
+						'enum'        => [ 'error', 'warning', 'info', 'debug' ],
+					],
+					'log_http_requests' => [
+						'path'        => 'general.logger.log_http_requests',
+						'type'        => 'boolean',
+						'label'       => 'Log HTTP requests',
+						'description' => 'Also records the outgoing server-side requests the plugin makes, which is how delivery to the ad platforms is diagnosed. It writes a lot, so the plugin switches it back off automatically 12 hours after it was enabled.',
 					],
 				],
 			],
@@ -1090,6 +1195,7 @@ class Abilities_Settings {
 		$premium_paths = array_flip(Validations::premium_only_option_paths());
 		$validators    = Validations::get_field_validators();
 		$defaults      = Options::get_default_options();
+		$is_pro        = Helpers::is_pmw_pro_version_active();
 		$groups        = [];
 
 		foreach (self::get_catalog() as $group_key => $group) {
@@ -1097,6 +1203,8 @@ class Abilities_Settings {
 			$settings = [];
 
 			foreach ($group['settings'] as $setting_key => $setting) {
+
+				$setting_pro = isset($premium_paths[$setting['path']]);
 
 				$entry = [
 					'key'         => $setting_key,
@@ -1107,7 +1215,11 @@ class Abilities_Settings {
 					'default'     => self::get_value_by_path($defaults, $setting['path']),
 					'required'    => !empty($setting['required']),
 					'advanced'    => !empty($setting['advanced']),
-					'pro'         => isset($premium_paths[$setting['path']]),
+					'pro'         => $setting_pro,
+					// Whether this licence can actually write the setting. A Pro
+					// setting on a free or lapsed install is listed, the same way
+					// the admin interface lists it locked, but writes are refused.
+					'writable'    => !$setting_pro || $is_pro,
 					'secret'      => !empty($setting['secret']),
 				];
 
@@ -1137,8 +1249,11 @@ class Abilities_Settings {
 
 		return [
 			'groups'        => $groups,
-			'tier'          => Helpers::is_pmw_pro_version_active() ? 'pro' : 'free',
+			'tier'          => $is_pro ? 'pro' : 'free',
 			'write_enabled' => self::is_write_enabled(),
+			'tier_note'     => $is_pro
+				? 'This site has an active Pro license, so every setting listed here can be written.'
+				: 'This site runs the free version, or its Pro license is no longer active. Settings marked "pro": true are listed for reference but cannot be written; attempting to do so is refused.',
 		];
 	}
 
@@ -1576,7 +1691,22 @@ class Abilities_Settings {
 				continue;
 			}
 
-			$entry      = $index[$path];
+			$entry = $index[$path];
+
+			// A Pro setting on a free or lapsed install is refused rather than
+			// stored. Writing it would leave a configuration the plugin cannot
+			// act on, which is exactly the inconsistency an agent would then
+			// have to reason about. The REST API and the admin interface refuse
+			// it the same way.
+			if ($entry['pro'] && !$is_pro) {
+				$results[] = [
+					'path'    => $path,
+					'status'  => 'forbidden',
+					'message' => 'This setting requires an active Pro license and was not saved. Report this to the user instead of retrying.',
+				];
+				continue;
+			}
+
 			$validation = self::validate_value($entry, $value);
 
 			if (!$validation['valid']) {
@@ -1600,17 +1730,11 @@ class Abilities_Settings {
 				continue;
 			}
 
-			$result = [
+			$results[]      = [
 				'path'   => $path,
 				'status' => 'updated',
 				'value'  => !empty($entry['secret']) ? null : $new_value,
 			];
-
-			if ($entry['pro'] && !$is_pro) {
-				$result['note'] = 'Saved, but this setting only takes effect with an active Pro license.';
-			}
-
-			$results[]      = $result;
 			$updates[$path] = $new_value;
 		}
 

@@ -10,6 +10,7 @@ use SweetCode\Pixel_Manager\Admin\Validations;
 use SweetCode\Pixel_Manager\Data\GA4_Data_API;
 use SweetCode\Pixel_Manager\Pixels\ABTasty\AB_Tasty;
 use SweetCode\Pixel_Manager\Pixels\Core\Pixel_Registry;
+use SweetCode\Pixel_Manager\Platforms\Order_Data;
 use SweetCode\Pixel_Manager\Platforms\Platform_Manager;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook_CAPI;
@@ -26,8 +27,10 @@ use SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_CAPI;
 use SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Bing\Bing_CAPI;
-use SweetCode\Pixel_Manager\Pixels\TripleWhale\Triple_Whale_API;
+use SweetCode\Pixel_Manager\Pixels\TripleWhale\Triple_Whale;
 use SweetCode\Pixel_Manager\Pixels\Mixpanel\Mixpanel_API;
+use SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_API;
+use SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_Takeover;
 use SweetCode\Pixel_Manager\Pixels\VWO\VWO;
 use SweetCode\Pixel_Manager\First_Event_Confirmation;
 use SweetCode\Pixel_Manager\Geolocation;
@@ -146,12 +149,25 @@ class Pixel_Manager {
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Taboola_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\GroundTruth_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Criteo_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Klaviyo_Descriptor',
+            // Browser pixels whose server-side counterpart is a Pro adapter.
+            // The descriptor is free so the registry knows the pixel on every
+            // tier; the adapter registers separately on Pro builds only.
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Bing_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\OpenAI_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Pinterest_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Reddit_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Snapchat_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\TikTok_Descriptor',
             // Statistics pixels
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Hotjar_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Crazyegg_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Clarity_Descriptor',
             // Attribution pixels
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Hyros_Descriptor',
+            // Pro only: the file carries the __premium_only suffix, so on the free
+            // build class_exists() finds nothing and the pixel stays unknown there.
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Triple_Whale_Descriptor',
             // Optimization pixels
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\VWO_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Optimizely_Descriptor',
@@ -971,6 +987,9 @@ class Pixel_Manager {
                 if ( Options::is_openai_capi_active() ) {
                     OpenAI_CAPI::set_identifiers_on_session();
                 }
+                if ( Options::is_klaviyo_purchase_dispatch_active() ) {
+                    Klaviyo_API::set_identifiers_on_session();
+                }
                 if ( Helpers::is_experiment() && Options::is_google_ads_dm_active() ) {
                     Google_DMA::set_identifiers_on_session();
                 }
@@ -1045,17 +1064,23 @@ class Pixel_Manager {
         }
         // Orders created without a customer browser session (admin, subscription
         // renewals) and orders where the visitor denied all consent categories
-        // can never produce a tracked purchase and must not deflate the
-        // accuracy denominator.
+        // can never produce a browser-confirmed purchase and must not deflate
+        // the accuracy denominator. A consent-denied order may still have been
+        // sent server-side (always_send_s2s); it stays out of this report
+        // either way, because the report measures the browser.
         if ( !Shop::should_count_order_for_tracking_accuracy( $order ) ) {
             $snapshot = $order->get_meta( '_pmw_consent_snapshot', true );
             if ( is_array( $snapshot ) && empty( $snapshot['marketing'] ) && empty( $snapshot['statistics'] ) ) {
                 $order_changed = false;
-                // Make the consent exclusion visible on the order for support
+                // Make the consent exclusion visible on the order for support, and
+                // record whether the conversion still went out server-side. Without
+                // that distinction an excluded order reads as a lost one, which is
+                // wrong on every shop running always_send_s2s. @since 1.67.1
                 if ( !$order->meta_exists( '_pmw_accuracy_exclusion_reason' ) ) {
-                    $order->update_meta_data( '_pmw_accuracy_exclusion_reason', 'consent_denied' );
+                    $sent_server_side = Options::is_always_send_s2s_active() && Options::always_send_s2s_has_destination();
+                    $order->update_meta_data( '_pmw_accuracy_exclusion_reason', ( $sent_server_side ? 'consent_denied_sent_server_side' : 'consent_denied' ) );
                     $order_changed = true;
-                    Logger::info( 'Tracking accuracy: order ' . $order->get_id() . ' excluded - consent denied' );
+                    Logger::info( 'Tracking accuracy: order ' . $order->get_id() . ' excluded - consent denied' . (( $sent_server_side ? ' (server-side events were still sent, always_send_s2s is active)' : '' )) );
                 }
                 // Count the exclusion so the payment gateway accuracy report can
                 // show how many orders were untrackable due to denied consent.
@@ -1441,6 +1466,28 @@ class Pixel_Manager {
         if ( Options::is_hotjar_enabled() ) {
             $data['hotjar'] = $this->get_hotjar_pixel_data();
         }
+        // Browser pixels with a Pro server-side counterpart. The browser tag is
+        // free; the Conversions API / Events API fields behind each of them are
+        // Pro-only settings, so the payload builders report those as inactive
+        // on a free install even when a downgraded shop still has a token saved.
+        if ( Options::is_bing_active() ) {
+            $data['bing'] = self::get_bing_pixel_data();
+        }
+        if ( Options::is_openai_active() ) {
+            $data['openai'] = $this->get_openai_pixel_data();
+        }
+        if ( Options::is_pinterest_active() ) {
+            $data['pinterest'] = $this->get_pinterest_pixel_data();
+        }
+        if ( Options::is_reddit_active() ) {
+            $data['reddit'] = $this->get_reddit_pixel_data();
+        }
+        if ( Options::is_snapchat_active() ) {
+            $data['snapchat'] = $this->get_snapchat_pixel_data();
+        }
+        if ( Options::is_tiktok_active() ) {
+            $data['tiktok'] = $this->get_tiktok_pixel_data();
+        }
         return $data;
     }
 
@@ -1565,8 +1612,8 @@ class Pixel_Manager {
     private static function get_bing_pixel_data() {
         return [
             'uet_tag_id'           => Options::get_bing_uet_tag_id(),
-            'enhanced_conversions' => Options::is_bing_enhanced_conversions_enabled(),
-            'capi'                 => Options::is_bing_capi_active(),
+            'enhanced_conversions' => Options::is_bing_enhanced_conversions_enabled() && wpm_fs()->can_use_premium_code__premium_only(),
+            'capi'                 => Options::is_bing_capi_active() && wpm_fs()->can_use_premium_code__premium_only(),
             'dynamic_remarketing'  => [
                 'id_type' => Product::get_dyn_r_id_type( 'bing' ),
             ],
@@ -1679,9 +1726,16 @@ class Pixel_Manager {
         ];
     }
 
+    /**
+     * Triple Whale data layer configuration
+     *
+     * The platform (plat) is decided here, once, so the browser never guesses
+     * it: the Triple Pixel treats a missing platform as Shopify.
+     */
     private static function get_triple_whale_pixel_data() {
         return [
-            'shop' => Triple_Whale_API::get_shop(),
+            'shop' => Triple_Whale::get_shop(),
+            'plat' => Triple_Whale::get_platform(),
         ];
     }
 
@@ -1725,6 +1779,37 @@ class Pixel_Manager {
         ];
     }
 
+    /**
+     * Klaviyo data layer configuration
+     *
+     * The resolved coexistence mode decides which events the browser sends and
+     * whether klaviyo.js is loaded at all. The cart rebuild key is only built
+     * where Started Checkout can fire, since building it walks the cart.
+     *
+     * @since 1.68.0
+     *
+     * @return array
+     */
+    private static function get_klaviyo_pixel_data() {
+        $mode = Options::get_klaviyo_coexistence_mode();
+        $data = [
+            'public_api_key'     => Options::get_klaviyo_public_api_key(),
+            'mode'               => $mode,
+            'metric_service'     => 'woocommerce',
+            'identify_customers' => Options::is_klaviyo_customer_identification_enabled(),
+            'events_api'         => Options::is_klaviyo_purchase_dispatch_active(),
+            'takeover_handles'   => [],
+            'started_checkout'   => null,
+        ];
+        if ( 'takeover' === $mode && class_exists( 'SweetCode\\Pixel_Manager\\Pixels\\Klaviyo\\Klaviyo_Takeover' ) ) {
+            $data['takeover_handles'] = Klaviyo_Takeover::SCRIPT_HANDLES;
+            if ( Environment::is_woocommerce_active() && (is_cart() || is_checkout()) ) {
+                $data['started_checkout'] = Klaviyo_Takeover::get_started_checkout_event_data();
+            }
+        }
+        return $data;
+    }
+
     private static function get_outbrain_pixel_data() {
         return [
             'advertiser_id'       => Options::get_outbrain_advertiser_id(),
@@ -1757,9 +1842,9 @@ class Pixel_Manager {
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'pinterest' ),
             ],
-            'advanced_matching'   => Options::is_pinterest_advanced_matching_active(),
+            'advanced_matching'   => Options::is_pinterest_advanced_matching_active() && wpm_fs()->can_use_premium_code__premium_only(),
         ];
-        $enhanced_match = Options::is_pinterest_enhanced_match_enabled();
+        $enhanced_match = Options::is_pinterest_enhanced_match_enabled() && wpm_fs()->can_use_premium_code__premium_only();
         $enhanced_match = apply_filters_deprecated(
             'wooptpm_pinterest_enhanced_match',
             [$enhanced_match],
@@ -1779,7 +1864,7 @@ class Pixel_Manager {
     private function get_reddit_pixel_data() {
         return [
             'advertiser_id'       => Options::get_reddit_advertiser_id(),
-            'advanced_matching'   => Options::is_reddit_advanced_matching_enabled(),
+            'advanced_matching'   => Options::is_reddit_advanced_matching_enabled() && wpm_fs()->can_use_premium_code__premium_only(),
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'reddit' ),
             ],
@@ -1789,7 +1874,7 @@ class Pixel_Manager {
     private function get_openai_pixel_data() {
         return [
             'pixel_id'            => Options::get_openai_pixel_id(),
-            'advanced_matching'   => Options::is_openai_advanced_matching_enabled(),
+            'advanced_matching'   => Options::is_openai_advanced_matching_enabled() && wpm_fs()->can_use_premium_code__premium_only(),
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'openai' ),
             ],
@@ -1802,7 +1887,7 @@ class Pixel_Manager {
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'snapchat' ),
             ],
-            'advanced_matching'   => Options::is_snapchat_advanced_matching_enabled(),
+            'advanced_matching'   => Options::is_snapchat_advanced_matching_enabled() && wpm_fs()->can_use_premium_code__premium_only(),
         ];
     }
 
@@ -1839,8 +1924,8 @@ class Pixel_Manager {
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'tiktok' ),
             ],
-            'eapi'                => Options::is_tiktok_eapi_active(),
-            'advanced_matching'   => Options::is_tiktok_advanced_matching_enabled(),
+            'eapi'                => Options::is_tiktok_eapi_active() && wpm_fs()->can_use_premium_code__premium_only(),
+            'advanced_matching'   => Options::is_tiktok_advanced_matching_enabled() && wpm_fs()->can_use_premium_code__premium_only(),
         ];
     }
 
@@ -1936,6 +2021,12 @@ class Pixel_Manager {
             if ( !empty( $custom_parameters ) ) {
                 $data['order']['custom_parameters'] = $custom_parameters;
             }
+            // The WooCommerce Subscriptions this order created (parent orders only),
+            // so pixels can report a new subscription next to the purchase.
+            $subscriptions = Shop::get_subscription_ids_for_order( $order );
+            if ( !empty( $subscriptions ) ) {
+                $data['order']['subscriptions'] = $subscriptions;
+            }
             // Process customer lifetime value
             if ( Shop::can_ltv_be_processed_on_order( $order ) ) {
                 if ( !LTV::are_all_pmw_order_values_set( $order ) ) {
@@ -1989,7 +2080,7 @@ class Pixel_Manager {
          *
          * @since 1.58.5
          */
-        return (array) apply_filters( 'pmw_google_ads_order_custom_variables', [], $order );
+        return (array) apply_filters( 'pmw_google_ads_order_custom_variables', [], Order_Data::unwrap( $order ) );
     }
 
     private function get_order_products( $order ) {
@@ -2111,9 +2202,21 @@ class Pixel_Manager {
             // Container products (bundles/composites) don't expose their assembled
             // price via get_price(); use the configured cart line price instead.
             $container_price = Product::maybe_get_container_cart_item_unit_price( $value, $cart_items );
+            /**
+             * The cart item key map is also printed inline next to every cart item
+             * (see woocommerce_after_cart_item_name), and the front end merges this
+             * response over those inline entries. Both producers therefore have to
+             * emit product_id and variation_id, which is what
+             * pmw.getProductIdByCartItemKeyUrl reads. Without them a cart sync used
+             * to replace every inline entry with a shape the reader knew nothing
+             * about, and remove_from_cart stopped firing. The id / is_variation /
+             * parent_id keys stay for anything that already reads them. @since 1.67.1
+             */
             $data['cart_item_keys'][$cart_item] = [
                 'id'           => (string) $product->get_id(),
                 'is_variation' => false,
+                'product_id'   => (int) $product->get_id(),
+                'variation_id' => 0,
             ];
             $data['cart'][$product->get_id()] = [
                 'id'           => (string) $product->get_id(),
@@ -2147,6 +2250,8 @@ class Pixel_Manager {
                 $data['cart'][$product->get_id()]['variant'] = (string) implode( ' | ', $variant_text_array );
                 $data['cart_item_keys'][$cart_item]['parent_id'] = (string) $product->get_parent_id();
                 $data['cart_item_keys'][$cart_item]['is_variation'] = true;
+                $data['cart_item_keys'][$cart_item]['product_id'] = (int) $product->get_parent_id();
+                $data['cart_item_keys'][$cart_item]['variation_id'] = (int) $product->get_id();
             } else {
                 $data['cart'][$product->get_id()]['category'] = Product::get_product_category( $product->get_id() );
             }
@@ -2297,17 +2402,58 @@ class Pixel_Manager {
                 $this->move_pmw_script_to_footer()
             );
         }
-        wp_localize_script( 
-            'pmw',
-            //            'ajax_object',
-            'pmw',
-            [
-                'ajax_url'      => admin_url( 'admin-ajax.php' ),
-                'root'          => esc_url_raw( rest_url() ),
-                'nonce_wp_rest' => wp_create_nonce( 'wp_rest' ),
-                'nonce_ajax'    => wp_create_nonce( 'nonce-pmw-ajax' ),
-            ]
-         );
+        // The library's configuration. Merged into window.pmw instead of the
+        // `var pmw = {...}` that wp_localize_script prints, and carrying the same
+        // exclusion attributes as the data layer script (see the filter below).
+        //
+        // The var form replaces window.pmw wholesale. A consent tool in
+        // auto-blocking mode (Cookiebot) or a JavaScript optimizer can hold that
+        // line back and run it after the library script, or run it a second
+        // time, and every function the library had attached to window.pmw was
+        // gone from that moment on: the shop lost its add-to-cart, product click
+        // and checkout tracking for that visitor, silently (support #6960). A
+        // merge is harmless no matter when or how often it runs, and the
+        // attributes keep it from being held back in the first place.
+        //
+        // @since 1.67.1
+        wp_add_inline_script( 'pmw', 'window.pmw = Object.assign(window.pmw || {}, ' . wp_json_encode( [
+            'ajax_url'      => admin_url( 'admin-ajax.php' ),
+            'root'          => esc_url_raw( rest_url() ),
+            'nonce_wp_rest' => wp_create_nonce( 'wp_rest' ),
+            'nonce_ajax'    => wp_create_nonce( 'nonce-pmw-ajax' ),
+        ], JSON_UNESCAPED_SLASHES ) . ');', 'before' );
+        add_filter(
+            'wp_inline_script_attributes',
+            [$this, 'configuration_script_attributes'],
+            10,
+            2
+        );
+    }
+
+    /**
+     * Give the library's configuration script the same exclusion attributes
+     * as the data layer script.
+     *
+     * WordPress prints the inline script registered above with the id
+     * pmw-js-before. Without the attributes, Cookiebot's auto-blocking mode
+     * held it back together with jQuery while the library script itself, which
+     * shops mark as data-cookieconsent="ignore" on Cookiebot's advice, ran
+     * first; the held-back configuration then ran a second later.
+     *
+     * @since 1.67.1
+     *
+     * @param array  $attributes Key-value pairs of the script tag attributes.
+     * @param string $data       The inline script's JavaScript.
+     * @return array
+     */
+    public function configuration_script_attributes( $attributes, $data ) {
+        if ( !isset( $attributes['id'] ) || 'pmw-js-before' !== $attributes['id'] ) {
+            return $attributes;
+        }
+        foreach ( Helpers::get_opening_script_attributes() as $attribute => $values ) {
+            $attributes[$attribute] = implode( ' ', $values );
+        }
+        return $attributes;
     }
 
     public function front_end_styles_elementor_fix() {

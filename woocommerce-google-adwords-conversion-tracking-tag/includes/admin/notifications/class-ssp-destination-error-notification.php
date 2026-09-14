@@ -133,6 +133,7 @@ class SSP_Destination_Error_Notification extends Notification {
 			'bing'       => 'Microsoft Advertising',
 			'google_ga4' => 'Google Analytics 4',
 			'mixpanel'   => 'Mixpanel',
+			'klaviyo'    => 'Klaviyo',
 		];
 
 		return isset( $labels[ $type ] ) ? $labels[ $type ] : ucfirst( str_replace( '_', ' ', (string) $type ) );

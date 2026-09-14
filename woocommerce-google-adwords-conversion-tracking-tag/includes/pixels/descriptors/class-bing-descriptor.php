@@ -1,11 +1,13 @@
 <?php
 /**
- * Microsoft Ads Pixel Descriptor
+ * Microsoft Advertising (Bing) Pixel Descriptor
  *
- * Browser-only pixel descriptor for Microsoft Ads tracking.
+ * Browser pixel descriptor for the Microsoft Advertising UET tag. The UET tag
+ * is part of the free plugin. The Microsoft Advertising Conversions API lives
+ * in the premium-only adapter and API classes, which only exist on Pro builds.
  *
  * @package SweetCode\Pixel_Manager
- * @since 1.52.0
+ * @since 1.68.0
  */
 
 namespace SweetCode\Pixel_Manager\Pixels\Descriptors;
@@ -19,45 +21,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Bing_Descriptor
- *
- * Descriptor for Microsoft Ads pixel (browser-only tracking).
  */
 class Bing_Descriptor extends Abstract_Pixel_Descriptor {
 
-	/**
-	 * Get the pixel's unique identifier
-	 *
-	 * @return string
-	 */
 	public function get_name() {
 		return 'bing';
 	}
 
-	/**
-	 * Get the pixel's human-readable label
-	 *
-	 * @return string
-	 */
 	public function get_label() {
 		return 'Microsoft Ads';
 	}
 
-	/**
-	 * Get the pixel's category
-	 *
-	 * @return string
-	 */
 	public function get_category() {
 		return 'marketing';
 	}
 
+	public function is_active() {
+		return Options::is_bing_active();
+	}
+
 	/**
-	 * Check if the pixel is currently active
+	 * Server-side tracking exists only while the Conversions API is
+	 * configured, which needs the Pro-only token.
 	 *
 	 * @return bool
 	 */
-	public function is_active() {
-		return Options::is_bing_active();
+	public function has_server_tracking() {
+		return Options::is_bing_capi_active();
 	}
 }
 

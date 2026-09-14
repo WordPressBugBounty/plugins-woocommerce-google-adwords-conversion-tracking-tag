@@ -797,6 +797,47 @@ class Validations {
 			}
 		}
 
+		// Validate the Klaviyo public API key
+		if (isset($input['pixels']['klaviyo']['public_api_key'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['klaviyo']['public_api_key'] = Helpers::trim_string($input['pixels']['klaviyo']['public_api_key']);
+
+			if (!self::is_klaviyo_public_api_key($input['pixels']['klaviyo']['public_api_key'])) {
+				$input['pixels']['klaviyo']['public_api_key']
+					= Options::get_klaviyo_public_api_key()
+					? Options::get_klaviyo_public_api_key()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-klaviyo-public-api-key', esc_html__('You have entered an invalid Klaviyo public API key. It must be the 6 character Site ID, not a private key starting with pk_.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Klaviyo Events API private key
+		if (isset($input['pixels']['klaviyo']['events_api']['token'])) {
+
+			$input['pixels']['klaviyo']['events_api']['token'] = Helpers::trim_string($input['pixels']['klaviyo']['events_api']['token']);
+
+			if (!self::is_klaviyo_events_api_token($input['pixels']['klaviyo']['events_api']['token'])) {
+				$input['pixels']['klaviyo']['events_api']['token']
+					= Options::get_klaviyo_events_api_token()
+					? Options::get_klaviyo_events_api_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-klaviyo-events-api-token', esc_html__('You have entered an invalid Klaviyo private API key. It must start with pk_.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Keep the Klaviyo coexistence mode within the known set. An unknown
+		// value falls back to auto, which can only under-report, never
+		// double-count.
+		if (isset($input['pixels']['klaviyo']['coexistence'])) {
+
+			$input['pixels']['klaviyo']['coexistence'] = Helpers::trim_string($input['pixels']['klaviyo']['coexistence']);
+
+			if (!in_array($input['pixels']['klaviyo']['coexistence'], [ 'auto', 'takeover', 'gap_fill', 'off' ], true)) {
+				$input['pixels']['klaviyo']['coexistence'] = 'auto';
+			}
+		}
+
 		// Validate the Nextdoor pixel ID
 		if (isset($input['pixels']['nextdoor']['pixel_id'])) {
 
@@ -839,21 +880,6 @@ class Validations {
 					? Options::get_nextdoor_capi_test_event_code()
 					: '';
 				add_settings_error('wgact_plugin_options', 'invalid-nextdoor-capi-test-event-code', esc_html__('You have entered an invalid Nextdoor Conversion API test event code.', 'woocommerce-google-adwords-conversion-tracking-tag'));
-			}
-		}
-
-		// Validate the Triple Whale Orders API key
-		if (isset($input['pixels']['triple_whale']['orders_api']['token'])) {
-
-			// Trim space, newlines and quotes
-			$input['pixels']['triple_whale']['orders_api']['token'] = Helpers::trim_string($input['pixels']['triple_whale']['orders_api']['token']);
-
-			if (!self::is_triple_whale_orders_api_token($input['pixels']['triple_whale']['orders_api']['token'])) {
-				$input['pixels']['triple_whale']['orders_api']['token']
-					= Options::get_triple_whale_orders_api_token()
-					? Options::get_triple_whale_orders_api_token()
-					: '';
-				add_settings_error('wgact_plugin_options', 'invalid-triple-whale-orders-api-token', esc_html__('You have entered an invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag'));
 			}
 		}
 
@@ -1238,11 +1264,10 @@ class Validations {
 
 		return [
 
-			// Bing / Microsoft Ads
+			// Bing / Microsoft Ads. The UET tag and its consent mode are free,
+			// the Conversions API and Enhanced Conversions are Pro.
 			'bing.capi.token',
-			'bing.consent_mode.is_active',
 			'bing.enhanced_conversions',
-			'bing.uet_tag_id',
 
 			// CrazyEgg
 			'crazyegg.account_number',
@@ -1276,12 +1301,12 @@ class Validations {
 			'google.tcf_support',
 			'google.user_id',
 
-			// Pinterest
+			// Pinterest. The tag ID is free, the API for Conversions and the
+			// matching features are Pro.
 			'pinterest.ad_account_id',
 			'pinterest.advanced_matching',
 			'pinterest.apic.token',
 			'pinterest.enhanced_match',
-			'pinterest.pixel_id',
 
 			// Various pixels
 			'pixels.ab_tasty.account_id',
@@ -1304,6 +1329,10 @@ class Validations {
 			'pixels.mixpanel.project_token',
 			'pixels.mixpanel.session_recording',
 			'pixels.mixpanel.user_identification',
+			'pixels.klaviyo.coexistence',
+			'pixels.klaviyo.events_api.token',
+			'pixels.klaviyo.identify_customers',
+			'pixels.klaviyo.public_api_key',
 			'pixels.nextdoor.advanced_matching',
 			'pixels.nextdoor.capi.test_event_code',
 			'pixels.nextdoor.capi.token',
@@ -1312,30 +1341,26 @@ class Validations {
 			'pixels.outbrain.advertiser_id',
 			'pixels.openai.advanced_matching',
 			'pixels.openai.capi.token',
-			'pixels.openai.pixel_id',
 			'pixels.reddit.advanced_matching',
-			'pixels.reddit.advertiser_id',
 			'pixels.reddit.capi.test_event_code',
 			'pixels.reddit.capi.token',
 			'pixels.taboola.account_id',
 			'pixels.triple_whale.enabled',
-			'pixels.triple_whale.orders_api.token',
 			'pixels.vwo.account_id',
 
 			// Shop
 			'shop.disable_tracking_for',
+			'shop.ltv.order_calculation.is_active',
 			'shop.subscription_value_multiplier',
 
-			// Snapchat
+			// Snapchat. The pixel ID is free, the Conversions API is Pro.
 			'snapchat.advanced_matching',
 			'snapchat.capi.token',
-			'snapchat.pixel_id',
 
-			// TikTok
+			// TikTok. The pixel ID is free, the Events API is Pro.
 			'tiktok.advanced_matching',
 			'tiktok.eapi.test_event_code',
 			'tiktok.eapi.token',
-			'tiktok.pixel_id',
 
 			// Twitter / X
 			'twitter.event_ids.add_payment_info',
@@ -1649,21 +1674,50 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	/**
+	 * Validate a Klaviyo public API key
+	 *
+	 * The public API key, which Klaviyo also calls the Site ID or company ID,
+	 * is 6 letters and digits. It is the same pattern the official Klaviyo
+	 * plugin validates against.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_klaviyo_public_api_key( $string ) {
+
+		$re = '/^[a-zA-Z0-9]{6}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	/**
+	 * Validate a Klaviyo private API key
+	 *
+	 * Private keys start with pk_ followed by 34 hex characters. Newer keys
+	 * carry a label between the prefix and the hex part. The pattern is the one
+	 * the official Klaviyo plugin uses to recognize a private key.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_klaviyo_events_api_token( $string ) {
+
+		$re = '/^pk_(?:[0-9a-f]{34}|[A-Za-z0-9]+_[0-9a-f]{34})$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_groundtruth_gtid( $string ) {
 
 		// GroundTruth GTIDs are opaque identifiers. The regex mirrors the validation
 		// in GroundTruth's own pixel script (pixel.v2.js), so valid GTIDs are never
 		// rejected, while whitespace, markup and control characters are blocked.
 		$re = '/^[a-zA-Z0-9_\-]{3,50}$/m';
-
-		return self::validate_with_regex($re, $string);
-	}
-
-	public static function is_triple_whale_orders_api_token( $string ) {
-
-		// Triple Whale API keys are opaque tokens. Kept permissive so valid keys are
-		// never rejected, while still blocking whitespace, markup and control characters.
-		$re = '/^[a-zA-Z0-9._\-]{16,200}$/m';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2287,11 +2341,12 @@ class Validations {
 			'pixels.nextdoor.capi.token'                        => [ 'is_nextdoor_capi_token', __('Invalid Nextdoor Conversion API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.nextdoor.capi.test_event_code'              => [ 'is_nextdoor_capi_test_event_code', __('Invalid Nextdoor Conversion API test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
-			// Triple Whale
-			'pixels.triple_whale.orders_api.token'              => [ 'is_triple_whale_orders_api_token', __('Invalid Triple Whale Orders API key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
-
 			// Mixpanel
 			'pixels.mixpanel.project_token'                     => [ 'is_mixpanel_project_token', __('Invalid Mixpanel project token. It must be a 32 character hexadecimal string.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Klaviyo
+			'pixels.klaviyo.public_api_key'                     => [ 'is_klaviyo_public_api_key', __('Invalid Klaviyo public API key. It must be the 6 character Site ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.klaviyo.events_api.token'                   => [ 'is_klaviyo_events_api_token', __('Invalid Klaviyo private API key. It must start with pk_.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
 			// Hyros
 			'pixels.hyros.product_hash'                         => [ 'is_hyros_product_hash', __('Invalid Hyros product hash.', 'woocommerce-google-adwords-conversion-tracking-tag') ],

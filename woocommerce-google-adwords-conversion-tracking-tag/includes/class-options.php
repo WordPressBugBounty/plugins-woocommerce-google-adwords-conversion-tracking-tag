@@ -337,10 +337,7 @@ class Options {
 					],
 				],
 				'triple_whale' => [
-					'enabled'    => false,
-					'orders_api' => [
-						'token' => '',
-					],
+					'enabled' => false,
 				],
 				'hyros'      => [
 					'product_hash'    => '',
@@ -354,6 +351,14 @@ class Options {
 					'user_identification' => false,
 					'ingestion_api'       => [
 						'enabled' => false,
+					],
+				],
+				'klaviyo'    => [
+					'public_api_key'     => '',
+					'coexistence'        => 'auto',
+					'identify_customers' => false,
+					'events_api'         => [
+						'token' => '',
 					],
 				],
 			],
@@ -790,17 +795,18 @@ class Options {
 	 */
 
 	/**
-	 * Active without any toggle: the shop connected its Google account (site
-	 * enrolled with the connect broker), the browser conversion tag is
-	 * configured, and the connect flow put a conversion action on record.
-	 * Uploads go into that same action and Google deduplicates them against
-	 * the tag by transaction ID.
+	 * Active without any toggle: the shop's Google account is CONNECTED on
+	 * the connect broker, the browser conversion tag is configured, and the
+	 * connect flow put a conversion action on record. Uploads go into that
+	 * same action and Google deduplicates them against the tag by
+	 * transaction ID. Connected, not merely enrolled: enrollment survives a
+	 * disconnect, but a disconnected account cannot upload.
 	 */
 	public static function is_google_ads_dm_active() {
 		return self::is_google_ads_conversion_active()
 			&& self::get_google_ads_dm_operating_account_id()
 			&& self::get_google_ads_dm_conversion_action_id()
-			&& \SweetCode\Pixel_Manager\Admin\Broker_Client::is_enrolled();
+			&& \SweetCode\Pixel_Manager\Admin\Broker_Client::is_google_connected();
 	}
 
 	public static function get_google_ads_dm_operating_account_id() {
@@ -1180,14 +1186,6 @@ class Options {
 		return (bool) self::get_options_obj()->pixels->triple_whale->enabled;
 	}
 
-	public static function get_triple_whale_orders_api_token() {
-		return self::get_options_obj()->pixels->triple_whale->orders_api->token;
-	}
-
-	public static function is_triple_whale_orders_api_active() {
-		return self::is_triple_whale_active() && self::get_triple_whale_orders_api_token();
-	}
-
 	/**
 	 * Hyros
 	 *
@@ -1307,6 +1305,126 @@ class Options {
 	 */
 	public static function is_mixpanel_ingestion_api_active() {
 		return self::is_mixpanel_active() && self::is_mixpanel_ingestion_api_enabled();
+	}
+
+	/**
+	 * Klaviyo
+	 *
+	 * @since 1.68.0
+	 */
+
+	public static function get_klaviyo_public_api_key() {
+		return self::get_options_obj()->pixels->klaviyo->public_api_key;
+	}
+
+	public static function is_klaviyo_active() {
+		return (bool) self::get_klaviyo_public_api_key();
+	}
+
+	public static function get_klaviyo_events_api_token() {
+		return self::get_options_obj()->pixels->klaviyo->events_api->token;
+	}
+
+	/**
+	 * The Klaviyo Events API needs the pixel to be configured and a private API
+	 * key, which is the credential the server-side requests authenticate with.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @return bool
+	 */
+	public static function is_klaviyo_events_api_active() {
+		return self::is_klaviyo_active() && (bool) self::get_klaviyo_events_api_token();
+	}
+
+	public static function is_klaviyo_customer_identification_enabled() {
+		return (bool) self::get_options_obj()->pixels->klaviyo->identify_customers;
+	}
+
+	/**
+	 * The coexistence setting as stored: auto, takeover, gap_fill or off.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @return string
+	 */
+	public static function get_klaviyo_coexistence_setting() {
+
+		$setting = self::get_options_obj()->pixels->klaviyo->coexistence;
+
+		return in_array($setting, [ 'auto', 'takeover', 'gap_fill', 'off' ], true) ? $setting : 'auto';
+	}
+
+	/**
+	 * The coexistence mode the Klaviyo pixel actually runs in, with auto resolved
+	 * against the official Klaviyo plugin.
+	 *
+	 * The official plugin owns the WooCommerce integration on Klaviyo's side
+	 * (Placed Order, catalog and profile sync all come from Klaviyo polling the
+	 * shop), so it stays installed on every shop that uses Klaviyo flows. The
+	 * Pixel Manager therefore either takes over the plugin's browser tracking
+	 * (takeover), only fills in the events the plugin never sends (gap_fill), or
+	 * runs on its own when the plugin is absent (standalone).
+	 *
+	 * auto picks takeover when the plugin is active and its version is inside
+	 * the range the takeover was tested against, gap_fill when the plugin is
+	 * active but the version is not, and standalone when the plugin is absent.
+	 * That way an untested Klaviyo release can only cause under-reporting,
+	 * never double-counting.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @return string One of takeover, gap_fill, standalone, off
+	 */
+	public static function get_klaviyo_coexistence_mode() {
+
+		$setting = self::get_klaviyo_coexistence_setting();
+
+		if ('off' === $setting) {
+			return 'off';
+		}
+
+		if ('gap_fill' === $setting) {
+			return 'gap_fill';
+		}
+
+		if (!Environment::is_klaviyo_plugin_active()) {
+			return 'standalone';
+		}
+
+		if ('takeover' === $setting) {
+			return 'takeover';
+		}
+
+		return Environment::is_klaviyo_plugin_version_supported() ? 'takeover' : 'gap_fill';
+	}
+
+	public static function is_klaviyo_takeover_active() {
+		return self::is_klaviyo_active() && 'takeover' === self::get_klaviyo_coexistence_mode();
+	}
+
+	public static function is_klaviyo_gap_fill_active() {
+		return self::is_klaviyo_active() && 'gap_fill' === self::get_klaviyo_coexistence_mode();
+	}
+
+	public static function is_klaviyo_standalone_active() {
+		return self::is_klaviyo_active() && 'standalone' === self::get_klaviyo_coexistence_mode();
+	}
+
+	/**
+	 * Whether the Pixel Manager reports purchases and refunds to Klaviyo itself.
+	 *
+	 * Only in standalone mode. Whenever the official plugin is installed, Klaviyo
+	 * produces Placed Order from its own order polling, and Klaviyo does not
+	 * deduplicate our unique_id against that event, so sending it as well would
+	 * double every order in Klaviyo's revenue reports.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @return bool
+	 */
+	public static function is_klaviyo_purchase_dispatch_active() {
+		return self::is_klaviyo_events_api_active() && self::is_klaviyo_standalone_active();
 	}
 
 	/**
@@ -1688,7 +1806,29 @@ class Options {
 		return (bool) self::get_options_obj()->general->variations_output;
 	}
 
+	/**
+	 * Whether the order-level lifetime value calculation is running.
+	 *
+	 * The license is part of the answer, not only the stored flag. The
+	 * calculation is a Pro feature whose code ships in every build, and the
+	 * stored value survives a license lapse on purpose
+	 * (Validations::preserve_premium_only_options()), so without this check a
+	 * shop that switched it on while licensed would keep walking its whole
+	 * order history afterwards. Everything that asks whether the calculation is
+	 * active goes through here: Shop::can_ltv_be_processed_on_order(),
+	 * LTV::horizontal_ltv_calculation() and the order modal.
+	 *
+	 * Nova reads the raw option for its own display, so a lapsed license still
+	 * sees its saved setting marked as dormant rather than switched off.
+	 *
+	 * @return bool
+	 */
 	public static function is_order_level_ltv_calculation_active() {
+
+		if (!Helpers::is_pmw_pro_version_active()) {
+			return false;
+		}
+
 		return (bool) self::get_options_obj()->shop->ltv->order_calculation->is_active;
 	}
 

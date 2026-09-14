@@ -3,12 +3,20 @@
 /**
  * Profit Margin calculation class
  *
+ * Public API: get_order_profit_margin() and order_has_complete_cogs() are documented
+ * for shop code and stay where they are. Shops report profit as a Google Analytics
+ * metric or a secondary Google Ads conversion action through them, so the class name,
+ * the namespace and these two signatures are part of what the plugin promises. The
+ * class was renamed once (from Cogs) before that promise existed; it does not move
+ * again without a deprecation path. Everything else here is internal.
+ *
  * TODO: Check out if this should not be a premium class. If yes, also make sure that all activation methods are behind premium checks.
  */
 
 namespace SweetCode\Pixel_Manager;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
+use SweetCode\Pixel_Manager\Platforms\Order_Data;
 use WC_Order;
 use WC_Product;
 
@@ -25,6 +33,11 @@ class Profit_Margin {
 	 * to the order, and also any fees associated with the order. The final profit margin
 	 * is then returned as a formatted decimal number.
 	 *
+	 * Shipping is excluded on BOTH sides: the shipping the customer paid is not counted as
+	 * revenue, and no carrier cost is deducted, because WooCommerce stores no carrier cost
+	 * anywhere. Every figure the calculation works with is net of tax. A shop that wants its
+	 * shipping economics in the margin supplies them through pmw_order_shipping_profit.
+	 *
 	 * @param WC_Order $order The order for which the profit margin needs to be calculated.
 	 *
 	 * @return float The profit margin of the order formatted as a decimal number.
@@ -35,6 +48,7 @@ class Profit_Margin {
 
 		$cogs_margin -= $order->get_total_discount();
 		$cogs_margin -= Shop::get_order_fees($order);
+		$cogs_margin += self::get_order_shipping_profit($order);
 
 		// get_order_item_profit_margin() reverses a refund through the refunded quantity of the
 		// order items, which it needs to reverse the cost of goods along with the revenue. A
@@ -45,6 +59,95 @@ class Profit_Margin {
 		$cogs_margin -= Shop::get_unattributed_refund_total($order);
 
 		return Helpers::format_decimal($cogs_margin);
+	}
+
+	/**
+	 * The net contribution shipping makes to the profit margin of an order. 0 by default.
+	 *
+	 * The profit margin calculation leaves shipping out on both sides, so neither the
+	 * shipping the customer paid nor the cost of getting the parcel to them is in the
+	 * reported margin. WooCommerce records what the customer was charged for shipping,
+	 * but nothing anywhere records what the carrier charged the shop, so the plugin
+	 * cannot derive this and 0 is the only honest default.
+	 *
+	 * @param WC_Order $order
+	 * @return float
+	 *
+	 * @since 1.67.1
+	 */
+	private static function get_order_shipping_profit( $order ) {
+
+		/**
+		 * Filters the net contribution shipping makes to the profit margin of an order.
+		 *
+		 * Return what shipping earned or cost the shop on this order, usually the
+		 * shipping the customer paid minus what the carrier charged. Both sides are
+		 * currently absent from the margin, so whatever is returned here is added to it
+		 * as-is. Work in net (ex-tax) figures: every other figure the calculation uses
+		 * is net, so a tax-inclusive carrier rate is wrong by its tax on every order.
+		 *
+		 * Refunded shipping is not deducted anywhere else in the margin, so subtract
+		 * $order->get_total_shipping_refunded() here when it matters to the shop.
+		 *
+		 * This runs inside the profit margin calculation only. It therefore affects the
+		 * conversion value only while General -> Order configuration -> Marketing value
+		 * logic is set to Profit margin, and it never touches the Order subtotal or
+		 * Order total logic.
+		 *
+		 * @since 1.67.1
+		 *
+		 * @param float     $shipping_profit The net shipping contribution. Default 0.
+		 * @param \WC_Order $order           The order being calculated.
+		 */
+		return (float) apply_filters('pmw_order_shipping_profit', 0.0, Order_Data::unwrap($order));
+	}
+
+	/**
+	 * Whether a cost of goods is known for every product line item of an order.
+	 *
+	 * A product without a cost is counted with a cost of 0 by the profit margin
+	 * calculation, which reports that product's full revenue as profit. That is a
+	 * silent overstatement, and the calculation returns a plain number that cannot
+	 * express it. Use this before reporting a profit figure, and skip the order (or
+	 * fall back to another value) when it returns false, rather than reproducing the
+	 * plugin's list of supported cost sources and meta keys in shop code.
+	 *
+	 * A line item whose product no longer exists is skipped, the same way the margin
+	 * calculation skips it. An order without any product line items therefore returns
+	 * true: there is no product whose cost could be missing.
+	 *
+	 * Note on a cost of exactly zero: WooCommerce native COGS deletes a stored cost of
+	 * 0 instead of keeping it, so on that source a genuinely free item is
+	 * indistinguishable from an item nobody entered a cost for, and it reads as missing
+	 * here. Give free and promotional items a token cost if that matters.
+	 *
+	 * @param WC_Order $order
+	 * @return bool True when every product line item resolves to a cost.
+	 *
+	 * @since 1.67.1
+	 */
+	public static function order_has_complete_cogs( $order ) {
+
+		$order = Order_Data::unwrap($order);
+
+		if (!is_object($order) || !method_exists($order, 'get_items')) {
+			return false;
+		}
+
+		foreach ($order->get_items() as $item) {
+
+			$product = $item->get_product();
+
+			if (Product::is_not_wc_product($product)) {
+				continue;
+			}
+
+			if (is_null(self::resolve_cog($item, $product))) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -108,17 +211,33 @@ class Profit_Margin {
 	 */
 	private static function get_cog( $order_item, $product ) {
 
+		$cog = self::resolve_cog($order_item, $product);
+
+		return is_null($cog) ? 0 : $cog;
+	}
+
+	/**
+	 * Resolve the per-unit cost of goods, or null when no source holds one.
+	 *
+	 * Same lookup as get_cog(), but it keeps the difference between a cost of 0 and no
+	 * cost at all, which get_cog() has to flatten into a number for the calculation.
+	 * order_has_complete_cogs() needs that difference.
+	 *
+	 * @param mixed $order_item
+	 * @param mixed $product
+	 *
+	 * @return float|null
+	 *
+	 * @since 1.67.1
+	 */
+	private static function resolve_cog( $order_item, $product ) {
+
 		$order_item_cog = self::get_cog_from_order_item($order_item);
 		if (!is_null($order_item_cog)) {
 			return $order_item_cog;
 		}
 
-		$product_cog = self::get_cog_from_product($product);
-		if (!is_null($product_cog)) {
-			return $product_cog;
-		}
-
-		return 0;
+		return self::get_cog_from_product($product);
 	}
 
 	/**
@@ -145,8 +264,13 @@ class Profit_Margin {
 
 		// WooCommerce native COGS stores the LINE TOTAL (unit cost x quantity), not the per-unit cost.
 		// We must divide by quantity to normalize to per-unit cost before returning.
-		if (Environment::is_woocommerce_native_cogs_active()) {
-			$item_cog = $order_item->get_meta('_cogs_value');
+		//
+		// Read it through the getter, not through get_meta(): with the feature enabled
+		// `_cogs_value` is an internal meta key on the line item, so the generic accessor
+		// routes into this very getter anyway and logs a wc_doing_it_wrong notice on the
+		// way for every order item the shop prices. The value is identical either way.
+		if (Environment::is_woocommerce_native_cogs_active() && method_exists($order_item, 'get_cogs_value')) {
+			$item_cog = $order_item->get_cogs_value();
 			if ($item_cog) {
 				$quantity = $order_item->get_quantity();
 				return ( $quantity > 0 ) ? floatval($item_cog) / $quantity : 0.0;
@@ -219,10 +343,27 @@ class Profit_Margin {
 		 */
 
 		// WooCommerce native COGS (since WooCommerce 9.5)
-		if (Environment::is_woocommerce_native_cogs_active() && method_exists($product, 'get_cogs_value')) {
-			$cogs_value = $product->get_cogs_value();
-			if (!is_null($cogs_value)) {
-				return floatval($cogs_value);
+		if (Environment::is_woocommerce_native_cogs_active()) {
+
+			// Ask WooCommerce for the resolved total first. On a variation that is the
+			// only accessor that covers the two ways a variation relates to its parent's
+			// cost: inheriting it when the variation defines none, and adding to it when
+			// the variation is marked additive. It returns 0 when no cost is set anywhere,
+			// which is why a falsy result falls through to the defined value below.
+			if (method_exists($product, 'get_cogs_total_value')) {
+				$cogs_total_value = (float) $product->get_cogs_total_value();
+				if ($cogs_total_value) {
+					return $cogs_total_value;
+				}
+			}
+
+			// The value defined on this product itself, which unlike the total keeps a
+			// deliberately stored cost of 0 apart from no cost at all.
+			if (method_exists($product, 'get_cogs_value')) {
+				$cogs_value = $product->get_cogs_value();
+				if (!is_null($cogs_value)) {
+					return floatval($cogs_value);
+				}
 			}
 		}
 
@@ -272,9 +413,10 @@ class Profit_Margin {
 			$meta_keys[] = $custom_key;
 		}
 
-		// WooCommerce native COGS
+		// WooCommerce native COGS. On products the cost lives in `_cogs_total_value`;
+		// `_cogs_value` is the order line item's key and never exists on a product.
 		if (Environment::is_woocommerce_native_cogs_active()) {
-			$meta_keys[] = '_cogs_value';
+			$meta_keys[] = '_cogs_total_value';
 		}
 
 		// WooCommerce Cost of Goods (SkyVerge)

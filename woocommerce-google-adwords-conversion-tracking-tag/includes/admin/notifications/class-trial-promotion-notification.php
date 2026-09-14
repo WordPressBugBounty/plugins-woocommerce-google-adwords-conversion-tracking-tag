@@ -235,7 +235,7 @@ class Trial_Promotion_Notification extends Notification {
 			'id'              => 'trial-promotion',
 			'title'           => __('Unlock Premium Features', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'     => [
-				__('Try premium features free for 14 days - no credit card required.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				__('Try premium features free for 14 days. A credit card is required to start the trial, and you can cancel any time before it ends at no charge.', 'woocommerce-google-adwords-conversion-tracking-tag'),
 				__('Boost your ROAS by sending first-party data with server-side tracking.', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			],
 			'importance'      => __('High', 'woocommerce-google-adwords-conversion-tracking-tag'),

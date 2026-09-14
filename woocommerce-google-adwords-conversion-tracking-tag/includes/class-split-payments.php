@@ -32,6 +32,7 @@
 
 namespace SweetCode\Pixel_Manager;
 
+use SweetCode\Pixel_Manager\Platforms\Order_Data;
 use WC_Order;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
@@ -89,6 +90,11 @@ class Split_Payments {
 	 * @return string One of the ROLE_* constants.
 	 */
 	public static function get_order_role( $order ) {
+
+		// The server-side purchase path carries the neutral order wrapper, which is
+		// not a WC_Order, so the classification below would silently read every
+		// instalment leg as a standard order and report it as its own sale.
+		$order = Order_Data::unwrap($order);
 
 		$role = self::ROLE_STANDARD;
 

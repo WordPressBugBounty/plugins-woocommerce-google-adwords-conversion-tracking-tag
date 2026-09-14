@@ -14,7 +14,6 @@ defined( 'ABSPATH' ) || exit;
 use SweetCode\Pixel_Manager\Abilities;
 use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Admin_REST;
-use SweetCode\Pixel_Manager\Admin\Borlabs;
 use SweetCode\Pixel_Manager\Admin\Broker_Client;
 use SweetCode\Pixel_Manager\Admin\Debug_Info;
 use SweetCode\Pixel_Manager\Admin\Environment;
@@ -375,7 +374,6 @@ class WCPM {
         // Broker connect (experimental, routes only exist with PMW_EXPERIMENTS)
         Broker_Client::get_instance();
         if ( is_admin() ) {
-            Borlabs::init();
             // display admin views
             Admin::init();
             // ask visitor for rating

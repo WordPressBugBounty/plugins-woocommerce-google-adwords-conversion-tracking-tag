@@ -528,8 +528,18 @@ class Helpers {
             $current_user = ( is_user_logged_in() ? wp_get_current_user() : null );
         }
         // If the user is logged in, get the user data
+        //
+        // The ID has to come off the resolved user, not off the request. The
+        // order's customer and whoever is making the request are the same
+        // person only while the shopper is on the confirmation page. On every
+        // server-side path they are not: a payment webhook, a scheduled run,
+        // an order created in the admin and the purchase events flushed at the
+        // end of the checkout request all reported the request's user instead,
+        // which is nobody at all on most of them. Every such order then went
+        // out with the hash of 0 as its external ID, so the destinations read
+        // a single person behind all of them.
         if ( $current_user ) {
-            $user_data['id']['raw'] = get_current_user_id();
+            $user_data['id']['raw'] = $current_user->ID;
             $user_data['id']['sha256'] = self::hash_string( $user_data['id']['raw'] );
         }
         /**
@@ -793,7 +803,14 @@ class Helpers {
     }
 
     /**
-     * Filter to define if all s2s requests should be sent blocking
+     * Whether the server-side API requests wait for the platform's response.
+     *
+     * The Pixel Manager sends its server-side events non-blocking so a slow
+     * platform API cannot hold up the request the customer is waiting on. Two
+     * things override that: the HTTP request logger, which has nothing to write
+     * unless it sees the response, and the pmw_send_all_s2s_requests_blocking
+     * filter, which is how a developer forces the same behaviour while
+     * debugging without turning the logger on.
      *
      * @return bool
      */
@@ -1114,14 +1131,18 @@ class Helpers {
     }
 
     /**
-     * Generates an opening script string with its associated attributes.
-     * The attributes may include those from active plugins like Iubenda or Cookiebot
-     * and can be filtered using the 'pmw_opening_script_string_attributes' hook.
+     * The attributes our inline scripts carry, as attribute => list of values.
      *
-     * @return string The formatted opening script string with attributes.
+     * They keep the scripts out of consent blockers and script loaders, which
+     * would otherwise hold them back or run them at the wrong time. Shared by
+     * the data layer script and the library's configuration script, so the two
+     * are always treated the same way.
+     *
+     * @since 1.67.1
+     *
+     * @return array
      */
-    public static function get_opening_script_string() {
-        $script_string = '';
+    public static function get_opening_script_attributes() {
         $attributes = [];
         // if the Iubenda plugin is active, add the Iubenda attributes
         if ( Environment::is_iubenda_active() ) {
@@ -1146,32 +1167,22 @@ class Helpers {
          *
          * @since 1.58.5
          */
-        $attributes = apply_filters( 'pmw_opening_script_string_attributes', $attributes );
-        // Build the attribute string
-        foreach ( $attributes as $attribute => $values ) {
+        return apply_filters( 'pmw_opening_script_string_attributes', $attributes );
+    }
+
+    /**
+     * Generates an opening script string with its associated attributes.
+     * The attributes may include those from active plugins like Iubenda or Cookiebot
+     * and can be filtered using the 'pmw_opening_script_string_attributes' hook.
+     *
+     * @return string The formatted opening script string with attributes.
+     */
+    public static function get_opening_script_string() {
+        $script_string = '';
+        foreach ( self::get_opening_script_attributes() as $attribute => $values ) {
             $script_string .= ' ' . $attribute . '="' . implode( ' ', $values ) . '"';
         }
         return $script_string;
-    }
-
-    public static function iubenda_script_exception_start() {
-        if ( !Environment::is_iubenda_active() ) {
-            return;
-        }
-        ?>
-
-		<!--IUB-COOKIE-BLOCK-SKIP-START-->
-		<?php 
-    }
-
-    public static function iubenda_script_exception_end() {
-        if ( !Environment::is_iubenda_active() ) {
-            return;
-        }
-        ?>
-
-		<!--IUB-COOKIE-BLOCK-SKIP-END-->
-		<?php 
     }
 
     public static function make_full_url( $url ) {

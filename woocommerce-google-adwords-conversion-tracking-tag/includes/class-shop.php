@@ -5,6 +5,7 @@ namespace SweetCode\Pixel_Manager;
 use SweetCode\Pixel_Manager\Admin\Documentation;
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Platforms\Order_Data;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
 class Shop {
@@ -127,22 +128,25 @@ class Shop {
             // Order profit margin
             $order_total = Profit_Margin::get_order_profit_margin( $order );
         }
+        // Third-party callbacks always receive the platform-native order, never the
+        // neutral wrapper the server-side purchase path works with. See Order_Data::unwrap().
+        $filter_order = Order_Data::unwrap( $order );
         // deprecated filters to adjust the order value
         $order_total = apply_filters_deprecated(
             'wgact_conversion_value_filter',
-            [$order_total, $order],
+            [$order_total, $filter_order],
             '1.10.2',
             'pmw_marketing_conversion_value_filter'
         );
         $order_total = apply_filters_deprecated(
             'wooptpm_conversion_value_filter',
-            [$order_total, $order],
+            [$order_total, $filter_order],
             '1.13.0',
             'pmw_marketing_conversion_value_filter'
         );
         $order_total = apply_filters_deprecated(
             'wpm_conversion_value_filter',
-            [$order_total, $order],
+            [$order_total, $filter_order],
             '1.31.2',
             'pmw_marketing_conversion_value_filter'
         );
@@ -151,7 +155,7 @@ class Shop {
          *
          * @since 1.31.2
          */
-        $order_total = apply_filters( 'pmw_marketing_conversion_value_filter', $order_total, $order );
+        $order_total = apply_filters( 'pmw_marketing_conversion_value_filter', $order_total, $filter_order );
         // A conversion value can never be negative. The ad platforms either reject a negative
         // value or misinterpret it, so it is floored here. This happens after the filter on
         // purpose, so that a custom calculation cannot send a negative value out either.
@@ -174,7 +178,7 @@ class Shop {
          *
          * @since 1.58.5
          */
-        $order_total = apply_filters( 'pmw_order_value_total_statistics', $order_total, $order );
+        $order_total = apply_filters( 'pmw_order_value_total_statistics', $order_total, Order_Data::unwrap( $order ) );
         return (float) Helpers::format_decimal( (float) $order_total, 2 );
     }
 
@@ -193,7 +197,7 @@ class Shop {
          *
          * @since 1.58.5
          */
-        $order_subtotal = apply_filters( 'pmw_order_value_subtotal_statistics', $order_subtotal, $order );
+        $order_subtotal = apply_filters( 'pmw_order_value_subtotal_statistics', $order_subtotal, Order_Data::unwrap( $order ) );
         return (float) Helpers::format_decimal( (float) $order_subtotal, 2 );
     }
 
@@ -225,7 +229,7 @@ class Shop {
          * @param bool      $is_backend_manual Whether PMW considers this a backend manual order.
          * @param \WC_Order $order             The order being evaluated.
          */
-        return (bool) apply_filters( 'pmw_is_backend_manual_order', $is_backend_manual, $order );
+        return (bool) apply_filters( 'pmw_is_backend_manual_order', $is_backend_manual, Order_Data::unwrap( $order ) );
     }
 
     public static function conversion_pixels_already_fired_html() {
@@ -330,21 +334,22 @@ class Shop {
     }
 
     public static function can_order_confirmation_be_processed( $order ) {
+        $filter_order = Order_Data::unwrap( $order );
         $conversion_prevention = apply_filters_deprecated(
             'wgact_conversion_prevention',
-            [false, $order],
+            [false, $filter_order],
             '1.10.2',
             'pmw_conversion_prevention'
         );
         $conversion_prevention = apply_filters_deprecated(
             'wooptpm_conversion_prevention',
-            [$conversion_prevention, $order],
+            [$conversion_prevention, $filter_order],
             '1.13.0',
             'pmw_conversion_prevention'
         );
         $conversion_prevention = apply_filters_deprecated(
             'wpm_conversion_prevention',
-            [$conversion_prevention, $order],
+            [$conversion_prevention, $filter_order],
             '1.31.2',
             'pmw_conversion_prevention'
         );
@@ -353,7 +358,7 @@ class Shop {
          *
          * @since 1.31.2
          */
-        $conversion_prevention = apply_filters( 'pmw_conversion_prevention', $conversion_prevention, $order );
+        $conversion_prevention = apply_filters( 'pmw_conversion_prevention', $conversion_prevention, $filter_order );
         // If order is in failed, cancelled or refunded status, skip the order confirmation
         if ( self::is_order_confirmation_not_allowed_status( $order ) ) {
             return false;
@@ -364,6 +369,14 @@ class Shop {
         }
         // If the conversion prevention filter is set to true, skip the order confirmation
         if ( $conversion_prevention ) {
+            return false;
+        }
+        // A manual renewal is paid through the checkout, so unlike an automatic one it
+        // does reach the purchase confirmation page and fires the browser pixels. The
+        // renewal opt-out covers those too, and with them the Automatic Conversion
+        // Recovery, which would otherwise recover exactly the conversions the shop
+        // asked us not to report. @since 1.67.1
+        if ( self::do_not_track_subscription_renewal() && self::is_wcs_renewal_order( $order ) ) {
             return false;
         }
         // If the order deduplication is deactivated, either through the setting or through
@@ -455,11 +468,17 @@ class Shop {
      */
     public static function should_count_order_for_tracking_accuracy( $order ) {
         $should_count = in_array( $order->get_created_via(), self::get_tracking_accuracy_created_via_allowlist(), true );
-        // Orders where the visitor denied all consent categories can't fire
-        // any pixel on the purchase confirmation page and their server-side
-        // events are consent-suppressed, so counting them would only deflate
-        // the accuracy. If at least one category was granted, some pixels can
-        // still fire and the measurement stays meaningful.
+        // Orders where the visitor denied all consent categories can't fire any
+        // pixel on the purchase confirmation page, so counting them would only
+        // deflate the accuracy with a loss that says nothing about the gateway.
+        // If at least one category was granted, some pixels can still fire and
+        // the measurement stays meaningful.
+        //
+        // This holds regardless of always_send_s2s. That setting keeps the
+        // server-side events flowing for these orders, but this report measures
+        // the browser-side confirmation per gateway, so a consent-denied order
+        // is noise for that question either way. The exclusion note in the
+        // report tells the shop which of the two cases it is in.
         if ( $should_count ) {
             $snapshot = $order->get_meta( '_pmw_consent_snapshot', true );
             if ( is_array( $snapshot ) && empty( $snapshot['marketing'] ) && empty( $snapshot['statistics'] ) ) {
@@ -481,7 +500,7 @@ class Shop {
          * @param bool      $should_count Whether the order counts toward tracking accuracy.
          * @param \WC_Order $order        The order being evaluated.
          */
-        return (bool) apply_filters( 'pmw_count_order_for_tracking_accuracy', $should_count, $order );
+        return (bool) apply_filters( 'pmw_count_order_for_tracking_accuracy', $should_count, Order_Data::unwrap( $order ) );
     }
 
     /**
@@ -837,7 +856,7 @@ class Shop {
          *
          * @since 1.58.5
          */
-        return (float) apply_filters( 'pmw_order_fees', $order_fees, $order );
+        return (float) apply_filters( 'pmw_order_fees', $order_fees, Order_Data::unwrap( $order ) );
     }
 
     /**
@@ -1026,8 +1045,46 @@ class Shop {
         return Options::get_options_obj()->shop->subscription_value_multiplier;
     }
 
+    /**
+     * Whether the order is a WooCommerce Subscriptions renewal.
+     *
+     * WooCommerce Subscriptions only recognises its own order object: it runs
+     * `is_a($order, 'WC_Abstract_Order')` and, failing that, `wc_get_order()`,
+     * which cannot resolve our neutral wrapper and returns false. The server-side
+     * purchase path hands the payload builders an Order_Data (see
+     * SSP_Purchase_Proxy::handle_purchase_event), so without unwrapping first,
+     * every renewal reported itself as a regular order and the renewal opt-outs
+     * had no effect on that path. @since 1.67.1
+     *
+     * @param \WC_Abstract_Order|\SweetCode\Pixel_Manager\Platforms\Order_Data $order
+     * @return bool
+     */
     public static function is_wcs_renewal_order( $order ) {
-        return function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( $order );
+        return function_exists( 'wcs_order_contains_renewal' ) && wcs_order_contains_renewal( Order_Data::unwrap( $order ) );
+    }
+
+    /**
+     * The IDs of the WooCommerce Subscriptions an order created.
+     *
+     * Parent orders only: a renewal order returns an empty array, because the
+     * subscription it pays for is not new.
+     *
+     * @param \WC_Order $order
+     * @return int[]
+     *
+     * @since 1.67.1
+     */
+    public static function get_subscription_ids_for_order( $order ) {
+        if ( !function_exists( 'wcs_get_subscriptions_for_order' ) ) {
+            return [];
+        }
+        $subscriptions = wcs_get_subscriptions_for_order( $order, [
+            'order_type' => 'parent',
+        ] );
+        if ( !is_array( $subscriptions ) || empty( $subscriptions ) ) {
+            return [];
+        }
+        return array_values( array_map( 'intval', array_keys( $subscriptions ) ) );
     }
 
     /**
@@ -1223,7 +1280,7 @@ class Shop {
          *
          * @since 1.58.5
          */
-        return (array) apply_filters( 'pmw_custom_order_parameters', [], $order );
+        return (array) apply_filters( 'pmw_custom_order_parameters', [], Order_Data::unwrap( $order ) );
     }
 
     /**
@@ -1248,7 +1305,7 @@ class Shop {
             'pmw_custom_order_item_parameters',
             [],
             $order_item,
-            $order
+            Order_Data::unwrap( $order )
         );
     }
 

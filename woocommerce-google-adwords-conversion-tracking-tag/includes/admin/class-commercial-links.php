@@ -109,6 +109,78 @@ class Commercial_Links {
 	}
 
 	/**
+	 * Whether this is the premium code base with a license that no longer
+	 * validates, which is a renewal rather than an upgrade.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.67.1
+	 */
+	public static function is_license_expired() {
+
+		if (Helpers::is_pmw_pro_version_active()) {
+			return false;
+		}
+
+		// Keep the wpm_fs() guard and call on separate lines: the gulp wcm build
+		// replaces the method call with a literal, and inside a compound condition
+		// the surviving function_exists() guard silently turns the whole expression
+		// false on the SDK-less marketplace build.
+		if (!function_exists('wpm_fs')) {
+			return false;
+		}
+
+		return (bool) wpm_fs()->is__premium_only();
+	}
+
+	/**
+	 * The upsell call-to-action for an install that cannot use premium code:
+	 * the label to print, where it points, and whether it offers the trial.
+	 *
+	 * Mirrors premiumCta() / premiumTrialUrl() in the Nova admin UI
+	 * (shared/utils/tier.ts). An expired license is renewed through the account
+	 * page, because a lapsed customer has already used their trial and does not
+	 * need a pricing pitch. A site that can still start a trial gets the trial,
+	 * which is the lowest-friction step. Everything else gets the upgrade path.
+	 *
+	 * Callers are responsible for only showing this to a non-premium install.
+	 *
+	 * @return array The keys label, url and trial.
+	 *
+	 * @since 1.67.1
+	 */
+	public static function premium_cta() {
+
+		if (self::is_license_expired()) {
+			return [
+				'label' => __('Renew license', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				'url'   => self::account_url(),
+				'trial' => false,
+			];
+		}
+
+		$trial_url = Notifications\Trial_Promotion_Notification::get_available_trial_url();
+
+		if ($trial_url) {
+			return [
+				'label' => Helpers::is_pmw_wcm_distro()
+					? __('Get Pro', 'woocommerce-google-adwords-conversion-tracking-tag')
+					: __('Start free trial', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				'url'   => $trial_url,
+				'trial' => true,
+			];
+		}
+
+		return [
+			'label' => Helpers::is_pmw_wcm_distro()
+				? __('Get Pro', 'woocommerce-google-adwords-conversion-tracking-tag')
+				: __('Upgrade to Pro', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'url'   => self::upgrade_url(),
+			'trial' => false,
+		];
+	}
+
+	/**
 	 * Free trial call-to-action target.
 	 *
 	 * @return string

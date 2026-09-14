@@ -4,6 +4,7 @@ namespace SweetCode\Pixel_Manager;
 
 use SweetCode\Pixel_Manager\Admin\Environment;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
+use SweetCode\Pixel_Manager\Platforms\Order_Data;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
 
@@ -50,7 +51,9 @@ class Product {
 
 	public static function pmw_get_order_items( $order ) {
 
-		$order_items = apply_filters_deprecated('wooptpm_order_items', [ $order->get_items(), $order ], '1.13.0', 'wpm_order_items');
+		$filter_order = Order_Data::unwrap($order);
+
+		$order_items = apply_filters_deprecated('wooptpm_order_items', [ $order->get_items(), $filter_order ], '1.13.0', 'wpm_order_items');
 		$order_items = apply_filters_deprecated('wpm_order_items', [ $order_items ], '1.31.2', 'pmw_order_items');
 
 		/**
@@ -58,7 +61,7 @@ class Product {
 		 *
 		 * @since 1.31.2
 		 */
-		$order_items = apply_filters('pmw_order_items', $order_items, $order);
+		$order_items = apply_filters('pmw_order_items', $order_items, $filter_order);
 
 		/**
 		 * Collapse bundle/composite containers into a single reported line by
@@ -913,6 +916,11 @@ class Product {
 	 */
 	private static function resolve_order_item_order( $order_item, $order = null ) {
 
+		// The server-side payload builders hold the neutral order wrapper. Without
+		// unwrapping it the type check below fails and every line item resolves its
+		// order again, which is the read the caller passed the order in to save.
+		$order = Order_Data::unwrap($order);
+
 		if ($order instanceof \WC_Abstract_Order) {
 			return $order;
 		}
@@ -998,6 +1006,11 @@ class Product {
 
 	public static function is_container_child_order_item( $order_item, $order ) {
 
+		// Product Bundles and Composite Products only know their platform's own
+		// order object. The server-side purchase path carries the neutral wrapper,
+		// so it stops here like it does at every filter boundary. @since 1.67.1
+		$order = Order_Data::unwrap($order);
+
 		if (function_exists('wc_pb_is_bundled_order_item') && wc_pb_is_bundled_order_item($order_item, $order)) {
 			return true;
 		}
@@ -1023,6 +1036,8 @@ class Product {
 	}
 
 	private static function get_container_child_order_items( $container_order_item, $order ) {
+
+		$order = Order_Data::unwrap($order);
 
 		if (
 			function_exists('wc_pb_get_bundled_order_items')

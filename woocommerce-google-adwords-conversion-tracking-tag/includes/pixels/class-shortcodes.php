@@ -94,6 +94,7 @@ class Shortcodes {
 			'tiktok-event'          => 'SubmitForm',
 			'contentsquare-event'   => '',
 			'mixpanel-event'        => 'Lead Submitted',
+			'klaviyo-event'         => 'Submitted Lead',
 		];
 
 		$shortcode_attributes = shortcode_atts($pairs, $attributes);
@@ -229,6 +230,16 @@ class Shortcodes {
 		) {
 			self::conversion_html_mixpanel($shortcode_attributes);
 		}
+
+		// Klaviyo (Premium only)
+		if (
+			wpm_fs()->can_use_premium_code__premium_only()
+			&& self::should_tracking_event_be_injected($shortcode_attributes, 'klaviyo')
+			&& Options::is_klaviyo_active()
+			&& 'off' !== Options::get_klaviyo_coexistence_mode()
+		) {
+			self::conversion_html_klaviyo($shortcode_attributes);
+		}
 	}
 
 	private static function should_tracking_event_be_injected( $shortcode_attributes, $pixel_id = null ) {
@@ -295,6 +306,38 @@ class Shortcodes {
 			jQuery(document).on("pmw:ready", function () {
 				if (typeof window.mixpanel !== "undefined" && typeof window.mixpanel.track === "function") {
 					window.mixpanel.track("<?php echo esc_js($shortcode_attributes['mixpanel-event']); ?>", {
+						$source: "Pixel Manager for WooCommerce",
+					});
+				}
+			});
+		</script>
+		<?php
+	}
+
+	/**
+	 * Output the Klaviyo conversion tracking script
+	 *
+	 * Goes through pmw.klaviyoTrack(), which sends through klaviyo.js when it
+	 * is on the page and through Klaviyo's public client endpoint otherwise,
+	 * with the same service tag as every other Klaviyo event.
+	 *
+	 * @since 1.68.0
+	 *
+	 * @param array $shortcode_attributes Sanitized shortcode attributes
+	 * @return void
+	 */
+	private static function conversion_html_klaviyo( $shortcode_attributes ) {
+
+		if (empty($shortcode_attributes['klaviyo-event'])) {
+			return;
+		}
+
+		?>
+
+		<script>
+			jQuery(document).on("pmw:ready", function () {
+				if (typeof pmw !== "undefined" && typeof pmw.klaviyoTrack === "function") {
+					pmw.klaviyoTrack("<?php echo esc_js($shortcode_attributes['klaviyo-event']); ?>", {
 						$source: "Pixel Manager for WooCommerce",
 					});
 				}

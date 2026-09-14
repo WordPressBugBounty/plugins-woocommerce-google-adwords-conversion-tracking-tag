@@ -374,10 +374,6 @@ class Environment {
 		if (self::is_flying_press_active()) {
 			self::purge_flying_press_cache();
 		}
-		// Delete the Real Cookie Banner cache if it exists
-		if (function_exists('wp_rcb_invalidate_templates_cache')) {
-			wp_rcb_invalidate_templates_cache();
-		}
 	}
 
 	/**
@@ -790,6 +786,19 @@ class Environment {
 		return is_plugin_active('tiktok-for-business/tiktok-for-woocommerce.php');
 	}
 
+	/**
+	 * Triple Whale's own "Triple Whale Pixel" WordPress plugin.
+	 *
+	 * The class check covers an install under a renamed directory.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.67.1
+	 */
+	public static function is_triple_whale_pixel_plugin_active() {
+		return is_plugin_active('triple-whale/triple-whale.php') || class_exists('twpwe_extension');
+	}
+
 	public static function is_wp_rocket_active() {
 		return is_plugin_active('wp-rocket/wp-rocket.php');
 	}
@@ -1076,26 +1085,6 @@ class Environment {
 			|| Profit_Margin::get_custom_cog_product_meta_key();
 	}
 
-	public static function is_some_cmp_active() {
-		if (
-			self::is_beautiful_cookie_consent_active()
-			|| self::is_borlabs_cookie_active()
-			|| self::is_complianz_active()
-			|| self::is_cookiebot_active()
-			|| self::is_cookieyes_active()
-			|| self::is_cookie_notice_active()
-			|| self::is_cookie_script_active()
-			|| self::is_faz_cookie_manager_active()
-			|| self::is_moove_gdpr_active()
-			|| self::is_real_cookie_banner_active()
-			|| self::is_termly_active()
-		) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
 	public static function is_woocommerce_active() {
 		return is_plugin_active('woocommerce/woocommerce.php');
 	}
@@ -1186,6 +1175,105 @@ class Environment {
 
 	public static function is_yith_wc_brands_active() {
 		return is_plugin_active('yith-woocommerce-brands-add-on-premium/init.php');
+	}
+
+	/**
+	 * Klaviyo (the official WooCommerce plugin)
+	 *
+	 * @link https://wordpress.org/plugins/klaviyo/
+	 *
+	 * @return bool
+	 *
+	 * @since 1.68.0
+	 */
+	public static function is_klaviyo_plugin_active() {
+		return is_plugin_active('klaviyo/klaviyo.php');
+	}
+
+	/**
+	 * The version of the official Klaviyo plugin, or an empty string.
+	 *
+	 * WCK_API::VERSION is the reliable source. The plugin also defines
+	 * WCK_VERSION, but from a property that is still unset at that moment, so
+	 * on a live install the constant holds false; it is only consulted when it
+	 * carries a value. The plugin header is the last resort. The plugin's
+	 * KLAVIYO_PLUGIN_VERSION constant is a stale 1.3 and is never read.
+	 *
+	 * @return string
+	 *
+	 * @since 1.68.0
+	 */
+	public static function get_klaviyo_plugin_version() {
+
+		if (!self::is_klaviyo_plugin_active()) {
+			return '';
+		}
+
+		$version = '';
+
+		if (class_exists('WCK_API') && defined('WCK_API::VERSION') && is_string(\WCK_API::VERSION) && '' !== \WCK_API::VERSION) {
+			$version = \WCK_API::VERSION;
+		} elseif (defined('WCK_VERSION') && is_string(WCK_VERSION) && '' !== WCK_VERSION) {
+			$version = WCK_VERSION;
+		} else {
+
+			if (!function_exists('get_plugin_data')) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			}
+
+			$plugin_file = WP_PLUGIN_DIR . '/klaviyo/klaviyo.php';
+
+			if (file_exists($plugin_file)) {
+				$plugin_data = get_plugin_data($plugin_file, false, false);
+				$version     = isset($plugin_data['Version']) ? (string) $plugin_data['Version'] : '';
+			}
+		}
+
+		/**
+		 * Filter the detected Klaviyo plugin version.
+		 *
+		 * Lets a shop pin the version the takeover guard compares against, for
+		 * example to keep automatic mode in takeover on a Klaviyo release that
+		 * was checked by hand before the Pixel Manager caught up.
+		 *
+		 * @param string $version The detected version, or an empty string.
+		 *
+		 * @since 1.68.0
+		 */
+		return (string) apply_filters('pmw_klaviyo_plugin_version', $version);
+	}
+
+	/**
+	 * The Klaviyo plugin versions the tracking takeover was tested against.
+	 *
+	 * The takeover removes the plugin's tracking hooks by name and calls its
+	 * wck_build_cart_data() for the abandoned-cart key, so a Klaviyo release
+	 * that moves either can silently break it. Outside this range the Pixel
+	 * Manager falls back to filling the gaps instead. Bump the upper bound
+	 * after verifying a new Klaviyo release; that is the whole maintenance rule.
+	 *
+	 * @since 1.68.0
+	 */
+	const KLAVIYO_PLUGIN_TESTED_MIN = '3.8.0';
+	const KLAVIYO_PLUGIN_TESTED_MAX = '3.9';
+
+	/**
+	 * Whether the active Klaviyo plugin version is inside the tested range.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.68.0
+	 */
+	public static function is_klaviyo_plugin_version_supported() {
+
+		$version = self::get_klaviyo_plugin_version();
+
+		if ('' === $version) {
+			return false;
+		}
+
+		return version_compare($version, self::KLAVIYO_PLUGIN_TESTED_MIN, '>=')
+			&& version_compare($version, self::KLAVIYO_PLUGIN_TESTED_MAX, '<');
 	}
 
 	public static function is_optimocha_active() {
@@ -1512,9 +1600,36 @@ class Environment {
 			// Try to disable blocking of inline PMW configuration scripts
 			add_filter('cmplz_whitelisted_script_tags', function ( $tags ) {
 				$tags[] = 'pmwDataLayer';
-				$tags[] = 'pmwDataLayer';
 				return $tags;
 			});
+
+			/**
+			 * Disable the Complianz Google Consent Mode if the Google Consent Mode is active in PMW
+			 *
+			 * Two consent default blocks on one page compete: whichever gtag
+			 * consent default runs last is the one Google keeps, and Complianz
+			 * grants functionality_storage and security_storage by default while
+			 * PMW denies everything but the essentials in explicit consent mode.
+			 * The pixels then ran against a default state PMW never set.
+			 * Ticket 3435984837.
+			 *
+			 * Complianz keeps its settings in one option array rather than in
+			 * single options, so unlike the Cookiebot tweak below this has to go
+			 * through the array. It is limited to the front end so that the
+			 * Complianz settings screens keep showing the merchant what is
+			 * actually stored.
+			 *
+			 * @since 1.67.1
+			 */
+			if (!is_admin() && Options::is_google_consent_mode_active()) {
+				add_filter('option_cmplz_options', function ( $options ) {
+					if (!is_array($options)) {
+						return $options;
+					}
+					$options['consent-mode'] = 'no';
+					return $options;
+				});
+			}
 		}
 
 		/**
@@ -1753,6 +1868,30 @@ class Environment {
 		}
 
 		/**
+		 * Triple Whale Pixel
+		 *
+		 * Triple Whale's own plugin installs the same Triple Pixel and reports
+		 * add to cart and purchase from PHP hooks. It exposes no filter to
+		 * switch that off, so its callbacks are unhooked while PMW's Triple
+		 * Whale pixel is active. The pixel bootstrap itself guards against a
+		 * second load, but the events would be reported twice.
+		 *
+		 * The plugin registers its hooks from a singleton created on
+		 * plugins_loaded priority 10, so the removals cannot run from the
+		 * plugins_loaded slot: the singleton might not exist yet, and asking
+		 * for it would create it and register the very hooks we want gone.
+		 * init priority 0 is after plugins_loaded has finished and before the
+		 * earliest of its hooks, woocommerce_add_to_cart on a wc-ajax request
+		 * from template_redirect priority 0.
+		 *
+		 * Verified against Triple Whale Pixel 1.0.4.
+		 */
+
+		if (Options::is_triple_whale_active() && self::is_triple_whale_pixel_plugin_active()) {
+			self::disable_triple_whale_pixel_plugin_tracking();
+		}
+
+		/**
 		 * Reddit for WooCommerce
 		 */
 
@@ -1842,63 +1981,6 @@ class Environment {
 		}
 
 		/**
-		 * If the Real Cookie Banner is active we need to disable the script output for several cookies.
-		 */
-		if (self::is_real_cookie_banner_active()) {
-
-			add_action('RCB/Templates/TechnicalHandlingIntegration', function ( $integration ) {
-
-				$tag_names = [
-					'bing-ads'        => 'bing-ads',
-					'facebook-ads'    => 'facebook-pixel',
-					'ga4'             => 'google-analytics-analytics-4',
-					'google-ads'      => 'google-ads-conversion-tracking',
-					'google-optimize' => 'google-optimize',
-					'hotjar'          => 'hotjar',
-					'pinterest-ads'   => 'pinterest-tag',
-					'snapchat-ads'    => 'snapchat',
-					'tiktok-ads'      => 'tik-tok-pixel',
-					'twitter-ads'     => 'twitter-pixel',
-					'reddit-ads'      => 'reddit-pixel',
-				];
-
-				/**
-				 * Filters Real cookie banner tag names.
-				 *
-				 * @since 1.59.0
-				 */
-				$tag_names = apply_filters('pmw_real_cookie_banner_tag_names', $tag_names);
-
-				self::handle_rcb_integration($integration, Options::is_bing_active(), $tag_names['bing-ads']);
-				self::handle_rcb_integration($integration, Options::is_facebook_active(), $tag_names['facebook-ads']);
-				self::handle_rcb_integration($integration, Options::is_ga4_enabled(), $tag_names['ga4']);
-				self::handle_rcb_integration($integration, Options::is_google_ads_active(), $tag_names['google-ads']);
-				self::handle_rcb_integration($integration, Options::is_hotjar_enabled(), $tag_names['hotjar']);
-				self::handle_rcb_integration($integration, Options::is_pinterest_active(), $tag_names['pinterest-ads']);
-				self::handle_rcb_integration($integration, Options::is_snapchat_active(), $tag_names['snapchat-ads']);
-				self::handle_rcb_integration($integration, Options::is_tiktok_active(), $tag_names['tiktok-ads']);
-				self::handle_rcb_integration($integration, Options::is_twitter_active(), $tag_names['twitter-ads']);
-				self::handle_rcb_integration($integration, Options::is_reddit_active(), $tag_names['reddit-ads']);
-
-				// Fully dynamic version
-				// Advantage: PhpStorm should be able to detect refactored function names and update them automatically
-				// Disadvantage: The the functions will be loaded dynamically (call_user_func) which is a small.
-				// Disadvantage: Static analysis like PHPStan might not be able to reliably detect the function calls.
-//              $tags_mergedList = [
-//                  ['slug' => 'bing-ads', 'check' => ['Options', 'is_bing_enabled']],
-//                  ['slug' => 'facebook-pixel', 'check' => ['Options', 'is_facebook_enabled']],
-//                  // ...
-//              ];
-//
-//              foreach ($tags_mergedList as $tag) {
-//                  if (is_callable($tag['check'])) {
-//                      self::handle_rcb_integration($integration, call_user_func($tag['check']), $tag['slug']);
-//                  }
-//              }
-			});
-		}
-
-		/**
 		 * If Google Site Kit is active, we need to disable the ads and analytics tags.
 		 *
 		 * Source: https://github.com/google/site-kit-wp/blob/774ea23c2471170c96898f11c1909dedf6bc5db3/includes/Core/Modules/Tags/Module_Web_Tag.php#L31
@@ -1948,21 +2030,6 @@ class Environment {
 		return $custom_scripts;
 	}
 
-	private static function handle_rcb_integration( $integration, $is_active, $type ) {
-
-		if (
-			$is_active
-			&& $integration->integrate(PMW_PLUGIN_FILE, $type)
-		) {
-
-//          error_log('PMW: RCB integration for ' . $type . ' was disabled.');
-			$integration->setCodeOptIn('');
-			$integration->setCodeOptOut('');
-		}
-	}
-
-
-
 	private static function disable_woocommerce_google_ads_dynamic_remarketing() {
 		// make sure to disable the WGDR plugin in case we use dynamic remarketing in this plugin
 		add_filter('wgdr_third_party_cookie_prevention', '__return_true');
@@ -2011,6 +2078,37 @@ class Environment {
 		remove_action('woocommerce_thankyou', [ $pixel_class, 'inject_purchase_event' ]);
 
 		add_filter('option_tt4b_pixel_code', '__return_false');
+	}
+
+	/**
+	 * Unhooks every output of Triple Whale's own "Triple Whale Pixel" plugin.
+	 *
+	 * Two callbacks are instance methods of its twpwe_extension singleton, so
+	 * remove_action() needs that very instance; instance() returns the one the
+	 * plugin created on plugins_loaded. The other three are plain functions.
+	 * Priorities match the registration; woocommerce_thankyou is the only one
+	 * that is not the default 10.
+	 *
+	 * The pending-events transient the plugin writes for redirect add to carts
+	 * is left alone: nothing reads it once wp_head no longer prints it.
+	 *
+	 * @return void
+	 *
+	 * @since 1.67.1
+	 */
+	private static function disable_triple_whale_pixel_plugin_tracking() {
+
+		if (!class_exists('twpwe_extension')) {
+			return;
+		}
+
+		$instance = \twpwe_extension::instance();
+
+		remove_action('wp_head', [ $instance, 'inject_head' ], 10);
+		remove_action('wp_enqueue_scripts', [ $instance, 'register_scripts' ], 10);
+		remove_action('woocommerce_add_to_cart', 'twpwe_add_to_cart_handler', 10);
+		remove_action('woocommerce_ajax_added_to_cart', 'twpwe_add_to_cart_ajax_handler', 10);
+		remove_action('woocommerce_thankyou', 'twpwe_purchase_handler', 40);
 	}
 
 	private static function disable_woofunnels_features() {

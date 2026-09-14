@@ -29,6 +29,12 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  * has no admin notice: there is no in-plugin action an admin could take,
  * so a warning banner would only cause alarm without a remedy.
  *
+ * Since 1.67.1 the monitor also answers stale service worker requests
+ * itself: a worker that Google's tag registered under a path no handler
+ * serves any more gets a 410 Gone before WordPress runs the main query and
+ * renders the theme's 404 page. That turns seconds of PHP worker time per
+ * visitor into a few milliseconds, and the browser drops the registration.
+ *
  * @since 1.66.1
  */
 class GTG_Monitor {
@@ -60,8 +66,83 @@ class GTG_Monitor {
 	 */
 	public static function init() {
 
+		// Stale service worker requests are answered before WordPress runs the
+		// main query. Priority 20 leaves the proxy (priority 10) the first look
+		// at requests under a configured measurement path.
+		add_filter('do_parse_request', [ __CLASS__, 'maybe_answer_stale_service_worker_request' ], 20);
+
 		// Front end: record gateway requests that are about to render a 404 page
 		add_action('template_redirect', [ __CLASS__, 'maybe_record_gateway_404' ], 0);
+	}
+
+	/**
+	 * Answer a stale gateway service worker request with a 410 before WordPress renders a 404 page
+	 *
+	 * Google's tag registers its service worker under the path it was served
+	 * from. After the measurement path was changed or removed, or when the tag
+	 * came through the standalone proxy file, browsers keep asking for that
+	 * worker on every navigation, and each such request rendered the theme's
+	 * full 404 page. On a slow host that is seconds of a PHP worker per visitor.
+	 *
+	 * 410 is the status the Service Worker specification names for a worker
+	 * that is gone: the browser unregisters it instead of retrying.
+	 *
+	 * Runs on do_parse_request after the proxy's own filter, so a worker under
+	 * a configured measurement path is still proxied and never answered here.
+	 *
+	 * @param bool $do_parse Whether WordPress should parse the request.
+	 * @return bool Unchanged when the request is not a stale service worker request.
+	 *
+	 * @since 1.67.1
+	 */
+	public static function maybe_answer_stale_service_worker_request( $do_parse ) {
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw URI needed for path matching, sanitized before storage
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '';
+
+		if (!self::is_stale_service_worker_request($request_uri)) {
+			return $do_parse;
+		}
+
+		self::record_unhandled_request($request_uri);
+		self::send_gone_response();
+
+		return $do_parse; // Not reached, send_gone_response() ends the request
+	}
+
+	/**
+	 * Check whether a request asks for a gateway service worker that no handler serves
+	 *
+	 * @param string $request_uri The raw request URI.
+	 * @return bool True for a service worker request outside the configured measurement path.
+	 *
+	 * @since 1.67.1
+	 */
+	public static function is_stale_service_worker_request( $request_uri ) {
+
+		if (empty($request_uri) || false === strpos($request_uri, '/_/service_worker/')) {
+			return false;
+		}
+
+		// Under the configured measurement path the proxy serves the worker
+		$measurement_path = Options::get_google_tag_gateway_measurement_path();
+
+		return !( $measurement_path && GTG_Proxy::is_measurement_path_request($request_uri, $measurement_path) );
+	}
+
+	/**
+	 * End the request with an empty 410 Gone
+	 *
+	 * @return void
+	 *
+	 * @since 1.67.1
+	 */
+	private static function send_gone_response() {
+		status_header(410);
+		nocache_headers();
+		header('Content-Type: text/plain; charset=utf-8');
+		header('X-PMW-GTG: stale-service-worker');
+		exit;
 	}
 
 	/**
@@ -84,6 +165,21 @@ class GTG_Monitor {
 		if (!self::is_gateway_request($request_uri)) {
 			return;
 		}
+
+		self::record_unhandled_request($request_uri);
+	}
+
+	/**
+	 * Count a gateway request that reached WordPress without a handler
+	 *
+	 * Daily bucket, capped writes, one log warning when the threshold is crossed.
+	 *
+	 * @param string $request_uri The raw request URI, sanitized before storage.
+	 * @return void
+	 *
+	 * @since 1.67.1
+	 */
+	public static function record_unhandled_request( $request_uri ) {
 
 		$today = gmdate('Y-m-d');
 		$stats = get_option(self::OPTION_KEY);
@@ -108,7 +204,7 @@ class GTG_Monitor {
 		if (self::WARNING_THRESHOLD === $stats['count']) {
 			Logger::warning(
 				sprintf(
-					'[GTG-Monitor] %1$d Google Tag Gateway requests ended in a WordPress 404 today. Last URI: %2$s',
+					'[GTG-Monitor] %1$d Google Tag Gateway requests reached WordPress unhandled today. Last URI: %2$s',
 					$stats['count'],
 					$stats['last_uri']
 				)
@@ -169,18 +265,18 @@ class GTG_Monitor {
 		$stats = self::get_stats();
 
 		if (!$stats) {
-			return 'Gateway requests ending in WordPress 404s: none recorded' . PHP_EOL;
+			return 'Gateway requests that reached WordPress: none recorded' . PHP_EOL;
 		}
 
 		$is_current = gmdate('Y-m-d') === $stats['date'];
 		$warning    = ( $is_current && $stats['count'] >= self::WARNING_THRESHOLD ) ? '❗ ' : '';
 
-		$html  = $warning . 'Gateway requests ending in WordPress 404s: ' . $stats['count'] . ' on ' . $stats['date'];
+		$html  = $warning . 'Gateway requests that reached WordPress: ' . $stats['count'] . ' on ' . $stats['date'];
 		$html .= $stats['count'] >= self::DAILY_WRITE_CAP ? ' (counting stopped at the daily cap)' : '';
 		$html .= PHP_EOL;
 
 		if (!empty($stats['last_uri'])) {
-			$html .= 'Last 404 URI:                              ' . $stats['last_uri'] . PHP_EOL;
+			$html .= 'Last such URI:                           ' . $stats['last_uri'] . PHP_EOL;
 		}
 
 		return $html;

@@ -536,6 +536,16 @@ class Admin {
                 $section_ids['settings_name']
             );
         }
+        // add the field for the Klaviyo pixel (Pro feature)
+        if ( wpm_fs()->can_use_premium_code__premium_only() || Options::is_pro_version_demo_active() ) {
+            add_settings_field(
+                'pmw_plugin_klaviyo_public_api_key',
+                esc_html__( 'Klaviyo public API key', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_klaviyo_public_api_key'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+        }
     }
 
     public static function add_section_main_subsection_marketing( $section_ids ) {
@@ -575,6 +585,59 @@ class Admin {
             'wpm_plugin_facebook_pixel_id',
             esc_html__( 'Meta (Facebook) pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'option_html_facebook_pixel_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        /**
+         * Browser pixels with a Pro server-side counterpart. The tag itself is
+         * free; the Conversions API / Events API fields sit in the guarded
+         * advanced subsections below.
+         */
+        // add the field for the Bing Ads UET tag ID
+        add_settings_field(
+            'wpm_plugin_bing_uet_tag_id',
+            esc_html__( 'Microsoft Advertising UET tag ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_bing_uet_tag_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the OpenAI pixel
+        add_settings_field(
+            'pmw_plugin_openai_pixel_id',
+            esc_html__( 'OpenAI pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+            [__CLASS__, 'option_html_openai_pixel_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Pinterest pixel
+        add_settings_field(
+            'pmw_plugin_pinterest_pixel_id',
+            esc_html__( 'Pinterest pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_pinterest_pixel_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Reddit Ads pixel
+        add_settings_field(
+            'plugin_reddit_pixel_id',
+            esc_html__( 'Reddit pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_reddit_pixel_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // add the field for the Snapchat pixel
+        add_settings_field(
+            'wpm_plugin_snapchat_pixel_id',
+            esc_html__( 'Snapchat pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_snapchat_pixel_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // add the field for the TikTok pixel
+        add_settings_field(
+            'wpm_plugin_tiktok_pixel_id',
+            esc_html__( 'TikTok pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_tiktok_pixel_id'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -630,14 +693,6 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
-            // add the field for the Bing Ads UET tag ID
-            add_settings_field(
-                'wpm_plugin_bing_uet_tag_id',
-                esc_html__( 'Microsoft Advertising UET tag ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                [__CLASS__, 'option_html_bing_uet_tag_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
             // add the field for the Outbrain pixel
             add_settings_field(
                 'pmw_plugin_outbrain_advertiser_id',
@@ -646,51 +701,11 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
-            // Add the field for the Pinterest pixel
-            add_settings_field(
-                'pmw_plugin_pinterest_pixel_id',
-                esc_html__( 'Pinterest pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                [__CLASS__, 'option_html_pinterest_pixel_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-            // Add the field for the Reddit Ads pixel
-            add_settings_field(
-                'plugin_reddit_pixel_id',
-                esc_html__( 'Reddit pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                [__CLASS__, 'option_html_reddit_pixel_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-            // Add the field for the OpenAI pixel
-            add_settings_field(
-                'pmw_plugin_openai_pixel_id',
-                esc_html__( 'OpenAI pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-                [__CLASS__, 'option_html_openai_pixel_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-            // add the field for the Snapchat pixel
-            add_settings_field(
-                'wpm_plugin_snapchat_pixel_id',
-                esc_html__( 'Snapchat pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                [__CLASS__, 'option_html_snapchat_pixel_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
             // Add the field for the Taboola pixel
             add_settings_field(
                 'pmw_plugin_taboola_account_id',
                 esc_html__( 'Taboola account ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
                 [__CLASS__, 'option_html_taboola_account_id'],
-                'wpm_plugin_options_page',
-                $section_ids['settings_name']
-            );
-            // add the field for the TikTok pixel
-            add_settings_field(
-                'wpm_plugin_tiktok_pixel_id',
-                esc_html__( 'TikTok pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
-                [__CLASS__, 'option_html_tiktok_pixel_id'],
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
@@ -723,13 +738,6 @@ class Admin {
             'pmw_plugin_triple_whale_enabled',
             esc_html__( 'Triple Whale', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
             [__CLASS__, 'option_html_triple_whale_enabled'],
-            'wpm_plugin_options_page',
-            $section_ids['settings_name']
-        );
-        add_settings_field(
-            'pmw_plugin_triple_whale_orders_api_token',
-            esc_html__( 'Triple Whale Orders API key', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-            [__CLASS__, 'option_html_triple_whale_orders_api_token'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -807,6 +815,7 @@ class Admin {
             self::add_section_advanced_subsection_openai( $section_ids );
             self::add_section_advanced_subsection_criteo( $section_ids );
             self::add_section_advanced_subsection_mixpanel( $section_ids );
+            self::add_section_advanced_subsection_klaviyo( $section_ids );
             self::add_section_advanced_subsection_nextdoor( $section_ids );
             self::add_section_advanced_subsection_hyros( $section_ids );
             self::add_section_advanced_subsection_tiktok( $section_ids );
@@ -948,28 +957,28 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // Add a button to enable the lifetime calculation on orders
+            add_settings_field(
+                'pmw_setting_ltv_on_orders',
+                esc_html__( 'Lifetime Value Calculation on Orders', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'html_ltv_calculation_on_orders'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+            // The "Automatic Lifetime Value Recalculation" field was removed in 1.63.1.
+            // The automatic drift detection it advertised had been disabled long
+            // before that because it caused performance problems on large shops, so
+            // the setting controlled nothing. A full recalculation is a manual
+            // operation now; see the field below. Details in LTV::calculate_pmw_order_values().
+            // Add a button to schedule a lifetime value recalculation
+            add_settings_field(
+                'pmw_setting_ltv_manual_recalculation',
+                esc_html__( 'Manual Lifetime Value Recalculation', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'ltv_manual_recalculation'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
         }
-        // Add a button to enable the lifetime calculation on orders
-        add_settings_field(
-            'pmw_setting_ltv_on_orders',
-            esc_html__( 'Lifetime Value Calculation on Orders', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-            [__CLASS__, 'html_ltv_calculation_on_orders'],
-            'wpm_plugin_options_page',
-            $section_ids['settings_name']
-        );
-        // The "Automatic Lifetime Value Recalculation" field was removed in 1.63.1.
-        // The automatic drift detection it advertised had been disabled long
-        // before that because it caused performance problems on large shops, so
-        // the setting controlled nothing. A full recalculation is a manual
-        // operation now; see the field below. Details in LTV::calculate_pmw_order_values().
-        // Add a button to schedule a lifetime value recalculation
-        add_settings_field(
-            'pmw_setting_ltv_manual_recalculation',
-            esc_html__( 'Manual Lifetime Value Recalculation', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
-            [__CLASS__, 'ltv_manual_recalculation'],
-            'wpm_plugin_options_page',
-            $section_ids['settings_name']
-        );
         add_settings_field(
             'pmw_setting_order_extra_details_output',
             esc_html__( 'Order Extra Details Output', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
@@ -1395,6 +1404,46 @@ class Admin {
         );
     }
 
+    /**
+     * Klaviyo advanced settings subsection
+     *
+     * @since 1.68.0
+     *
+     * @param array $section_ids
+     * @return void
+     */
+    public static function add_section_advanced_subsection_klaviyo( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'Klaviyo',
+            'slug'  => 'klaviyo',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the coexistence with the official Klaviyo plugin
+        add_settings_field(
+            'pmw_plugin_klaviyo_coexistence',
+            esc_html__( 'Klaviyo plugin coexistence', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_klaviyo_coexistence'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the customer identification
+        add_settings_field(
+            'pmw_plugin_klaviyo_identify_customers',
+            esc_html__( 'Klaviyo customer identification', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_klaviyo_identify_customers'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Events API private key
+        add_settings_field(
+            'pmw_plugin_klaviyo_events_api_token',
+            esc_html__( 'Klaviyo Events API private key', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_klaviyo_events_api_token'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
     public static function add_section_advanced_subsection_nextdoor( $section_ids ) {
         $sub_section_ids = [
             'title' => 'Nextdoor',
@@ -1607,6 +1656,15 @@ class Admin {
             'wpm_setting_google_consent_mode_active',
             esc_html__( 'Google Consent Mode v2', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'setting_html_google_consent_mode_active'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add fields for the Microsoft Ads Consent Mode. The UET tag is a free
+        // pixel, so the consent mode that governs it is free as well.
+        add_settings_field(
+            'setting_microsoft_ads_consent_mode_active',
+            esc_html__( 'Microsoft Ads Consent Mode', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'setting_html_microsoft_ads_consent_mode_active'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -2521,6 +2579,7 @@ class Admin {
     private static function get_detected_cmps_for_wp_admin() {
         $checks = [
             'Borlabs Cookie'                 => 'is_borlabs_cookie_active',
+            'Real Cookie Banner'             => 'is_real_cookie_banner_active',
             'Cookiebot'                      => 'is_cookiebot_active',
             'Complianz'                      => 'is_complianz_active',
             'Cookie Notice'                  => 'is_cookie_notice_active',
@@ -2577,7 +2636,7 @@ class Admin {
             if ( !$class::available() ) {
                 continue;
             }
-            $card = $class::card_data();
+            $card = $class::display_card_data();
             $dismissed = $class::is_dismissed();
             // card_data() descriptions use esc_html__() which encodes entities
             // for HTML output. The React UI renders plain text, so decode
@@ -2585,6 +2644,21 @@ class Admin {
             $description = array_map( function ( $paragraph ) {
                 return html_entity_decode( wp_strip_all_tags( $paragraph ), ENT_QUOTES, 'UTF-8' );
             }, ( isset( $card['description'] ) ? $card['description'] : [] ) );
+            // Custom buttons that point at a real URL. The Classic UI also uses
+            // them for in-page section jumps ("#" plus a data attribute), which
+            // the React app cannot follow, so those are left out here.
+            $buttons = [];
+            if ( isset( $card['custom_buttons'] ) && is_array( $card['custom_buttons'] ) ) {
+                foreach ( $card['custom_buttons'] as $button ) {
+                    if ( empty( $button['url'] ) || empty( $button['label'] ) || 0 !== strpos( $button['url'], 'http' ) ) {
+                        continue;
+                    }
+                    $buttons[] = [
+                        'label' => html_entity_decode( wp_strip_all_tags( $button['label'] ), ENT_QUOTES, 'UTF-8' ),
+                        'url'   => $button['url'],
+                    ];
+                }
+            }
             $result[] = [
                 'id'          => ( isset( $card['id'] ) ? $card['id'] : '' ),
                 'title'       => html_entity_decode( wp_strip_all_tags( ( isset( $card['title'] ) ? $card['title'] : '' ) ), ENT_QUOTES, 'UTF-8' ),
@@ -2593,6 +2667,7 @@ class Admin {
                 'setupLink'   => ( isset( $card['setup_link'] ) ? $card['setup_link'] : '' ),
                 'learnMore'   => ( isset( $card['learn_more_link'] ) ? $card['learn_more_link'] : '' ),
                 'setupVideo'  => ( isset( $card['setup_video'] ) ? $card['setup_video'] : '' ),
+                'buttons'     => $buttons,
                 'dismissed'   => $dismissed,
             ];
         }
@@ -3919,6 +3994,172 @@ class Admin {
         esc_html_e( 'Identifies logged-in customers by their WordPress user ID and writes their email address, name and phone number to their Mixpanel user profile.', 'woocommerce-google-adwords-conversion-tracking-tag' );
     }
 
+    /**
+     * Klaviyo public API key
+     *
+     * @since 1.68.0
+     *
+     * @return void
+     */
+    public static function option_html_klaviyo_public_api_key() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_klaviyo_public_api_key"
+				name="wgact_plugin_options[pixels][klaviyo][public_api_key]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_klaviyo_public_api_key() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_klaviyo_active() );
+        self::get_documentation_html_by_key( 'klaviyo_public_api_key' );
+        self::output_advanced_section_cog_html( 'klaviyo' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter your Klaviyo public API key, also called the Site ID. It is 6 letters and digits, found in Klaviyo under Settings > Account > API keys.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '<br>';
+        esc_html_e( 'Enabling it lets the Pixel Manager take over the onsite tracking of the official Klaviyo plugin, with consent handling and reliable checkout events. The Klaviyo plugin keeps handling orders, catalog and profile sync, forms, list consent and abandoned cart links.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Klaviyo plugin coexistence
+     *
+     * @since 1.68.0
+     *
+     * @return void
+     */
+    public static function option_html_klaviyo_coexistence() {
+        $modes = [
+            'auto'     => esc_html__( 'Automatic (recommended)', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'takeover' => esc_html__( 'Take over the Klaviyo plugin tracking', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'gap_fill' => esc_html__( 'Only send events the Klaviyo plugin does not send', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'off'      => esc_html__( 'Send nothing to Klaviyo', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+        ];
+        $resolved = [
+            'takeover'   => esc_html__( 'taking over the Klaviyo plugin tracking', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'gap_fill'   => esc_html__( 'only sending the events the Klaviyo plugin does not send', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'standalone' => esc_html__( 'running standalone, the Klaviyo plugin is not active', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            'off'        => esc_html__( 'sending nothing to Klaviyo', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+        ];
+        ?>
+		<select id="pmw_plugin_klaviyo_coexistence"
+				name="wgact_plugin_options[pixels][klaviyo][coexistence]"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+		>
+			<?php 
+        foreach ( $modes as $mode_key => $mode_label ) {
+            ?>
+				<option value="<?php 
+            echo esc_attr( $mode_key );
+            ?>"
+					<?php 
+            selected( $mode_key, Options::get_klaviyo_coexistence_setting() );
+            ?>
+				>
+					<?php 
+            echo esc_html( $mode_label );
+            ?>
+				</option>
+			<?php 
+        }
+        ?>
+		</select>
+		<?php 
+        self::get_documentation_html_by_key( 'klaviyo_coexistence' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        echo '<br><br>';
+        esc_html_e( 'The official Klaviyo plugin stays in charge of orders, catalog and profile sync on Klaviyo\'s side, so it remains installed on every shop that uses Klaviyo flows. Automatic takes over its browser tracking when the plugin version has been tested, only fills the gaps when it has not, and runs standalone when the plugin is absent.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        if ( Options::is_klaviyo_active() ) {
+            $mode = Options::get_klaviyo_coexistence_mode();
+            echo '<br><br>';
+            echo esc_html__( 'Currently:', 'woocommerce-google-adwords-conversion-tracking-tag' ) . ' <strong>' . esc_html( ( isset( $resolved[$mode] ) ? $resolved[$mode] : $mode ) ) . '</strong>';
+            if ( Environment::is_klaviyo_plugin_active() ) {
+                echo ' (' . esc_html__( 'Klaviyo plugin version', 'woocommerce-google-adwords-conversion-tracking-tag' ) . ' ' . esc_html( Environment::get_klaviyo_plugin_version() ) . ')';
+            }
+        }
+    }
+
+    /**
+     * Klaviyo customer identification
+     *
+     * @since 1.68.0
+     *
+     * @return void
+     */
+    public static function option_html_klaviyo_identify_customers() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][klaviyo][identify_customers]">
+			<input type="checkbox"
+					id="pmw_plugin_klaviyo_identify_customers"
+					name="wgact_plugin_options[pixels][klaviyo][identify_customers]"
+					value="1"
+				<?php 
+        checked( Options::is_klaviyo_customer_identification_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Identify known customers to Klaviyo', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_klaviyo_customer_identification_enabled(), Options::is_klaviyo_active(), true );
+        self::get_documentation_html_by_key( 'klaviyo_identify_customers' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Sends the email address, phone number and name of logged-in customers and of shoppers who have entered them at checkout to Klaviyo, so browsing, cart and checkout events attach to their Klaviyo profile. Abandoned cart and browse abandonment flows trigger on exactly these events.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Klaviyo Events API private key
+     *
+     * @since 1.68.0
+     *
+     * @return void
+     */
+    public static function option_html_klaviyo_events_api_token() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_klaviyo_events_api_token"
+				name="wgact_plugin_options[pixels][klaviyo][events_api][token]"
+				size="60"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_klaviyo_events_api_token() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_klaviyo_events_api_active(), Options::is_klaviyo_active(), true );
+        self::get_documentation_html_by_key( 'klaviyo_events_api_token' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'A Klaviyo private API key with the Events write scope, created in Klaviyo under Settings > Account > API keys. It starts with pk_.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '<br>';
+        esc_html_e( 'The Pixel Manager reports purchases and refunds through it server-side, but only while the official Klaviyo plugin is not active. With the plugin active, Klaviyo produces Placed Order from its own order sync, and sending it as well would double every order in Klaviyo.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
     public static function option_html_groundtruth_gtid() {
         ?>
 		<input class="pmw mono"
@@ -4149,30 +4390,9 @@ class Admin {
         self::get_documentation_html_by_key( 'triple_whale' );
         self::html_pro_feature();
         echo '<br><br>';
-        esc_html_e( 'Triple Whale identifies the shop by its domain. No pixel ID is required, but the domain must match the Shop URL configured in Triple Whale under Settings > Store.', 'woocommerce-google-adwords-conversion-tracking-tag' );
-    }
-
-    public static function option_html_triple_whale_orders_api_token() {
-        ?>
-		<input class="pmw mono"
-				id="pmw_plugin_triple_whale_orders_api_token"
-				name="wgact_plugin_options[pixels][triple_whale][orders_api][token]"
-				size="40"
-				type="text"
-				value="<?php 
-        echo esc_html( Options::get_triple_whale_orders_api_token() );
-        ?>"
-			<?php 
-        echo esc_html( self::disable_if_demo() );
-        ?>
-				onclick="this.select();"
-		/>
-		<?php 
-        self::display_status_icon( Options::is_triple_whale_orders_api_active(), Options::is_triple_whale_active(), true );
-        self::get_documentation_html_by_key( 'triple_whale_orders_api_token' );
-        self::html_pro_feature();
+        esc_html_e( 'Adds Triple Whale\'s browser pixel and checkout events to the shop. Triple Whale identifies the shop by its domain, which must match the Shop URL in Triple Whale under Settings > Store; no pixel ID is required.', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '<br><br>';
-        esc_html_e( 'Optional. A Triple Whale API key with the "Orders: Write" scope, created in Triple Whale under Data > APIs. When set, the Pixel Manager sends order records (including refunds) server-side to the Triple Whale Orders API.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        esc_html_e( 'Before you enable this: a WooCommerce store is connected to Triple Whale over the WooCommerce REST API during Triple Whale onboarding. That connection delivers the orders, revenue and refunds, and Triple Whale attributes the orders it imports itself. The Pixel Manager does not replace it; it supplies the browser pixel and the checkout funnel events. Beta, built from Triple Whale\'s public documentation and not certified by Triple Whale.', 'woocommerce-google-adwords-conversion-tracking-tag' );
     }
 
     /**
@@ -4533,7 +4753,6 @@ class Admin {
         self::display_status_icon( Options::is_bing_active() );
         self::get_documentation_html_by_key( 'bing_uet_tag_id' );
         self::output_advanced_section_cog_html( 'microsoft' );
-        self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Microsoft Advertising UET tag ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '&nbsp;<code>12345678</code>';
@@ -4798,7 +5017,6 @@ class Admin {
         self::display_status_icon( Options::is_pinterest_active() );
         self::get_documentation_html_by_key( 'pinterest_pixel_id' );
         self::output_advanced_section_cog_html( 'pinterest' );
-        self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Pinterest pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '&nbsp;<code>1234567890123</code>';
@@ -4855,7 +5073,6 @@ class Admin {
         self::display_status_icon( Options::is_snapchat_active() );
         self::get_documentation_html_by_key( 'snapchat_pixel_id' );
         self::output_advanced_section_cog_html( 'snapchat' );
-        self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The Snapchat pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '&nbsp;<code>1a2345b6-cd78-9012-e345-fg6h7890ij12</code>';
@@ -4906,7 +5123,6 @@ class Admin {
         self::display_status_icon( Options::is_tiktok_active() );
         self::get_documentation_html_by_key( 'tiktok_pixel_id' );
         self::output_advanced_section_cog_html( 'tiktok' );
-        self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'The TikTok pixel ID looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
         echo '&nbsp;<code>ABCD1E2FGH3IJK45LMN6</code>';
@@ -4985,9 +5201,6 @@ class Admin {
         ?>
 		<?php 
         self::wistia_video_icon( '3cr5pwksrf' );
-        ?>
-		<?php 
-        self::html_pro_feature();
         ?>
 		<p style="margin-top:16px">
 			<?php 
@@ -5190,9 +5403,6 @@ class Admin {
         ?>
 		<?php 
         self::output_advanced_section_cog_html( 'openai' );
-        ?>
-		<?php 
-        self::html_pro_feature();
         ?>
 		<p style="margin-top:16px">
 			<?php 

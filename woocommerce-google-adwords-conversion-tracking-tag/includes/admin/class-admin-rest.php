@@ -194,6 +194,17 @@ class Admin_REST {
 
 				$data = Helpers::generic_sanitization($request->get_json_params());
 
+				// The lifetime value calculation is a Pro feature, and a
+				// recalculation walks the entire order history through the Action
+				// Scheduler. The Nova control is hidden without a license, but a
+				// hidden button is not a gate: this route is reachable directly.
+				if (!Helpers::is_pmw_pro_version_active() && !Options::is_pro_version_demo_active()) {
+					wp_send_json_error([
+						'message' => esc_html__('The lifetime value calculation requires an active Pro license.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+						'status'  => LTV::get_ltv_recalculation_status(),
+					]);
+				}
+
 				if (!isset($data['action'])) {
 					wp_send_json_error([
 						'message' => 'No action specified',
@@ -530,6 +541,11 @@ class Admin_REST {
 			// function_exists('wpm_fs') && wpm_fs()->...() condition is always false
 			// there and ACR would present as locked for paying customers.
 			'canUseAcr' => Helpers::is_pmw_pro_version_active(),
+			// Whether the shop already sends server-side events for visitors who
+			// denied every consent category. The consent-exclusion note reads this
+			// so it stops offering a setting that is already doing its job.
+			// @since 1.67.1
+			'alwaysSendS2s' => Options::is_always_send_s2s_active() && Options::always_send_s2s_has_destination(),
 			'gateways'  => $gateways,
 			'rows'      => $out_rows,
 		], 200);
