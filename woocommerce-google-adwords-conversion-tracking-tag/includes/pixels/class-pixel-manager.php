@@ -26,6 +26,7 @@ use SweetCode\Pixel_Manager\Pixels\Snapchat\Snapchat_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_CAPI;
 use SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_CAPI;
+use SweetCode\Pixel_Manager\Pixels\Spotify\Spotify_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Bing\Bing_CAPI;
 use SweetCode\Pixel_Manager\Pixels\TripleWhale\Triple_Whale;
 use SweetCode\Pixel_Manager\Pixels\Mixpanel\Mixpanel_API;
@@ -1727,6 +1728,21 @@ class Pixel_Manager {
     }
 
     /**
+     * Spotify Ads data layer configuration
+     *
+     * @since 1.69.0
+     */
+    private static function get_spotify_pixel_data() {
+        return [
+            'pixel_id'            => Options::get_spotify_pixel_id(),
+            'advanced_matching'   => Options::is_spotify_advanced_matching_enabled(),
+            'dynamic_remarketing' => [
+                'id_type' => Product::get_dyn_r_id_type( 'spotify' ),
+            ],
+        ];
+    }
+
+    /**
      * Triple Whale data layer configuration
      *
      * The platform (plat) is decided here, once, so the browser never guesses
@@ -2185,6 +2201,9 @@ class Pixel_Manager {
 
     public function ajax_pmw_get_cart_items() {
         Logger::debug( 'ajax_pmw_get_cart_items()' );
+        // This endpoint only reads. Keep it out of the session's write path,
+        // so it can never revert a cart change a shopper makes while it runs.
+        Shop::keep_woocommerce_session_read_only();
         global $woocommerce;
         $cart_items = $woocommerce->cart->get_cart();
         $data = [];
@@ -2260,6 +2279,9 @@ class Pixel_Manager {
     }
 
     public function ajax_pmw_get_product_ids() {
+        // This endpoint only reads. Keep it out of the session's write path,
+        // so it can never revert a cart change a shopper makes while it runs.
+        Shop::keep_woocommerce_session_read_only();
         $data = Helpers::get_input_vars( INPUT_POST );
         // Change product_ids back into an array
         $data['product_ids'] = explode( ',', $data['product_ids'] );
@@ -2287,6 +2309,9 @@ class Pixel_Manager {
     }
 
     public function ajax_purchase_pixels_fired_handler() {
+        // This endpoint only reads. Keep it out of the session's write path,
+        // so it can never revert a cart change a shopper makes while it runs.
+        Shop::keep_woocommerce_session_read_only();
         $_post = Helpers::get_input_vars( INPUT_POST );
         // Don't use the nonce check from the admin class, because some plugin users have even partial purchase confirmation pages cached,
         // which means the nonce will be invalid.

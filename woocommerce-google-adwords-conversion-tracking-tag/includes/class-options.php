@@ -353,6 +353,14 @@ class Options {
 						'enabled' => false,
 					],
 				],
+				'spotify'    => [
+					'pixel_id'          => '',
+					'advanced_matching' => false,
+					'capi'              => [
+						'connection_id' => '',
+						'token'         => '',
+					],
+				],
 				'klaviyo'    => [
 					'public_api_key'     => '',
 					'coexistence'        => 'auto',
@@ -1176,6 +1184,38 @@ class Options {
 
 	public static function is_nextdoor_capi_test_event_code_set() {
 		return (bool) self::get_nextdoor_capi_test_event_code();
+	}
+
+	/**
+	 * Spotify Ads
+	 *
+	 * @since 1.69.0
+	 */
+
+	public static function get_spotify_pixel_id() {
+		return self::get_options_obj()->pixels->spotify->pixel_id;
+	}
+
+	public static function is_spotify_active() {
+		return (bool) self::get_spotify_pixel_id();
+	}
+
+	public static function is_spotify_advanced_matching_enabled() {
+		return (bool) self::get_options_obj()->pixels->spotify->advanced_matching;
+	}
+
+	public static function get_spotify_capi_connection_id() {
+		return self::get_options_obj()->pixels->spotify->capi->connection_id;
+	}
+
+	public static function get_spotify_capi_token() {
+		return self::get_options_obj()->pixels->spotify->capi->token;
+	}
+
+	public static function is_spotify_capi_active() {
+		return self::is_spotify_active()
+			&& (bool) self::get_spotify_capi_connection_id()
+			&& (bool) self::get_spotify_capi_token();
 	}
 
 	/**

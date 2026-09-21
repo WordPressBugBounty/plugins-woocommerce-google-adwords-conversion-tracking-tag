@@ -518,7 +518,14 @@ class GTG_Proxy {
 	 * @return \WP_REST_Response
 	 */
 	public static function handle_health_check() {
-		return new \WP_REST_Response('ok', 200);
+
+		$response = new \WP_REST_Response('ok', 200);
+
+		foreach ( self::get_health_check_cache_headers() as $name => $value ) {
+			$response->header( $name, $value );
+		}
+
+		return $response;
 	}
 
 	/**
@@ -530,7 +537,35 @@ class GTG_Proxy {
 		status_header(200);
 		header('Content-Type: text/plain; charset=utf-8');
 		header('X-PMW-GTG-Handler: WordPress');
+
+		foreach ( self::get_health_check_cache_headers() as $name => $value ) {
+			header( $name . ': ' . $value, true );
+		}
+
 		die('ok');
+	}
+
+	/**
+	 * Headers that keep the health check out of every cache.
+	 *
+	 * The health check answers one question: is this WordPress install
+	 * serving the gateway right now. A cached answer cannot do that, it only
+	 * replays the last time it worked, so a shop whose gateway has since
+	 * broken still reads "ok". This response carried no cache headers at all
+	 * until 1.69.0, and a shop was found serving it from its CDN with a
+	 * 30 day edge lifetime, picked up from the site's general page caching.
+	 *
+	 * The proxy's own no-store branch cannot cover this, because the health
+	 * check never reaches it: it short-circuits before any upstream request.
+	 *
+	 * @return array
+	 * @since 1.69.0
+	 */
+	private static function get_health_check_cache_headers() {
+		return [
+			'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
+			'Pragma'        => 'no-cache',
+		];
 	}
 
 	/**

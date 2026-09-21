@@ -1243,6 +1243,90 @@ class Shop {
         return WC()->session->has_session();
     }
 
+    /**
+     * Take this request out of the WooCommerce session's write path.
+     *
+     * WooCommerce counts an admin-ajax request as a frontend request, so it
+     * loads the cart and the session into memory and arms
+     * WC_Session_Handler::save_data() on shutdown. That save rewrites the
+     * entire session row, cart included, from the snapshot the request read
+     * when it started.
+     *
+     * A tracking request that only reads therefore carries a loaded weapon: it
+     * runs at the same moment as the shopper's own add to cart, and if
+     * anything in the same request marks the session dirty - a currency
+     * switcher, a geo plugin, a payment gateway, WooCommerce's own customer
+     * save - the shutdown write reverts the item that was added in between.
+     * The shopper sees the product silently disappear from the cart.
+     *
+     * Removing both shutdown saves makes that impossible: this request can
+     * read the cart, but it can no longer persist anything. Whatever another
+     * plugin wanted to store is written again on the next request that has a
+     * reason to.
+     *
+     * @return void
+     *
+     * @since 1.69.0
+     */
+    public static function keep_woocommerce_session_read_only() {
+        if ( !function_exists( 'WC' ) ) {
+            return;
+        }
+        if ( isset( WC()->session ) && is_object( WC()->session ) ) {
+            remove_action( 'shutdown', [WC()->session, 'save_data'], 20 );
+        }
+        if ( isset( WC()->customer ) && is_object( WC()->customer ) ) {
+            remove_action( 'shutdown', [WC()->customer, 'save'], 10 );
+        }
+    }
+
+    /**
+     * Bring the cart held in this request's session snapshot up to date.
+     *
+     * For the one endpoint that has to write to the session, the snapshot it
+     * writes must not be the cart as it looked when the request started. A
+     * shopper can add a product while the request is in flight, and since
+     * WooCommerce serializes the whole session in one go, our write would put
+     * the older cart back.
+     *
+     * Re-reading the stored row costs one query and closes that window. The
+     * object cache entry is dropped first, because a request that loaded the
+     * session at its start holds the old value there.
+     *
+     * @return void
+     *
+     * @since 1.69.0
+     */
+    public static function refresh_cart_in_session_snapshot() {
+        if ( !self::is_woocommerce_session_active() ) {
+            return;
+        }
+        $session = WC()->session;
+        if ( !method_exists( $session, 'get_session' ) || !method_exists( $session, 'get_customer_id' ) ) {
+            return;
+        }
+        $customer_id = $session->get_customer_id();
+        if ( empty( $customer_id ) ) {
+            return;
+        }
+        if ( class_exists( 'WC_Cache_Helper' ) && defined( 'WC_SESSION_CACHE_GROUP' ) ) {
+            wp_cache_delete( \WC_Cache_Helper::get_cache_prefix( WC_SESSION_CACHE_GROUP ) . $customer_id, WC_SESSION_CACHE_GROUP );
+        }
+        $stored = $session->get_session( $customer_id );
+        if ( !is_array( $stored ) ) {
+            return;
+        }
+        // The totals belong to the cart they were calculated from, so they
+        // travel together. WC_Session::set() compares before it writes, so an
+        // unchanged cart does not mark the session dirty here.
+        foreach ( ['cart', 'cart_totals'] as $key ) {
+            if ( !array_key_exists( $key, $stored ) ) {
+                continue;
+            }
+            $session->set( $key, maybe_unserialize( $stored[$key] ) );
+        }
+    }
+
     public static function get_value_from_woocommerce_session( $key, $default = null ) {
         if ( !self::is_woocommerce_session_active() ) {
             return $default;

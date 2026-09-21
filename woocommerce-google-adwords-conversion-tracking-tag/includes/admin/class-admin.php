@@ -677,6 +677,14 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // Add the field for the Spotify Ads pixel
+            add_settings_field(
+                'pmw_plugin_spotify_pixel_id',
+                esc_html__( 'Spotify Ads pixel ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_spotify_pixel_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             // Add the field for the GroundTruth pixel
             add_settings_field(
                 'pmw_plugin_groundtruth_gtid',
@@ -817,6 +825,7 @@ class Admin {
             self::add_section_advanced_subsection_mixpanel( $section_ids );
             self::add_section_advanced_subsection_klaviyo( $section_ids );
             self::add_section_advanced_subsection_nextdoor( $section_ids );
+            self::add_section_advanced_subsection_spotify( $section_ids );
             self::add_section_advanced_subsection_hyros( $section_ids );
             self::add_section_advanced_subsection_tiktok( $section_ids );
             if ( Environment::is_woocommerce_active() ) {
@@ -1471,6 +1480,38 @@ class Admin {
             'pmw_plugin_nextdoor_advanced_matching',
             esc_html__( 'Nextdoor Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             [__CLASS__, 'option_html_nextdoor_advanced_matching'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
+    public static function add_section_advanced_subsection_spotify( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'Spotify Ads',
+            'slug'  => 'spotify',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the Spotify Conversions API connection ID
+        add_settings_field(
+            'pmw_plugin_spotify_capi_connection_id',
+            esc_html__( 'Spotify Conversions API: connection ID', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_spotify_capi_connection_id'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Spotify Conversions API token
+        add_settings_field(
+            'pmw_plugin_spotify_capi_token',
+            esc_html__( 'Spotify Conversions API: token', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_spotify_capi_token'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the Spotify advanced matching
+        add_settings_field(
+            'pmw_plugin_spotify_advanced_matching',
+            esc_html__( 'Spotify Ads Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_spotify_advanced_matching'],
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
@@ -4360,6 +4401,134 @@ class Admin {
 		<?php 
         self::display_status_icon( Options::is_nextdoor_advanced_matching_enabled(), Options::is_nextdoor_active(), true );
         self::get_documentation_html_by_key( 'nextdoor_advanced_matching' );
+        self::html_pro_feature();
+    }
+
+    public static function option_html_spotify_pixel_id() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_spotify_pixel_id"
+				name="wgact_plugin_options[pixels][spotify][pixel_id]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_spotify_pixel_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_spotify_active() );
+        self::get_documentation_html_by_key( 'spotify_pixel_id' );
+        self::output_advanced_section_cog_html( 'spotify' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter your Spotify Ad Analytics pixel ID. You can find it under Manage > Your Pixels. It looks similar to this:', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        echo '&nbsp;<code>3f0a1c7d9e4b42a8b1c6d5e8f2a9b0c3</code>';
+    }
+
+    public static function option_html_spotify_capi_connection_id() {
+        ?>
+		<input class="pmw mono"
+				type="text"
+				id="pmw_plugin_spotify_capi_connection_id"
+				name="wgact_plugin_options[pixels][spotify][capi][connection_id]"
+				size="40"
+				value="<?php 
+        echo esc_html( Options::get_spotify_capi_connection_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+		/>
+		<?php 
+        self::display_status_icon( Options::get_spotify_capi_connection_id(), Options::is_spotify_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'spotify_capi_connection_id' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_spotify_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the Spotify Ads pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
+    }
+
+    public static function option_html_spotify_capi_token() {
+        ?>
+		<textarea class="pmw mono"
+					id="pmw_plugin_spotify_capi_token"
+					name="wgact_plugin_options[pixels][spotify][capi][token]"
+					cols="60"
+					rows="6"
+					onfocus="this.select();"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>><?php 
+        echo esc_html( Options::get_spotify_capi_token() );
+        ?></textarea>
+		<?php 
+        self::display_status_icon( Options::get_spotify_capi_token(), Options::is_spotify_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'spotify_capi_token' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_spotify_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the Spotify Ads pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
+    }
+
+    public static function option_html_spotify_advanced_matching() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][spotify][advanced_matching]">
+			<input type="checkbox"
+					id="pmw_plugin_spotify_advanced_matching"
+					name="wgact_plugin_options[pixels][spotify][advanced_matching]"
+					value="1"
+				<?php 
+        checked( Options::is_spotify_advanced_matching_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable Spotify Ads advanced matching', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_spotify_advanced_matching_enabled(), Options::is_spotify_active(), true );
+        self::get_documentation_html_by_key( 'spotify_advanced_matching' );
         self::html_pro_feature();
     }
 

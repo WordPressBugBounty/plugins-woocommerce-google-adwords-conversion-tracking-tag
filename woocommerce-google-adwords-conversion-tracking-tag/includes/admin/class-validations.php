@@ -883,6 +883,51 @@ class Validations {
 			}
 		}
 
+		// Validate the Spotify Ads pixel ID
+		if (isset($input['pixels']['spotify']['pixel_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['spotify']['pixel_id'] = Helpers::trim_string($input['pixels']['spotify']['pixel_id']);
+
+			if (!self::is_spotify_pixel_id($input['pixels']['spotify']['pixel_id'])) {
+				$input['pixels']['spotify']['pixel_id']
+					= Options::get_spotify_pixel_id()
+					? Options::get_spotify_pixel_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-spotify-pixel-id', esc_html__('You have entered an invalid Spotify Ads pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Spotify Conversions API connection ID
+		if (isset($input['pixels']['spotify']['capi']['connection_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['spotify']['capi']['connection_id'] = Helpers::trim_string($input['pixels']['spotify']['capi']['connection_id']);
+
+			if (!self::is_spotify_capi_connection_id($input['pixels']['spotify']['capi']['connection_id'])) {
+				$input['pixels']['spotify']['capi']['connection_id']
+					= Options::get_spotify_capi_connection_id()
+					? Options::get_spotify_capi_connection_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-spotify-capi-connection-id', esc_html__('You have entered an invalid Spotify Conversions API connection ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Spotify Conversions API token
+		if (isset($input['pixels']['spotify']['capi']['token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['spotify']['capi']['token'] = Helpers::trim_string($input['pixels']['spotify']['capi']['token']);
+
+			if (!self::is_spotify_capi_token($input['pixels']['spotify']['capi']['token'])) {
+				$input['pixels']['spotify']['capi']['token']
+					= Options::get_spotify_capi_token()
+					? Options::get_spotify_capi_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-spotify-capi-token', esc_html__('You have entered an invalid Spotify Conversions API token.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Validate the Hyros product hash
 		if (isset($input['pixels']['hyros']['product_hash'])) {
 
@@ -1344,6 +1389,10 @@ class Validations {
 			'pixels.reddit.advanced_matching',
 			'pixels.reddit.capi.test_event_code',
 			'pixels.reddit.capi.token',
+			'pixels.spotify.advanced_matching',
+			'pixels.spotify.capi.connection_id',
+			'pixels.spotify.capi.token',
+			'pixels.spotify.pixel_id',
 			'pixels.taboola.account_id',
 			'pixels.triple_whale.enabled',
 			'pixels.vwo.account_id',
@@ -2016,6 +2065,31 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	public static function is_spotify_pixel_id( $string ) {
+
+		// Spotify Ad Analytics pixel IDs are 32 lowercase hexadecimal characters.
+		$re = '/^[a-f0-9]{32}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_spotify_capi_connection_id( $string ) {
+
+		// The Spotify Conversions API connection ID is a UUID.
+		$re = '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_spotify_capi_token( $string ) {
+
+		// The Spotify Conversions API token is an opaque long-lived bearer token
+		// generated in Spotify Ads Manager, so this is deliberately permissive.
+		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_tiktok_pixel_id( $string ) {
 
 		$re = '/^[A-Z0-9]{20,20}$/m';
@@ -2340,6 +2414,9 @@ class Validations {
 			'pixels.nextdoor.pixel_id'                          => [ 'is_nextdoor_pixel_id', __('Invalid Nextdoor pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.nextdoor.capi.token'                        => [ 'is_nextdoor_capi_token', __('Invalid Nextdoor Conversion API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.nextdoor.capi.test_event_code'              => [ 'is_nextdoor_capi_test_event_code', __('Invalid Nextdoor Conversion API test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.spotify.pixel_id'                           => [ 'is_spotify_pixel_id', __('Invalid Spotify Ads pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.spotify.capi.connection_id'                 => [ 'is_spotify_capi_connection_id', __('Invalid Spotify Conversions API connection ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.spotify.capi.token'                         => [ 'is_spotify_capi_token', __('Invalid Spotify Conversions API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
 			// Mixpanel
 			'pixels.mixpanel.project_token'                     => [ 'is_mixpanel_project_token', __('Invalid Mixpanel project token. It must be a 32 character hexadecimal string.', 'woocommerce-google-adwords-conversion-tracking-tag') ],

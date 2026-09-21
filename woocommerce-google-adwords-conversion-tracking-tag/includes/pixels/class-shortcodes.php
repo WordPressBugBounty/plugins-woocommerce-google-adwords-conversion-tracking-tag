@@ -90,6 +90,9 @@ class Shortcodes {
 			'reddit-event'          => 'Lead',
 			'openai-event'          => 'lead_created',
 			'snap-event'            => 'SIGN_UP',
+			'spotify-event'         => 'lead',
+			'spotify-lead-type'     => '',
+			'spotify-lead-category' => '',
 			'taboola-event'         => '',
 			'tiktok-event'          => 'SubmitForm',
 			'contentsquare-event'   => '',
@@ -187,6 +190,15 @@ class Shortcodes {
 			&& Options::is_snapchat_active()
 		) {
 			self::conversion_html_snapchat($shortcode_attributes);
+		}
+
+		// Spotify Ads (Premium only)
+		if (
+			wpm_fs()->can_use_premium_code__premium_only()
+			&& self::should_tracking_event_be_injected($shortcode_attributes, 'spotify')
+			&& Options::is_spotify_active()
+		) {
+			self::conversion_html_spotify($shortcode_attributes);
 		}
 
 		// Taboola
@@ -558,6 +570,47 @@ class Shortcodes {
 		<script>
 			pmwFunctionExists("oaiq").then(function () {
 					oaiq("measure", "<?php echo esc_js($shortcode_attributes['openai-event']); ?>", {type: "customer_action"});
+				},
+			);
+		</script>
+		<?php
+	}
+
+	/**
+	 * Output the Spotify Ads conversion tracking script.
+	 *
+	 * Spotify's lead event is the one conversion type that fits a shortcode:
+	 * the e-commerce events are driven by the shop itself. The type and
+	 * category are optional labels the advertiser uses to tell leads apart in
+	 * Ad Analytics.
+	 *
+	 * @param array $shortcode_attributes
+	 * @return void
+	 * @since 1.69.0
+	 */
+	private static function conversion_html_spotify( $shortcode_attributes ) {
+
+		// Only Spotify's own conversion type names are accepted, so a typo
+		// cannot turn into an event Spotify silently discards.
+		$allowed_events = [ 'lead', 'signup', 'product', 'addtocart', 'checkout', 'purchase' ];
+		$event_name     = strtolower((string) $shortcode_attributes['spotify-event']);
+
+		if (!in_array($event_name, $allowed_events, true)) {
+			$event_name = 'lead';
+		}
+
+		?>
+
+		<script>
+			pmwFunctionExists("spdt").then(function () {
+					spdt("<?php echo esc_js($event_name); ?>", {
+						<?php if (!empty($shortcode_attributes['spotify-lead-type'])) : ?>
+						type: "<?php echo esc_js($shortcode_attributes['spotify-lead-type']); ?>",
+						<?php endif; ?>
+						<?php if (!empty($shortcode_attributes['spotify-lead-category'])) : ?>
+						category: "<?php echo esc_js($shortcode_attributes['spotify-lead-category']); ?>",
+						<?php endif; ?>
+					});
 				},
 			);
 		</script>

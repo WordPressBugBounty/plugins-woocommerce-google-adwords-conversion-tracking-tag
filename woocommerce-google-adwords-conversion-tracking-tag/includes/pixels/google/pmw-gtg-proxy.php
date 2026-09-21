@@ -345,6 +345,10 @@ if ( isset( $_GET['healthCheck'] ) ) {
 	http_response_code( 200 );
 	header( 'Content-Type: text/plain; charset=utf-8' );
 	header( 'X-PMW-GTG-Handler: standalone' );
+	// A cached health check cannot answer whether the gateway works right
+	// now, it only replays the last time it did. @since 1.69.0
+	header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0, s-maxage=0', true );
+	header( 'Pragma: no-cache', true );
 	echo 'ok';
 	exit;
 }
@@ -1743,6 +1747,10 @@ final class PMW_GTG_Proxy_Standalone {
 		http_response_code( 200 );
 		header( 'Content-Type: text/plain; charset=utf-8' );
 		header( 'X-PMW-GTG-Handler: standalone' );
+		// A cached health check cannot answer whether the gateway works right
+		// now, it only replays the last time it did. @since 1.69.0
+		header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0, s-maxage=0', true );
+		header( 'Pragma: no-cache', true );
 		echo 'ok';
 		exit;
 	}
