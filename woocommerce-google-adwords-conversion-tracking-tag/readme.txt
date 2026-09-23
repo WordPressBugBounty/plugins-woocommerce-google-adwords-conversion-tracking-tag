@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.69.0
+Stable tag: 1.69.1
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -338,6 +338,19 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.69.1  =
+*Release date - 22.09.2026*
+
+* Fix: A post title can no longer break out of the data layer script. WordPress keeps the entities of a closing script tag in a title saved by a Contributor, and the plugin decoded them right before writing the title into its inline script, so the markup after that tag ran on every view of the post. Every inline script now escapes its angle brackets
+* Tweak: Every value the plugin prints into a script, an attribute or a link now goes through the escaping function that fits that exact position, so a value that a validation rule stops today stays harmless if that rule ever loosens. None of the corrected sites was exploitable
+* Fix: The browser-to-server event endpoint refuses a purchase named inside a pixel's own object. It only checked the wrapper's event field, so an unauthenticated request could hand a fabricated purchase with any value straight to a merchant's Conversions API. Every pixel object is now searched for a purchase event name, and purchases only ever leave through the order hooks
+* Fix: A URL that merely carries an order key no longer turns the front page, an archive or a search result into the order confirmation. The plugin printed that order's customer data into whatever page the key was appended to, and looked the key up however it was shaped. Confirmation pages are also sent with no-cache headers now
+* Fix: The public rate limits count the connecting address first. The visitor address comes from proxy headers any client can set, so a rotating header used to hand out a fresh allowance per request and write a database row for each one. A real proxy still gets an allowance per visitor behind it
+* Fix: The Google Tag Gateway proxy no longer forwards the visitor's WordPress login and WooCommerce session cookies to Google's servers, no longer follows an upstream redirect on the server, and relays only the response headers a browser needs, so a policy header from upstream cannot apply to the shop's own origin
+* Tweak: A settings import now runs every field through the same validator as the settings page, drops keys that are not settings, refuses a schema version the plugin does not know and, on a free tier, keeps the stored values of Pro-only settings. It used to check that a few keys exist and store the file as it was
+* Tweak: The products data layer cache is capped at 50 entries per page, an order key must look like one before it is looked up, click IDs from the landing URL are validated like those from cookies, the settings version can no longer be written as if it were a setting, log downloads are limited to the plugin's own logs, the log redaction masks email addresses, and the Hyros referrer URL is encoded in full
+
+
 = 1.69.0  =
 *Release date - 21.09.2026*
 
@@ -403,20 +416,6 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 * Fix: The deprecated `wpmLoad` event again reaches listeners that register after the tracking library has loaded. Printing the deprecation warning also switched off the compatibility dispatch, so a snippet registering from `_pmwq` or from any late-loading script was warned that the event is deprecated and then never called, while identical code running earlier still worked
 * Fix: Requests to the Google Tag Gateway service worker, which Google's tag registers under the measurement path, are answered by the gateway instead of falling through to a full WordPress 404 page. Every visitor triggered one, which flooded 404 logs and put shops with regular traffic under load they had no way to explain
 * Fix: The Google Tag Gateway proxy no longer writes several log lines per tracking request at the info level, which grew a normal shop's daily log to several megabytes and buried the entries the logger was turned on to find. That detail is now logged at the debug level; warnings and errors are unchanged
-
-= 1.66.0  =
-*Release date - 26.08.2026*
-
-* New: The debug report now states whether Meta's own Conversions API Gateway is connected to the pixel, and which events it mirrors. The Gateway copies every browser event into the server channel from Meta's side, so it explains a server event count of roughly twice the browser one while being invisible in the WordPress plugin list
-* Tweak: Removed the one-time notice that announced the Nova interface on installs that predate it. Nova has been the default since 1.62.0, and the Support tab still offers the switch back to the Classic interface
-* Tweak: TikTok for WooCommerce no longer tracks alongside the Pixel Manager when the TikTok pixel is configured here. The plugin offers no setting or filter for it, so its event senders are unhooked, which stops its browser pixel and its Events API events while leaving the catalog sync, the order sync and its settings screen untouched
-* Fix: Configurable Composite Products are reported with the price the shopper configured instead of the cheapest possible configuration, so `add_to_cart` no longer under-reports every upgraded option. The quantity of composites and bundles is now read from the container's own quantity input rather than from the first component's
-* Fix: The Meta `AddPaymentInfo` event now reports the cart's contents, value and currency, on the browser pixel and on the Conversions API; it was sent with no commerce data at all, which is what makes Meta ask for valid price and currency data for the event
-* Fix: In explicit consent mode on shops that run Complianz, the pixels are no longer treated as approved before the visitor has answered the cookie banner. Complianz relays each consent category separately through the WP Consent API, and a category missing from such a relay, or a missing consent cookie, was read as consent
-* Fix: Google for WooCommerce and Google Analytics for WooCommerce are switched off again when the Pixel Manager tracks Google Ads or Google Analytics. Both plugins decide whether to track earlier than our compatibility filters were registered, so shops running either one alongside the Pixel Manager sent every event twice for logged out visitors
-* Fix: Events that other plugins or custom code report to the Pixel Manager, an `add_to_cart` from a custom button for example, are no longer lost when they arrive while the plugin is still loading; they are held and processed as soon as it is ready. A shipping method reported by both the plugin and a snippet is now counted once
-* Fix: The checkout page of shops whose checkout builder also makes WooCommerce report it as the cart page, CheckoutWC in Distraction Free Portal mode for example, is recognized as the checkout again, so `begin_checkout` and the other checkout page events fire there. The ambiguity is now resolved the way WooCommerce core resolves it
-* Fix: Visits from bots and automated browsers are now suppressed from the very first event, instead of only from the first server-side send onwards; the events before that were tracked as regular traffic, and with server-side tracking switched off the whole visit was
 
 = Earlier versions =
 

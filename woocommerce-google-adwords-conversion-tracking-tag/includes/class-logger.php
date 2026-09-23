@@ -243,6 +243,15 @@ class Logger {
 			}
 		}
 
+		// Email addresses: Klaviyo and Mixpanel take the customer's address in
+		// clear text, so a logged payload used to carry it into the log file.
+		// The local part is masked, the domain stays for diagnosis. @since 1.69.1
+		$redacted = preg_replace('/\b[A-Za-z0-9._%+-]+(@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/', '***$1', $message);
+
+		if (is_string($redacted)) {
+			$message = $redacted;
+		}
+
 		return $message;
 	}
 

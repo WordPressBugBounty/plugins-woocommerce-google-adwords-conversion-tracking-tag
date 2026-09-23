@@ -331,6 +331,11 @@ class Admin_REST {
 				}
 				$source = sanitize_text_field($source);
 
+				// Only the plugin's own log sources can be downloaded here. @since 1.69.1
+				if (0 !== strpos($source, self::$log_source)) {
+					$source = self::$log_source;
+				}
+
 				$logs = \WC_Log_Handler_File::get_log_files();
 				if (empty($logs)) {
 					wp_send_json_error([ 'message' => esc_html__('No log files found.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
@@ -788,6 +793,14 @@ class Admin_REST {
 	 * @since 1.59.0
 	 */
 	private static function option_path_exists( $path ) {
+
+		// db_version and timestamp live in the options tree as bookkeeping, not as
+		// settings. Writing db_version through this route re-ran the schema upgrade
+		// from that version on the next request, which rebuilt the whole settings
+		// record from legacy keys. @since 1.69.1
+		if (in_array(strtok($path, '.'), [ 'db_version', 'timestamp' ], true)) {
+			return false;
+		}
 
 		$node = Options::get_default_options();
 

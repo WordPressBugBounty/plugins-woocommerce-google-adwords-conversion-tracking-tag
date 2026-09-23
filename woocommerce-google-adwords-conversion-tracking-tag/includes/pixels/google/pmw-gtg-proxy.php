@@ -329,9 +329,9 @@ if ( isset( $_GET['healthCheck'] ) ) {
 		if ( 6 <= $configured_priority ) { // info level = 6
 			// Use wp_content_dir from config (multisite-safe), fallback to log_directory derivation
 			$debug_log = null;
-			if ( ! empty( $config['wp_content_dir'] ) ) {
+			if ( ! empty( $config['wp_content_dir'] ) && self::is_trusted_log_root( $config['wp_content_dir'] ) ) {
 				$debug_log = $config['wp_content_dir'] . '/debug.log';
-			} elseif ( ! empty( $config['log_directory'] ) ) {
+			} elseif ( ! empty( $config['log_directory'] ) && self::is_trusted_log_root( dirname( dirname( $config['log_directory'] ) ) ) ) {
 				$debug_log = dirname( dirname( $config['log_directory'] ) ) . '/debug.log';
 			}
 			if ( $debug_log ) {
@@ -416,6 +416,45 @@ final class PMW_GTG_Proxy_Standalone {
 		'HTTP_X_API_KEY',
 		// Set by the proxy itself, never trust a client-supplied value
 		'HTTP_X_GTG_DEVELOPER_ID',
+		// Forwarded explicitly, with the site's own cookies removed
+		'HTTP_COOKIE',
+	];
+
+	/**
+	 * Cookie name prefixes that never leave the site. The upstream is whichever
+	 * *.fps.goog subdomain the request names, so the visitor's WordPress login
+	 * and WooCommerce session cookies must not travel with the request.
+	 *
+	 * @since 1.69.1
+	 */
+	const SITE_COOKIE_PREFIXES = [ 'wordpress', 'wp-', 'wp_', 'woocommerce_', 'comment_author', 'phpsessid', 'tk_', 'wpsc_' ];
+
+	/**
+	 * Response headers that may be relayed from the upstream onto this origin.
+	 * A Content-Security-Policy or Strict-Transport-Security from the upstream
+	 * would otherwise apply to the shop's own origin.
+	 *
+	 * @since 1.69.1
+	 */
+	const RELAYED_RESPONSE_HEADERS = [
+		'content-type',
+		'etag',
+		'last-modified',
+		'vary',
+		'location',
+		'set-cookie',
+		'access-control-allow-origin',
+		'access-control-allow-credentials',
+		'access-control-allow-headers',
+		'access-control-allow-methods',
+		'access-control-expose-headers',
+		'access-control-max-age',
+		'cross-origin-resource-policy',
+		'timing-allow-origin',
+		'x-content-type-options',
+		'content-disposition',
+		'date',
+		'age',
 	];
 
 	/**
@@ -437,7 +476,7 @@ final class PMW_GTG_Proxy_Standalone {
 	 *
 	 * @var array
 	 */
-	const VALID_TAG_PREFIXES = [ 'AW', 'G', 'GT', 'DC' ];
+	const VALID_TAG_PREFIXES = [ 'AW', 'G', 'GT', 'DC', 'GTM', 'MC', 'UA' ];
 
 	/**
 	 * Cached configuration
@@ -1001,12 +1040,12 @@ final class PMW_GTG_Proxy_Standalone {
 		// Use wp_content_dir from config (most reliable, especially for multisite)
 		// Fallback to deriving from log_directory for backwards compatibility
 		$log_file = null;
-		if ( ! empty( $config['wp_content_dir'] ) ) {
+		if ( ! empty( $config['wp_content_dir'] ) && self::is_trusted_log_root( $config['wp_content_dir'] ) ) {
 			$debug_log = $config['wp_content_dir'] . '/debug.log';
 			if ( is_writable( dirname( $debug_log ) ) ) {
 				$log_file = $debug_log;
 			}
-		} elseif ( ! empty( $config['log_directory'] ) ) {
+		} elseif ( ! empty( $config['log_directory'] ) && self::is_trusted_log_root( dirname( dirname( $config['log_directory'] ) ) ) ) {
 			// Legacy fallback: navigate from pmw-logs to wp-content/debug.log
 			// /path/wp-content/uploads/pmw-logs/ -> /path/wp-content/debug.log
 			$wp_content = dirname( dirname( $config['log_directory'] ) );
@@ -1102,7 +1141,14 @@ final class PMW_GTG_Proxy_Standalone {
 	 * @return string Sanitized tag ID
 	 */
 	private static function sanitize_tag_id( $tag_id ) {
-		return preg_replace( '/[^A-Za-z0-9-]/', '', $tag_id );
+		$tag_id = preg_replace( '/[^A-Za-z0-9-]/', '', (string) $tag_id );
+
+		// The ID becomes the upstream subdomain, so its length is bounded. @since 1.69.1
+		if ( strlen( $tag_id ) > 40 ) {
+			return '';
+		}
+
+		return $tag_id;
 	}
 
 	/**
@@ -1283,6 +1329,15 @@ final class PMW_GTG_Proxy_Standalone {
 			$headers[] = $header_key . ': ' . $value;
 		}
 
+		// Forward the visitor's cookies for Google's session handling, without the site's own. @since 1.69.1
+		if ( ! empty( $_SERVER['HTTP_COOKIE'] ) ) {
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- filtered by cookie name and sent upstream as a request header, never output
+			$cookie = self::filter_forwarded_cookies( $_SERVER['HTTP_COOKIE'] );
+			if ( '' !== $cookie ) {
+				$headers[] = 'Cookie: ' . $cookie;
+			}
+		}
+
 		// Add X-Forwarded-For
 		$client_ip = self::get_client_ip();
 		if ( $client_ip ) {
@@ -1298,6 +1353,57 @@ final class PMW_GTG_Proxy_Standalone {
 		$headers[] = 'X-gtg-developer-id: ' . self::LOCAL_PROXY_DEVELOPER_ID;
 
 		return $headers;
+	}
+
+	/**
+	 * Remove the site's own cookies from a Cookie header before it is forwarded upstream.
+	 *
+	 * @param string $cookie_header The raw Cookie request header.
+	 * @return string
+	 *
+	 * @since 1.69.1
+	 */
+	private static function filter_forwarded_cookies( $cookie_header ) {
+
+		$kept = [];
+
+		foreach ( explode( ';', (string) $cookie_header ) as $pair ) {
+			$pair = trim( $pair );
+			if ( '' === $pair ) {
+				continue;
+			}
+			$name = strtolower( trim( strstr( $pair . '=', '=', true ) ) );
+			foreach ( self::SITE_COOKIE_PREFIXES as $prefix ) {
+				if ( 0 === strpos( $name, $prefix ) ) {
+					continue 2;
+				}
+			}
+			$kept[] = $pair;
+		}
+
+		return implode( '; ', $kept );
+	}
+
+	/**
+	 * Whether a directory from the config file may receive this proxy's log
+	 * lines. The config lives in a predictable place under uploads, so a path
+	 * it names is only trusted when this script itself lives beneath it.
+	 *
+	 * @param string $dir
+	 * @return bool
+	 *
+	 * @since 1.69.1
+	 */
+	private static function is_trusted_log_root( $dir ) {
+
+		$real = realpath( (string) $dir );
+		$here = realpath( __DIR__ );
+
+		if ( false === $real || false === $here ) {
+			return false;
+		}
+
+		return 0 === strpos( $here . '/', rtrim( $real, '/' ) . '/' );
 	}
 
 	/**
@@ -1366,8 +1472,7 @@ final class PMW_GTG_Proxy_Standalone {
 				CURLOPT_TIMEOUT        => self::REQUEST_TIMEOUT,
 				CURLOPT_CONNECTTIMEOUT => self::REQUEST_TIMEOUT,
 				CURLOPT_HTTPHEADER     => $headers,
-				CURLOPT_FOLLOWLOCATION => true,
-				CURLOPT_MAXREDIRS      => 5,
+				CURLOPT_FOLLOWLOCATION => false, // a redirect is relayed to the browser; following it would send the forwarded headers wherever the upstream points
 				CURLOPT_SSL_VERIFYPEER => true,
 				CURLOPT_SSL_VERIFYHOST => 2,
 				CURLOPT_USERAGENT      => 'PMW-GTG-Proxy/1.0',
@@ -1432,8 +1537,7 @@ final class PMW_GTG_Proxy_Standalone {
 				'method'          => $method,
 				'header'          => $header_string,
 				'timeout'         => self::REQUEST_TIMEOUT,
-				'follow_location' => 1,
-				'max_redirects'   => 5,
+				'follow_location' => 0,
 				'ignore_errors'   => true,
 				'user_agent'      => 'PMW-GTG-Proxy/1.0',
 			],
@@ -1640,13 +1744,16 @@ final class PMW_GTG_Proxy_Standalone {
 		// Add handler identification header
 		header( 'X-PMW-GTG-Handler: standalone' );
 
-		// Forward safe headers (skip problematic ones)
-		$skip_headers = [ 'transfer-encoding', 'connection', 'content-encoding', 'content-length' ];
+		// Relay only the headers a browser needs from the upstream. @since 1.69.1
 		foreach ( $headers as $name => $value ) {
-			if ( in_array( strtolower( $name ), $skip_headers, true ) ) {
+			if ( ! in_array( strtolower( $name ), self::RELAYED_RESPONSE_HEADERS, true ) ) {
 				continue;
 			}
-			header( ucwords( $name, '-' ) . ': ' . $value );
+			$replace = true;
+			foreach ( (array) $value as $single ) {
+				header( ucwords( $name, '-' ) . ': ' . $single, $replace );
+				$replace = false;
+			}
 		}
 
 		// Set cache headers for JavaScript files
@@ -1669,7 +1776,7 @@ final class PMW_GTG_Proxy_Standalone {
 			 *
 			 * @since 1.64.1
 			 */
-			if ( in_array( (int) $status_code, [ 204, 304 ], true ) ) {
+			if ( in_array( (int) $status_code, [ 204, 301, 302, 303, 304, 307, 308 ], true ) ) {
 				self::log( 'Bodiless upstream response passed through', [ 'status_code' => $status_code ], 'debug' );
 				http_response_code( $status_code );
 				exit;

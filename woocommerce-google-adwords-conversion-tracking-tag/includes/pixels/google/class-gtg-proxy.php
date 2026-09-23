@@ -80,6 +80,8 @@ class GTG_Proxy {
 		'HTTP_X_API_KEY',
 		// Set by the proxy itself, never trust a client-supplied value
 		'HTTP_X_GTG_DEVELOPER_ID',
+		// Forwarded explicitly, with the site's own cookies removed
+		'HTTP_COOKIE',
 	];
 
 	/**
@@ -820,8 +822,9 @@ class GTG_Proxy {
 		}
 
 		// Validate format: alphanumeric with hyphens (matches reference implementation)
-		// This allows: AW-123456789, G-XXXXXXXX, GT-XXXXX, DC-XXXXX, and future formats
-		if (!preg_match('/^[A-Za-z0-9-]+$/', $tag_id)) {
+		// This allows: AW-123456789, G-XXXXXXXX, GT-XXXXX, DC-XXXXX, and future formats.
+		// The ID becomes the upstream subdomain, so its length is bounded. @since 1.69.1
+		if (!preg_match('/^[A-Za-z0-9-]{1,40}$/', $tag_id)) {
 			return false;
 		}
 
@@ -910,7 +913,7 @@ class GTG_Proxy {
 	 * @since 1.64.1
 	 */
 	private static function is_bodiless_status( $status_code ) {
-		return in_array( (int) $status_code, [ 204, 304 ], true );
+		return in_array( (int) $status_code, [ 204, 301, 302, 303, 304, 307, 308 ], true );
 	}
 
 	/**
@@ -929,17 +932,18 @@ class GTG_Proxy {
 			return;
 		}
 
-		$skip_headers = [ 'transfer-encoding', 'connection', 'content-encoding', 'content-length', 'cache-control', 'expires', 'pragma' ];
-
 		foreach ( $data['headers'] as $name => $value ) {
-			if ( in_array( strtolower( $name ), $skip_headers, true ) ) {
+			// Cache-Control, Expires and Pragma are set by set_cache_headers();
+			// hop-by-hop and framing headers must not be relayed at all.
+			if ( ! self::is_relayed_response_header( $name ) ) {
 				continue;
 			}
-			// Handle headers that may have multiple values (returned as arrays)
-			if ( is_array( $value ) ) {
-				$value = implode( ', ', $value );
+			// A header with several values, Set-Cookie above all, is sent once per value.
+			$replace = true;
+			foreach ( (array) $value as $single ) {
+				header( "$name: $single", $replace );
+				$replace = false;
 			}
-			header( "$name: $value", true );
 		}
 	}
 
@@ -1387,6 +1391,129 @@ class GTG_Proxy {
 	 * @return array The headers to forward.
 	 */
 	private static function get_forwarded_headers( $geo = '' ) {
+		return self::collect_forwarded_headers( $geo );
+	}
+
+	/**
+	 * Cookie name prefixes that never leave the site.
+	 *
+	 * @var string[]
+	 */
+	private static $site_cookie_prefixes = [ 'wordpress', 'wp-', 'wp_', 'woocommerce_', 'comment_author', 'phpsessid', 'tk_', 'wpsc_' ];
+
+	/**
+	 * Remove the site's own cookies from a Cookie header before it is forwarded upstream.
+	 *
+	 * The upstream host is whichever *.fps.goog subdomain the request names,
+	 * so a request a third party triggers in the visitor's browser used to hand
+	 * that host the visitor's wordpress_logged_in and wp_woocommerce_session
+	 * cookies. Google's own cookies (_ga, _gcl, FPID, FPLC and friends) pass.
+	 *
+	 * @param string $cookie_header The raw Cookie request header.
+	 * @return string
+	 *
+	 * @since 1.69.1
+	 */
+	public static function filter_forwarded_cookies( $cookie_header ) {
+
+		$kept = [];
+
+		foreach ( explode( ';', (string) $cookie_header ) as $pair ) {
+			$pair = trim( $pair );
+			if ( '' === $pair ) {
+				continue;
+			}
+			$name = strtolower( trim( strstr( $pair . '=', '=', true ) ) );
+			foreach ( self::$site_cookie_prefixes as $prefix ) {
+				if ( 0 === strpos( $name, $prefix ) ) {
+					continue 2;
+				}
+			}
+			$kept[] = $pair;
+		}
+
+		return implode( '; ', $kept );
+	}
+
+	/**
+	 * Response headers that may be relayed from the upstream onto this origin.
+	 *
+	 * Everything else stays behind: a Content-Security-Policy, a
+	 * Strict-Transport-Security or an X-Frame-Options from the upstream would
+	 * otherwise apply to the shop's own origin. @since 1.69.1
+	 *
+	 * @var string[]
+	 */
+	private static $relayed_response_headers = [
+		'content-type',
+		'etag',
+		'last-modified',
+		'vary',
+		'location',
+		'set-cookie',
+		'access-control-allow-origin',
+		'access-control-allow-credentials',
+		'access-control-allow-headers',
+		'access-control-allow-methods',
+		'access-control-expose-headers',
+		'access-control-max-age',
+		'cross-origin-resource-policy',
+		'timing-allow-origin',
+		'x-content-type-options',
+		'content-disposition',
+		'date',
+		'age',
+	];
+
+	/**
+	 * Whether an upstream response header may be relayed to the browser.
+	 *
+	 * @param string $name Header name, any case.
+	 * @return bool
+	 *
+	 * @since 1.69.1
+	 */
+	public static function is_relayed_response_header( $name ) {
+		return in_array( strtolower( (string) $name ), self::$relayed_response_headers, true );
+	}
+
+	/**
+	 * Write the .htaccess and index.php that keep a directory from being listed
+	 * or served, whether or not the directory already existed.
+	 *
+	 * @param string $dir
+	 * @return void
+	 *
+	 * @since 1.69.1
+	 */
+	private static function write_directory_guards( $dir ) {
+
+		if ( ! is_dir( $dir ) || ! is_writable( $dir ) ) {
+			return;
+		}
+
+		if ( ! file_exists( $dir . '/.htaccess' ) ) {
+			file_put_contents( $dir . '/.htaccess', "deny from all\n", LOCK_EX );
+		}
+
+		if ( ! file_exists( $dir . '/index.php' ) ) {
+			file_put_contents( $dir . '/index.php', "<?php\n// Silence is golden.\n", LOCK_EX );
+		}
+	}
+
+	/**
+	 * A random suffix for a temporary file next to a shared file, in place of
+	 * uniqid(), whose clock-based value is guessable.
+	 *
+	 * @return string
+	 *
+	 * @since 1.69.1
+	 */
+	private static function temp_file_suffix() {
+		return '.tmp.' . wp_generate_password( 12, false );
+	}
+
+	private static function collect_forwarded_headers( $geo = '' ) {
 
 		$_server = Helpers::get_input_vars(INPUT_SERVER);
 		$headers = [];
@@ -1440,9 +1567,14 @@ class GTG_Proxy {
 			$headers['user-agent'] = isset($_server['HTTP_USER_AGENT']) ? $_server['HTTP_USER_AGENT'] : 'PMW-GTG-Proxy/1.0';
 		}
 
-		// Forward cookies for Google Tag tracking (required for proper session/user identification)
+		// Forward cookies for Google Tag tracking (required for proper session/user identification),
+		// without the WordPress and WooCommerce cookies, which Google has no use for
+		// and which identify the visitor's login and cart on this site. @since 1.69.1
 		if (!empty($_server['HTTP_COOKIE'])) {
-			$headers['cookie'] = $_server['HTTP_COOKIE'];
+			$cookie = self::filter_forwarded_cookies($_server['HTTP_COOKIE']);
+			if ('' !== $cookie) {
+				$headers['cookie'] = $cookie;
+			}
 		}
 
 		// Identify PMW's local proxy to Google (Cloudflare sets its own developer ID)
@@ -1493,7 +1625,7 @@ class GTG_Proxy {
 			'headers'      => $headers,
 			'body'         => $body,
 			'timeout'      => absint( $timeout ),
-			'redirection'  => 5, // Follow up to 5 redirects (prevents Apache AH00124 internal redirect loops)
+			'redirection'  => 0, // A redirect is relayed to the browser with its Location header; following it server-side would send the forwarded headers to whatever host the upstream names
 			'sslverify'    => true,
 			'decompress'   => true, // Decompress the response
 		];
@@ -1717,23 +1849,14 @@ class GTG_Proxy {
 		}
 
 		// Create directory if it doesn't exist
-		if ( ! file_exists( $config_dir ) ) {
-			if ( ! wp_mkdir_p( $config_dir ) ) {
-				return false;
-			}
-
-			// Create .htaccess to deny direct access
-			$htaccess_file = $config_dir . '/.htaccess';
-			if ( ! file_exists( $htaccess_file ) ) {
-				file_put_contents( $htaccess_file, "deny from all\n", LOCK_EX );
-			}
-
-			// Create index.php to prevent directory listing
-			$index_file = $config_dir . '/index.php';
-			if ( ! file_exists( $index_file ) ) {
-				file_put_contents( $index_file, "<?php\n// Silence is golden.\n", LOCK_EX );
-			}
+		if ( ! file_exists( $config_dir ) && ! wp_mkdir_p( $config_dir ) ) {
+			return false;
 		}
+
+		// The guard files are written on every call, not only when the directory
+		// was just created: a directory that already existed, from a restore or an
+		// earlier version, used to stay unguarded for good. @since 1.69.1
+		self::write_directory_guards( $config_dir );
 
 		return is_dir( $config_dir ) && is_writable( $config_dir );
 	}
@@ -1777,7 +1900,7 @@ class GTG_Proxy {
 
 		// Write site map atomically
 		$site_map_json = wp_json_encode( $site_map, JSON_PRETTY_PRINT );
-		$temp_file     = $site_map_file . '.tmp.' . uniqid();
+		$temp_file     = $site_map_file . self::temp_file_suffix();
 		$result        = false;
 
 		if ( false !== file_put_contents( $temp_file, $site_map_json, LOCK_EX ) ) {
@@ -1848,9 +1971,12 @@ class GTG_Proxy {
 			return false;
 		}
 
-		// Ensure log directory exists (for logging, not for config)
-		if ( $log_directory && ! file_exists( $log_directory ) ) {
-			wp_mkdir_p( $log_directory );
+		// Ensure log directory exists (for logging, not for config), guarded like the config directory
+		if ( $log_directory ) {
+			if ( ! file_exists( $log_directory ) ) {
+				wp_mkdir_p( $log_directory );
+			}
+			self::write_directory_guards( $log_directory );
 		}
 
 		// Get logging configuration from Options
@@ -1913,7 +2039,7 @@ class GTG_Proxy {
 		}
 
 		// Write config atomically to prevent corruption during reads
-		$temp_file = $config_file . '.tmp.' . uniqid();
+		$temp_file = $config_file . self::temp_file_suffix();
 		$result    = false;
 		if ( false !== file_put_contents( $temp_file, $new_config_json, LOCK_EX ) ) {
 			// Clear stat cache for accurate file existence check (prevents stale cached values)
@@ -1967,26 +2093,15 @@ class GTG_Proxy {
 		$fallback_dir = __DIR__ . '/pmw-gtg-config';
 
 		// Create fallback directory if it doesn't exist
-		if ( ! file_exists( $fallback_dir ) ) {
-			if ( ! wp_mkdir_p( $fallback_dir ) ) {
-				return false;
-			}
-
-			// Security files to prevent direct access to config
-			$htaccess_file = $fallback_dir . '/.htaccess';
-			if ( ! file_exists( $htaccess_file ) ) {
-				file_put_contents( $htaccess_file, "deny from all\n", LOCK_EX );
-			}
-
-			$index_file = $fallback_dir . '/index.php';
-			if ( ! file_exists( $index_file ) ) {
-				file_put_contents( $index_file, "<?php\n// Silence is golden.\n", LOCK_EX );
-			}
+		if ( ! file_exists( $fallback_dir ) && ! wp_mkdir_p( $fallback_dir ) ) {
+			return false;
 		}
+
+		self::write_directory_guards( $fallback_dir );
 
 		// Write config file
 		$fallback_config_file = $fallback_dir . '/' . $config_filename;
-		$temp_file            = $fallback_config_file . '.tmp.' . uniqid();
+		$temp_file            = $fallback_config_file . self::temp_file_suffix();
 		$result               = false;
 
 		if ( false !== file_put_contents( $temp_file, $config_json, LOCK_EX ) ) {
@@ -2018,7 +2133,7 @@ class GTG_Proxy {
 
 			$site_map[ $site_identifier ] = $config_filename;
 			$site_map_json                = wp_json_encode( $site_map, JSON_PRETTY_PRINT );
-			$temp_file                    = $site_map_file . '.tmp.' . uniqid();
+			$temp_file                    = $site_map_file . self::temp_file_suffix();
 
 			if ( false !== file_put_contents( $temp_file, $site_map_json, LOCK_EX ) ) {
 				clearstatcache( true, $temp_file );

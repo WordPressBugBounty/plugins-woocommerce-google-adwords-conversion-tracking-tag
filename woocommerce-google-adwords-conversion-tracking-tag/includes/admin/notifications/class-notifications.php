@@ -333,7 +333,7 @@ class Notifications {
 								var script   = document.createElement("script")
 								script.async = true
 								script.src   = 'https://fast.wistia.com/embed/medias/<?php 
-            echo esc_html( $notification_data['video_id'] );
+            echo esc_js( $notification_data['video_id'] );
             ?>.jsonp'
 								document.getElementsByTagName("head")[0].appendChild(script)
 							</script>
@@ -356,7 +356,7 @@ class Notifications {
             ?>
 						<a class="notification-card-button-link"
 							href="<?php 
-            echo esc_html( $notification_data['learn_more_link'] );
+            echo esc_url( $notification_data['learn_more_link'] );
             ?>"
 							target="_blank"
 						>
@@ -377,7 +377,7 @@ class Notifications {
             ?>
 						<a class="notification-card-button-link"
 							href="<?php 
-            echo esc_html( $notification_data['settings_link'] );
+            echo esc_url( $notification_data['settings_link'] );
             ?>"
 							target="_blank"
 						>
@@ -398,7 +398,7 @@ class Notifications {
             ?>
 						<a class="notification-card-button-link"
 							href="<?php 
-            echo esc_html( $notification_data['portal_link'] );
+            echo esc_url( $notification_data['portal_link'] );
             ?>"
 							target="_blank"
 						>

@@ -716,20 +716,20 @@ class Product {
 		if ($meta_tag) {
 			?>
 			<meta name="pm-dataLayer-meta" content="<?php echo esc_html($product->get_id()); ?>" class="pmwProductId"
-					data-id="<?php echo esc_html($product->get_id()); ?>">
+					data-id="<?php echo (int) $product->get_id(); ?>">
 			<?php
 		} elseif (!self::$printing_deferred) {
 			// The marker is skipped for deferred output. It gets re-injected
 			// into the loop items by print_deferred_product_data_layer_scripts.
 			?>
-			<input type="hidden" class="pmwProductId" data-id="<?php echo esc_html($product->get_id()); ?>">
+			<input type="hidden" class="pmwProductId" data-id="<?php echo (int) $product->get_id(); ?>">
 			<?php
 		}
 
 		?>
 		<script<?php echo wp_kses(Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html()); ?>>
 			(window.pmwDataLayer = window.pmwDataLayer || {}).products                = window.pmwDataLayer.products || {};
-			window.pmwDataLayer.products[<?php echo esc_html($product->get_id()); ?>] = <?php echo wp_json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
+			window.pmwDataLayer.products[<?php echo (int) $product->get_id(); ?>] = <?php echo Helpers::json_encode_for_script($data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper ?>;
 			<?php $set_position ? self::get_product_data_layer_script_html_part_2($product) : ''; ?>
 		</script>
 		<?php
@@ -738,7 +738,7 @@ class Product {
 	public static function get_product_data_layer_script_html_part_2( $product ) {
 		?>
 		window.pmw_product_position = window.pmw_product_position || 1;
-		window.pmwDataLayer.products[<?php echo esc_html($product->get_id()); ?>]['position'] = window.pmw_product_position++;
+		window.pmwDataLayer.products[<?php echo (int) $product->get_id(); ?>]['position'] = window.pmw_product_position++;
 		<?php
 	}
 
@@ -803,7 +803,7 @@ class Product {
 		?>
 		<script<?php echo wp_kses(Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html()); ?>>
 			(function () {
-				var ids = <?php echo wp_json_encode($product_ids); ?>;
+				var ids = <?php echo Helpers::json_encode_for_script($product_ids); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper ?>;
 				ids.forEach(function (id) {
 					document.querySelectorAll(".product.post-" + id).forEach(function (item) {
 						if (item.querySelector(".pmwProductId")) return;

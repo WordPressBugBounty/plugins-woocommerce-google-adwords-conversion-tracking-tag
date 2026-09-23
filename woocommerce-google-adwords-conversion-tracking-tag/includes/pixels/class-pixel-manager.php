@@ -301,6 +301,16 @@ class Pixel_Manager {
          * Run background processes
          */
         add_action( 'template_redirect', [$this, 'run_background_processes'] );
+        // A page the plugin treats as the order confirmation carries the
+        // customer's order and billing data in its data layer. WooCommerce's own
+        // endpoint is never cached, but a custom thank-you page, or any URL that
+        // carries an order key, is only as safe as the page cache in front of it.
+        // @since 1.69.1
+        add_action( 'template_redirect', function () {
+            if ( Shop::pmw_is_order_received_page() ) {
+                nocache_headers();
+            }
+        }, 1 );
         add_action( 'rest_api_init', [$this, 'register_rest_routes'] );
         // When updating a page, delete any transient data set by the Pixel Manager
         add_action(
@@ -339,7 +349,8 @@ class Pixel_Manager {
         ?>>
 			(window.pmwDataLayer = window.pmwDataLayer || {}).products = window.pmwDataLayer.products || {};
 			window.pmwDataLayer.products                               = Object.assign(window.pmwDataLayer.products, <?php 
-        echo wp_json_encode( (object) $products );
+        echo Helpers::json_encode_for_script( (object) $products );
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>);
 		</script>
 		<?php 
@@ -546,6 +557,19 @@ class Pixel_Manager {
             // Merge the associative arrays with nested arrays $products and $products_in_transient preserving the keys
             $products = array_replace_recursive( $products, $products_in_transient );
         }
+        // The entry is printed into every visitor's data layer on that page, and
+        // page_id can be any post on the site. Without a bound, repeated requests
+        // with new product IDs grew one page's entry, and its HTML, without limit.
+        // The products just requested come first in the merge, so they survive.
+        // @since 1.69.1
+        if ( count( $products ) > 50 ) {
+            $products = array_slice(
+                $products,
+                0,
+                50,
+                true
+            );
+        }
         // Set transient with products for $page_id.
         // TTL is one week: long enough to keep the cache useful for returning
         // visitors hitting the same page across days, short enough to bound
@@ -615,7 +639,7 @@ class Pixel_Manager {
             wp_send_json_error( 'Order not found' );
         }
         // If order key doesn't match, return error
-        if ( $order->get_order_key() !== $order_key ) {
+        if ( !is_string( $order_key ) || !hash_equals( (string) $order->get_order_key(), $order_key ) ) {
             wp_send_json_error( 'Order key does not match' );
         }
         // Deposit plugins: recover the sale from the order that represents it, or not
@@ -793,17 +817,191 @@ class Pixel_Manager {
      * @since 1.58.10
      */
     private static function is_rate_limited( $bucket, $max = 120 ) {
+        // Read from $_SERVER rather than filter_input(INPUT_SERVER), which only
+        // sees PHP's request snapshot and is empty under some SAPIs and in tests.
+        $remote_addr = ( isset( $_SERVER['REMOTE_ADDR'] ) ? (string) wp_unslash( $_SERVER['REMOTE_ADDR'] ) : '' );
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated as an IP address on the next line
+        $remote_addr = ( filter_var( $remote_addr, FILTER_VALIDATE_IP ) ? $remote_addr : '' );
         $ip = Geolocation::get_user_ip();
-        if ( empty( $ip ) ) {
+        if ( empty( $ip ) && empty( $remote_addr ) ) {
             return false;
         }
-        $key = 'pmw_rl_' . $bucket . '_' . md5( $ip );
+        /**
+         * The visitor IP comes from proxy headers such as CF-Connecting-IP or
+         * X-Forwarded-For, which any client can set on a site that does not
+         * sit behind that proxy. Rotating the header would hand out a fresh
+         * bucket per request and create a transient row for each one. So the
+         * connecting address, which cannot be forged, is counted first with a
+         * wider limit that covers a whole proxy edge, and the request is over
+         * before it can create a bucket of its own once that limit is reached.
+         * The per-visitor bucket keeps its precision on sites that really are
+         * behind a proxy, where all visitors share a few connecting addresses.
+         *
+         * @since 1.69.1
+         */
+        if ( '' !== $remote_addr ) {
+            $behind_proxy = '' !== $ip && $ip !== $remote_addr;
+            $shared_limit = ( $behind_proxy ? $max * 10 : $max );
+            if ( self::is_rate_limit_bucket_exceeded( 'pmw_rl_' . $bucket . '_c_' . md5( $remote_addr ), $shared_limit ) ) {
+                return true;
+            }
+        }
+        if ( '' !== $ip && $ip !== $remote_addr ) {
+            return self::is_rate_limit_bucket_exceeded( 'pmw_rl_' . $bucket . '_' . md5( $ip ), $max );
+        }
+        return false;
+    }
+
+    /**
+     * Count one request against a rate limit bucket.
+     *
+     * @param string $key Transient name of the bucket.
+     * @param int    $max Requests allowed per minute.
+     * @return bool True when the bucket was already full.
+     *
+     * @since 1.69.1
+     */
+    private static function is_rate_limit_bucket_exceeded( $key, $max ) {
         $count = (int) get_transient( $key );
         if ( $count >= $max ) {
             return true;
         }
         set_transient( $key, $count + 1, MINUTE_IN_SECONDS );
         return false;
+    }
+
+    /**
+     * Field names that carry an event name in a browser-to-server payload.
+     *
+     * Meta, Pinterest, Snapchat, Reddit and Spotify use event_name, TikTok
+     * uses event, Microsoft Ads uses event_type, and the Google Analytics
+     * Measurement Protocol nests the name as events[].name.
+     *
+     * @var string[]
+     */
+    private static $sse_event_name_fields = [
+        'event',
+        'event_name',
+        'event_type',
+        'en',
+        'ev'
+    ];
+
+    /**
+     * Purchase event names across every server-side destination, reduced to
+     * lowercase letters and digits: Meta and Reddit Purchase, TikTok
+     * CompletePayment and PlaceAnOrder, Klaviyo Placed Order and Ordered
+     * Product, GA4, Bing, OpenAI, Nextdoor, Snapchat and Spotify purchase.
+     * Pinterest reports a purchase as checkout, which is matched only under
+     * its own pixel key because Spotify uses the same word for a checkout start.
+     *
+     * @var string[]
+     */
+    private static $sse_purchase_event_names = [
+        'purchase',
+        'purchased',
+        'completepayment',
+        'placeanorder',
+        'placedorder',
+        'orderedproduct'
+    ];
+
+    /**
+     * Whether a browser-to-server payload asks for a purchase to be sent.
+     *
+     * The endpoint forwards each pixel's object to that platform as it is,
+     * and the platform reads the event name from inside that object. A check
+     * on the wrapper's event field alone therefore let an unauthenticated
+     * client post {"facebook":{"event_name":"Purchase","custom_data":{"value":99999}}}
+     * and land a fabricated purchase in the merchant's Conversions API. The
+     * wrapper field is now required, and every pixel object is searched for a
+     * purchase name at any depth. Purchases only ever leave through the
+     * server-side order hooks.
+     *
+     * @param mixed $data The decoded request payload.
+     * @return bool
+     *
+     * @since 1.69.1
+     */
+    public static function is_purchase_like_sse_payload( $data ) {
+        if ( !is_array( $data ) ) {
+            return true;
+        }
+        if ( !isset( $data['event'] ) || !is_string( $data['event'] ) || '' === $data['event'] ) {
+            return true;
+        }
+        if ( self::is_purchase_event_name( $data['event'] ) ) {
+            return true;
+        }
+        foreach ( $data as $pixel => $pixel_data ) {
+            if ( is_array( $pixel_data ) && self::array_carries_purchase_event_name( $pixel_data, (string) $pixel ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a branch of a pixel payload names a purchase event.
+     *
+     * @param array  $data       A pixel's payload or one of its branches.
+     * @param string $pixel      The top-level pixel key the branch belongs to.
+     * @param string $parent_key The key this branch hangs under.
+     * @param int    $depth      Recursion depth, bounded.
+     * @return bool
+     *
+     * @since 1.69.1
+     */
+    private static function array_carries_purchase_event_name(
+        $data,
+        $pixel,
+        $parent_key = '',
+        $depth = 0
+    ) {
+        if ( $depth > 8 ) {
+            return false;
+        }
+        foreach ( $data as $key => $value ) {
+            if ( is_array( $value ) ) {
+                if ( self::array_carries_purchase_event_name(
+                    $value,
+                    $pixel,
+                    ( is_string( $key ) ? $key : $parent_key ),
+                    $depth + 1
+                ) ) {
+                    return true;
+                }
+                continue;
+            }
+            if ( !is_string( $value ) || !is_string( $key ) ) {
+                continue;
+            }
+            $key_lower = strtolower( $key );
+            // A product's name is not an event name; only GA4's events[].name is.
+            $is_ga4_event_name = 'name' === $key_lower && 'events' === $parent_key;
+            $is_event_field = $is_ga4_event_name || in_array( $key_lower, self::$sse_event_name_fields, true );
+            if ( $is_event_field && self::is_purchase_event_name( $value, $pixel ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether an event name, as any platform spells it, means a purchase.
+     *
+     * @param string $name  An event name as a platform spells it.
+     * @param string $pixel The pixel key the name was found under.
+     * @return bool
+     *
+     * @since 1.69.1
+     */
+    public static function is_purchase_event_name( $name, $pixel = '' ) {
+        $normalized = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $name ) );
+        if ( in_array( $normalized, self::$sse_purchase_event_names, true ) ) {
+            return true;
+        }
+        return 'pinterest' === $pixel && 'checkout' === $normalized;
     }
 
     /**
@@ -956,8 +1154,16 @@ class Pixel_Manager {
                 'message' => 'Invalid options. Didn\'t pass validation.',
             ] );
         }
+        // Every field runs its own validator, unknown keys are dropped. @since 1.69.1
+        $validated = Validations::validate_imported_options_tree( $options );
+        if ( !$validated['valid'] ) {
+            wp_send_json_error( [
+                'message' => 'Invalid options. These settings did not pass validation: ' . implode( ', ', $validated['errors'] ),
+                'paths'   => $validated['errors'],
+            ] );
+        }
         // All good, save options with timestamp and automatic backup
-        Options::save_options_with_timestamp( $options, true );
+        Options::save_options_with_timestamp( $validated['options'], true );
         wp_send_json_success( [
             'message' => 'Options saved',
         ] );
@@ -1185,9 +1391,6 @@ class Pixel_Manager {
             'product_id'   => $cart_item['product_id'],
             'variation_id' => $cart_item['variation_id'],
         ];
-        $json_encode_options = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
-        // add JSON_PRETTY_PRINT
-        //      $json_encode_options = $json_encode_options | JSON_PRETTY_PRINT;
         // The data layer object itself is created here too, not just its
         // cart_item_keys property. This script ships inside the WooCommerce cart
         // fragments, which the browser evaluates on every cart update, and a
@@ -1202,7 +1405,8 @@ class Pixel_Manager {
 			window.pmwDataLayer.cart_item_keys['<?php 
         echo esc_js( $cart_item_key );
         ?>'] = <?php 
-        echo wp_json_encode( $data, $json_encode_options );
+        echo Helpers::json_encode_for_script( $data );
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>;
 		</script>
 
@@ -1385,9 +1589,6 @@ class Pixel_Manager {
      * @return void
      */
     private function inject_data_layer() {
-        $json_encode_options = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
-        // add JSON_PRETTY_PRINT
-        //      $json_encode_options = $json_encode_options | JSON_PRETTY_PRINT;
         // We add a script string with additional attributes to the script tag.
         // Those attributes are primarily to exclude the script from being processed
         // by various script loaders and script blockers.
@@ -1400,7 +1601,8 @@ class Pixel_Manager {
 
 			window.pmwDataLayer = window.pmwDataLayer || {};
 			window.pmwDataLayer = Object.assign(window.pmwDataLayer, <?php 
-        echo wp_json_encode( $this->get_data_for_data_layer(), $json_encode_options );
+        echo Helpers::json_encode_for_script( $this->get_data_for_data_layer() );
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>);
 
 		</script>
@@ -2318,18 +2520,29 @@ class Pixel_Manager {
         //      if (!wp_verify_nonce($_post['nonce_ajax'], 'nonce-pmw-ajax')) {
         //          wp_send_json_error('Invalid nonce');
         //      }
-        self::process_conversion_pixel_status( $_post['order_id'], $_post['order_key'], $_post['source'] );
+        self::process_conversion_pixel_status( ( isset( $_post['order_id'] ) ? $_post['order_id'] : null ), ( isset( $_post['order_key'] ) ? $_post['order_key'] : null ), ( isset( $_post['source'] ) ? $_post['source'] : null ) );
     }
+
+    /**
+     * The triggers our browser bundle reports. The value is stored on the order
+     * and picks the accuracy column, so anything else is refused. @since 1.69.1
+     *
+     * @var string[]
+     */
+    private static $conversion_pixel_sources = ['thankyou_page', 'acr_full_auto', 'acr_attempted'];
 
     private static function process_conversion_pixel_status( $order_id, $order_key, $order_source ) {
         if ( !$order_id || !$order_key || !$order_source ) {
             wp_send_json_error( 'Invalid data. Missing one or several of order_id, order_key or source.' );
         }
+        if ( !is_string( $order_source ) || !in_array( $order_source, self::$conversion_pixel_sources, true ) ) {
+            wp_send_json_error( 'Invalid source' );
+        }
         $order = wc_get_order( $order_id );
         if ( !$order ) {
             wp_send_json_error( 'Invalid order ID' );
         }
-        if ( $order->get_order_key() !== $order_key ) {
+        if ( !is_string( $order_key ) || !hash_equals( (string) $order->get_order_key(), $order_key ) ) {
             wp_send_json_error( 'Invalid order key or wrong order ID' );
         }
         self::save_conversion_pixels_fired_status( $order, $order_source );
@@ -2441,12 +2654,12 @@ class Pixel_Manager {
         // attributes keep it from being held back in the first place.
         //
         // @since 1.67.1
-        wp_add_inline_script( 'pmw', 'window.pmw = Object.assign(window.pmw || {}, ' . wp_json_encode( [
+        wp_add_inline_script( 'pmw', 'window.pmw = Object.assign(window.pmw || {}, ' . Helpers::json_encode_for_script( [
             'ajax_url'      => admin_url( 'admin-ajax.php' ),
             'root'          => esc_url_raw( rest_url() ),
             'nonce_wp_rest' => wp_create_nonce( 'wp_rest' ),
             'nonce_ajax'    => wp_create_nonce( 'nonce-pmw-ajax' ),
-        ], JSON_UNESCAPED_SLASHES ) . ');', 'before' );
+        ] ) . ');', 'before' );
         add_filter(
             'wp_inline_script_attributes',
             [$this, 'configuration_script_attributes'],

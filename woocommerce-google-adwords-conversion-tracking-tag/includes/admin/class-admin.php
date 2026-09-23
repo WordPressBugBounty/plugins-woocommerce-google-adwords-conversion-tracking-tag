@@ -82,7 +82,8 @@ class Admin {
         echo esc_html( ( $is_available ? 'true' : 'false' ) );
         ?>,
 				url      : <?php 
-        echo wp_json_encode( $chat_url );
+        echo Helpers::json_encode_for_script( $chat_url );
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>,
 			};
 		</script>
@@ -128,7 +129,8 @@ class Admin {
         ?>
 		<script>
 			var pmwDataLayer = <?php 
-        echo wp_json_encode( $data );
+        echo Helpers::json_encode_for_script( $data );
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>;
 		</script>
 		<?php 
@@ -1973,11 +1975,11 @@ class Admin {
                 break;
             }
         }
-        echo '<div class="section"' . ' data-section-title="' . esc_js( $section_ids['title'] ) . '"' . ' data-section-slug="' . esc_js( $section_ids['slug'] ) . '"' . ' data-badge-count="' . esc_attr( $badge_count ) . '"' . ' data-priority="' . esc_attr( $priority ) . '"' . ' data-show-save-button="' . esc_attr( ( $show_save_button ? '1' : '0' ) ) . '"' . '></div>';
+        echo '<div class="section"' . ' data-section-title="' . esc_attr( $section_ids['title'] ) . '"' . ' data-section-slug="' . esc_attr( $section_ids['slug'] ) . '"' . ' data-badge-count="' . esc_attr( $badge_count ) . '"' . ' data-priority="' . esc_attr( $priority ) . '"' . ' data-show-save-button="' . esc_attr( ( $show_save_button ? '1' : '0' ) ) . '"' . '></div>';
     }
 
     public static function subsection_generic_opening_div_html( $section_ids, $sub_section_ids ) {
-        echo '<div class="subsection" data-section-slug="' . esc_js( $section_ids['slug'] ) . '" data-subsection-title="' . esc_js( $sub_section_ids['title'] ) . '" data-subsection-slug="' . esc_js( $sub_section_ids['slug'] ) . '"></div>';
+        echo '<div class="subsection" data-section-slug="' . esc_attr( $section_ids['slug'] ) . '" data-subsection-title="' . esc_attr( $sub_section_ids['title'] ) . '" data-subsection-slug="' . esc_attr( $sub_section_ids['slug'] ) . '"></div>';
     }
 
     // display the admin options page
@@ -1998,7 +2000,8 @@ class Admin {
 
 		<script>
 			const pmwFreemius = <?php 
-        echo wp_json_encode( $freemius_data );
+        echo Helpers::json_encode_for_script( $freemius_data );
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>;
 		</script>
 		<?php 
@@ -3200,7 +3203,7 @@ class Admin {
 				<textarea id="export-settings-json" class=""
 							style="display:block; margin-bottom: 10px; width: 100%;resize: none;color:dimgrey;font-family: monospace;border-radius: 4px;"
 							cols="100%" rows="10" readonly><?php 
-        echo wp_json_encode( Options::get_options() );
+        echo esc_textarea( wp_json_encode( Options::get_options() ) );
         ?>
 				</textarea>
 				<div class="pmw-export-buttons">
@@ -8202,7 +8205,7 @@ class Admin {
 			</span>
 
 		<a href="<?php 
-        echo esc_html( $link );
+        echo esc_url( $link );
         ?>"
 			target="_blank" style="box-shadow: none;">
 			<div id="proVersionButton" class="button">
@@ -8247,7 +8250,7 @@ class Admin {
 		<script>
 			(function () {
 				const video_id = '<?php 
-        echo esc_html( $wistia_id );
+        echo esc_js( $wistia_id );
         ?>';
 
 				// Configure the Wistia player

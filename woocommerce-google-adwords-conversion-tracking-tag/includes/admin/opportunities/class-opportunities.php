@@ -307,7 +307,7 @@ class Opportunities {
 						<script>
 							var script   = document.createElement("script");
 							script.async = true;
-							script.src   = 'https://fast.wistia.com/embed/medias/<?php echo esc_attr($card_data['setup_video']); ?>.jsonp';
+							script.src   = 'https://fast.wistia.com/embed/medias/<?php echo esc_js($card_data['setup_video']); ?>.jsonp';
 							document.getElementsByTagName("head")[0].appendChild(script);
 						</script>
 						<div class="opportunities wistia_embed wistia_async_<?php echo esc_attr($card_data['setup_video']); ?> popover=true popoverContent=link videoFoam=false"

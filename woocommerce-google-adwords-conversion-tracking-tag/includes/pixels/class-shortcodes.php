@@ -369,7 +369,7 @@ class Shortcodes {
 		<script>
 			pmwFunctionExists("_tfa").then(function () {
 					_tfa.push({
-						id    : <?php echo esc_html(Options::get_taboola_account_id()); ?>,
+						id    : <?php echo (int) Options::get_taboola_account_id(); ?>,
 						notify: "event",
 						name  : "<?php echo esc_js($shortcode_attributes['taboola-event']); ?>",
 					});

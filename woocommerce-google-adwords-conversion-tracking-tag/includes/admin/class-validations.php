@@ -11,6 +11,145 @@ defined('ABSPATH') || exit; // Exit if accessed directly
 
 class Validations {
 
+	/**
+	 * Validate a whole options tree from a settings import.
+	 *
+	 * The import route used to check that a handful of keys exist and then
+	 * store the submitted tree as it was. Every other write path validates each
+	 * field and refuses paths that are not settings, so the import does the
+	 * same now: keys the defaults tree does not know are dropped, every string
+	 * leaf runs the validator the settings page uses for that path, booleans
+	 * and integers take their type from the default, the schema version must be
+	 * one the plugin knows, and on a free tier the Pro-only paths keep the
+	 * stored value, as the disabled fields on the settings page do.
+	 *
+	 * @param array $options The imported tree, already sanitized.
+	 * @return array{valid: bool, options: array, errors: string[]} The cleaned
+	 *         tree and the dot paths of the values that failed.
+	 *
+	 * @since 1.69.1
+	 */
+	public static function validate_imported_options_tree( $options ) {
+
+		$errors = [];
+		$clean  = self::intersect_with_defaults((array) $options, Options::get_default_options(), '', $errors);
+
+		if (array_key_exists('db_version', $clean)) {
+			$version = is_numeric($clean['db_version']) ? (int) $clean['db_version'] : 0;
+
+			if ($version < 1 || $version > (int) PMW_DB_VERSION) {
+				$errors[] = 'db_version';
+			} else {
+				$clean['db_version'] = $version;
+			}
+		}
+
+		if (empty($errors)) {
+			$clean = self::preserve_premium_only_options($clean);
+		}
+
+		return [
+			'valid'   => empty($errors),
+			'options' => $clean,
+			'errors'  => array_values(array_unique($errors)),
+		];
+	}
+
+	/**
+	 * Walk the defaults tree and keep only what the import has for each known key.
+	 *
+	 * A default that is a non-empty associative array is a branch. Everything
+	 * else is a leaf: a list or an empty array accepts any array, a boolean or
+	 * an integer coerces the value, and a string runs the field validator.
+	 *
+	 * @param array    $input    The imported branch.
+	 * @param array    $defaults The defaults branch.
+	 * @param string   $path     Dot path of the branch.
+	 * @param string[] $errors   Collects the dot paths that failed.
+	 * @return array
+	 *
+	 * @since 1.69.1
+	 */
+	private static function intersect_with_defaults( $input, $defaults, $path, &$errors ) {
+
+		$out = [];
+
+		foreach ($defaults as $key => $default) {
+
+			if (!array_key_exists($key, $input)) {
+				continue;
+			}
+
+			$value     = $input[ $key ];
+			$leaf_path = '' === $path ? (string) $key : $path . '.' . $key;
+
+			if (is_array($default) && !empty($default) && !self::is_list($default)) {
+				if (!is_array($value)) {
+					$errors[] = $leaf_path;
+					continue;
+				}
+				$out[ $key ] = self::intersect_with_defaults($value, $default, $leaf_path, $errors);
+				continue;
+			}
+
+			if (is_array($default)) {
+				if (!is_array($value)) {
+					$errors[] = $leaf_path;
+					continue;
+				}
+				$out[ $key ] = $value;
+				continue;
+			}
+
+			if (is_bool($default)) {
+				$out[ $key ] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+				continue;
+			}
+
+			if (is_int($default) || is_float($default)) {
+				if (!is_numeric($value)) {
+					$errors[] = $leaf_path;
+					continue;
+				}
+				$out[ $key ] = is_int($default) ? (int) $value : (float) $value;
+				continue;
+			}
+
+			if (null === $default) {
+				$out[ $key ] = $value;
+				continue;
+			}
+
+			if (!is_scalar($value) && null !== $value) {
+				$errors[] = $leaf_path;
+				continue;
+			}
+
+			$result = self::validate_single_option($leaf_path, (string) $value);
+
+			if (!$result['valid']) {
+				$errors[] = $leaf_path;
+				continue;
+			}
+
+			$out[ $key ] = $result['value'];
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Whether an array is a list (0..n-1 keys), as opposed to a keyed branch.
+	 *
+	 * @param array $array
+	 * @return bool
+	 *
+	 * @since 1.69.1
+	 */
+	private static function is_list( $array ) {
+		return array_keys($array) === range(0, count($array) - 1);
+	}
+
 	public static function validate_imported_options( $options ) {
 
 //      error_log('Validating imported options...');
@@ -1577,56 +1716,56 @@ class Validations {
 
 	public static function is_adroll_advertiser_id( $string ) {
 
-		$re = '/^[A-Z0-9]{22}$/m';
+		$re = '/^[A-Z0-9]{22}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_adroll_pixel_id( $string ) {
 
-		$re = '/^[A-Z0-9]{22}$/m';
+		$re = '/^[A-Z0-9]{22}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_gads_conversion_id( $string ) {
 
-		$re = '/^\d{8,11}$/m';
+		$re = '/^\d{8,11}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_gads_customer_id( $string ) {
 
-		$re = '/^\d{8,12}$/m';
+		$re = '/^\d{8,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_gads_conversion_action_id( $string ) {
 
-		$re = '/^\d{4,16}$/m';
+		$re = '/^\d{4,16}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_hotjar_site_id( $string ) {
 
-		$re = '/^\d{6,9}$/m';
+		$re = '/^\d{6,9}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_crazyegg_account_number( $string ) {
 
-		$re = '/^\d{8}$/m';
+		$re = '/^\d{8}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_reddit_advertiser_id( $string ) {
 
-		$re = '/^(a2_|t2_)[a-z0-9]{4,12}$/m';
+		$re = '/^(a2_|t2_)[a-z0-9]{4,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1634,7 +1773,7 @@ class Validations {
 	public static function is_reddit_capi_token( $string ) {
 
 		// Reddit CAPI token is a JWT token with three Base64URL-encoded parts separated by dots
-		$re = '/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/m';
+		$re = '/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1642,7 +1781,7 @@ class Validations {
 	public static function is_reddit_capi_test_event_code( $string ) {
 
 		// Reddit test event code format: t2_ followed by alphanumeric characters
-		$re = '/^t2_[a-z0-9]{4,12}$/m';
+		$re = '/^t2_[a-z0-9]{4,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1652,7 +1791,7 @@ class Validations {
 		// OpenAI does not publish a strict pixel ID format. Keep the validation
 		// permissive so valid IDs are never rejected, while still blocking
 		// obviously malformed input (whitespace, markup, control characters).
-		$re = '/^[A-Za-z0-9._-]{6,64}$/m';
+		$re = '/^[A-Za-z0-9._-]{6,64}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1661,28 +1800,28 @@ class Validations {
 
 		// OpenAI Conversions API key (Bearer token). Format is not strictly
 		// published, so validate permissively while excluding whitespace/markup.
-		$re = '/^[A-Za-z0-9._-]{20,500}$/m';
+		$re = '/^[A-Za-z0-9._-]{20,500}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_vwo_account_id( $string ) {
 
-		$re = '/^\d{4,10}$/m';
+		$re = '/^\d{4,10}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_optimizely_project_id( $string ) {
 
-		$re = '/^\d{8,14}$/m';
+		$re = '/^\d{8,14}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_ab_tasty_account_id( $string ) {
 
-		$re = '/^[\da-z]{26,38}$/m';
+		$re = '/^[\da-z]{26,38}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1690,7 +1829,7 @@ class Validations {
 	public static function is_contentsquare_tag_id( $string ) {
 
 		// Contentsquare tag ID format: alphanumeric string like b457e22cc0c6e
-		$re = '/^[a-z0-9]{10,20}$/m';
+		$re = '/^[a-z0-9]{10,20}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1700,7 +1839,7 @@ class Validations {
 		// Microsoft Clarity project ID format: lowercase base36 string, typically
 		// 10 characters (e.g. q9zk3x7p2w). Kept slightly permissive so valid IDs
 		// are never rejected, while still blocking whitespace, markup and control characters.
-		$re = '/^[a-z0-9]{8,15}$/m';
+		$re = '/^[a-z0-9]{8,15}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1718,7 +1857,7 @@ class Validations {
 	 */
 	public static function is_mixpanel_project_token( $string ) {
 
-		$re = '/^[a-f0-9]{32}$/m';
+		$re = '/^[a-f0-9]{32}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1737,7 +1876,7 @@ class Validations {
 	 */
 	public static function is_klaviyo_public_api_key( $string ) {
 
-		$re = '/^[a-zA-Z0-9]{6}$/m';
+		$re = '/^[a-zA-Z0-9]{6}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1756,7 +1895,7 @@ class Validations {
 	 */
 	public static function is_klaviyo_events_api_token( $string ) {
 
-		$re = '/^pk_(?:[0-9a-f]{34}|[A-Za-z0-9]+_[0-9a-f]{34})$/m';
+		$re = '/^pk_(?:[0-9a-f]{34}|[A-Za-z0-9]+_[0-9a-f]{34})$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1766,7 +1905,7 @@ class Validations {
 		// GroundTruth GTIDs are opaque identifiers. The regex mirrors the validation
 		// in GroundTruth's own pixel script (pixel.v2.js), so valid GTIDs are never
 		// rejected, while whitespace, markup and control characters are blocked.
-		$re = '/^[a-zA-Z0-9_\-]{3,50}$/m';
+		$re = '/^[a-zA-Z0-9_\-]{3,50}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1807,7 +1946,7 @@ class Validations {
 	 */
 	public static function is_hyros_product_hash( $string ) {
 
-		$re = '/^[a-zA-Z0-9_\-]{10,200}$/m';
+		$re = '/^[a-zA-Z0-9_\-]{10,200}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1824,7 +1963,7 @@ class Validations {
 	 */
 	public static function is_hyros_application_tag( $string ) {
 
-		$re = '/^[a-zA-Z0-9_!\-]{1,50}$/m';
+		$re = '/^[a-zA-Z0-9_!\-]{1,50}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1832,35 +1971,35 @@ class Validations {
 	public static function is_scroll_tracker_thresholds( $string ) {
 
 		// https://regex101.com/r/4haInV/1
-		$re = '/^([\d]|[\d][\d]|100)(,([\d]|[\d][\d]|100))*$/m';
+		$re = '/^([\d]|[\d][\d]|100)(,([\d]|[\d][\d]|100))*$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_facebook_capi_token( $string ) {
 
-		$re = '/^[a-zA-Z\d_-]{150,250}$/m';
+		$re = '/^[a-zA-Z\d_-]{150,250}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_facebook_capi_test_event_code( $string ) {
 
-		$re = '/^TEST\d{3,7}$/m';
+		$re = '/^TEST\d{3,7}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_facebook_domain_verification_id( $string ) {
 
-		$re = '/^[a-zA-Z\d]{20,40}$/m';
+		$re = '/^[a-zA-Z\d]{20,40}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_gads_conversion_label( $string ) {
 
-		$re = '/^[-a-zA-Z_0-9]{17,20}$/m';
+		$re = '/^[-a-zA-Z_0-9]{17,20}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1879,14 +2018,14 @@ class Validations {
 			return true;
 		}
 
-		$re = '/^\/[a-zA-Z0-9]{1,100}$/m';
+		$re = '/^\/[a-zA-Z0-9]{1,100}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_gads_aw_merchant_id( $string ) {
 
-		$re = '/^\d{6,12}$/m';
+		$re = '/^\d{6,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1897,21 +2036,21 @@ class Validations {
 		// +1-555-555-5555, +1 555 555 5555, +1.555.555.5555, +15555555555
 		// (555) 555-5555, 555-555-5555, 555.555.5555, 5555555555
 		// International formats with country codes
-		$re = '/^[\+]?[\d\s\-\.\(\)]{7,20}$/m';
+		$re = '/^[\+]?[\d\s\-\.\(\)]{7,20}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_google_optimize_measurement_id( $string ) {
 
-		$re = '/^(GTM|OPT)-[A-Z0-9]{6,8}$/m';
+		$re = '/^(GTM|OPT)-[A-Z0-9]{6,8}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_google_analytics_4_measurement_id( $string ) {
 
-		$re = '/^(G|GT|AW)-[A-Z0-9]{8,12}$/m';
+		$re = '/^(G|GT|AW)-[A-Z0-9]{8,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1919,28 +2058,28 @@ class Validations {
 
 	public static function is_google_analytics_4_api_secret( $string ) {
 
-		$re = '/^[a-zA-Z\d_-]{18,26}$/m';
+		$re = '/^[a-zA-Z\d_-]{18,26}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_ga4_property_id( $string ) {
 
-		$re = '/^\d{6,12}$/m';
+		$re = '/^\d{6,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_facebook_pixel_id( $string ) {
 
-		$re = '/^\d{12,22}$/m';
+		$re = '/^\d{12,22}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_bing_uet_tag_id( $string ) {
 
-		$re = '/^\d{7,9}$/m';
+		$re = '/^\d{7,9}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -1950,84 +2089,84 @@ class Validations {
 		// The Microsoft Advertising Conversions API token is an opaque bearer
 		// token generated in Microsoft Advertising or through the Campaign
 		// Management API, so this is deliberately permissive.
-		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/m';
+		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_linkedin_partner_id( $string ) {
 
-		$re = '/^\d{5,10}$/m';
+		$re = '/^\d{5,10}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_linkedin_conversion_id( $string ) {
 
-		$re = '/^\d{6,12}$/m';
+		$re = '/^\d{6,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_outbrain_account_id( $string ) {
 
-		$re = '/^[\da-z]{30,38}$/m';
+		$re = '/^[\da-z]{30,38}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_pinterest_ad_account_id( $string ) {
 
-		$re = '/^\d{12,13}$/m';
+		$re = '/^\d{12,13}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_pinterest_apic_token( $string ) {
 
-		$re = '/^pina_[A-Z0-9]{96}$/m';
+		$re = '/^pina_[A-Z0-9]{96}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_twitter_pixel_id( $string ) {
 
-		$re = '/^[a-z0-9]{5,7}$/m';
+		$re = '/^[a-z0-9]{5,7}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_twitter_event_id( $string ) {
 
-		$re = '/^tw-[a-z0-9]{5}-[a-z0-9]{5}$/m';
+		$re = '/^tw-[a-z0-9]{5}-[a-z0-9]{5}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_pinterest_pixel_id( $string ) {
 
-		$re = '/^\d{13}$/m';
+		$re = '/^\d{13}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_snapchat_pixel_id( $string ) {
 
-		$re = '/^[a-z0-9\-]*$/m';
+		$re = '/^[a-z0-9\-]*$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_snapchat_capi_token( $string ) {
 
-		$re = '/^[a-zA-Z0-9\.\-_]{200,600}$/m';
+		$re = '/^[a-zA-Z0-9\.\-_]{200,600}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_taboola_account_id( $string ) {
 
-		$re = '/^[\d]{4,10}$/m';
+		$re = '/^[\d]{4,10}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2035,7 +2174,7 @@ class Validations {
 	public static function is_criteo_account_id( $string ) {
 
 		// Criteo account IDs (partner IDs) are numeric.
-		$re = '/^[\d]{3,10}$/m';
+		$re = '/^[\d]{3,10}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2043,7 +2182,7 @@ class Validations {
 	public static function is_nextdoor_pixel_id( $string ) {
 
 		// Nextdoor pixel IDs are UUIDs.
-		$re = '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/m';
+		$re = '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2052,7 +2191,7 @@ class Validations {
 
 		// The Nextdoor Conversion API token is an opaque bearer token generated
 		// in Nextdoor Ads Manager, so this is deliberately permissive.
-		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/m';
+		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2060,7 +2199,7 @@ class Validations {
 	public static function is_nextdoor_capi_test_event_code( $string ) {
 
 		// Nextdoor test event identifiers are short alphanumeric flags (e.g. TEST1234).
-		$re = '/^[A-Za-z0-9_-]{2,64}$/m';
+		$re = '/^[A-Za-z0-9_-]{2,64}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2068,7 +2207,7 @@ class Validations {
 	public static function is_spotify_pixel_id( $string ) {
 
 		// Spotify Ad Analytics pixel IDs are 32 lowercase hexadecimal characters.
-		$re = '/^[a-f0-9]{32}$/m';
+		$re = '/^[a-f0-9]{32}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2076,7 +2215,7 @@ class Validations {
 	public static function is_spotify_capi_connection_id( $string ) {
 
 		// The Spotify Conversions API connection ID is a UUID.
-		$re = '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/m';
+		$re = '/^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2085,21 +2224,21 @@ class Validations {
 
 		// The Spotify Conversions API token is an opaque long-lived bearer token
 		// generated in Spotify Ads Manager, so this is deliberately permissive.
-		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/m';
+		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_tiktok_pixel_id( $string ) {
 
-		$re = '/^[A-Z0-9]{20,20}$/m';
+		$re = '/^[A-Z0-9]{20,20}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
 
 	public static function is_tiktok_eapi_access_token( $string ) {
 
-		$re = '/^[\da-z]{30,50}$/m';
+		$re = '/^[\da-z]{30,50}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2107,7 +2246,7 @@ class Validations {
 
 	public static function is_tiktok_eapi_test_event_code( $string ) {
 
-		$re = '/^TEST\d{3,7}$/m';
+		$re = '/^TEST\d{3,7}$/';
 
 		return self::validate_with_regex($re, $string);
 	}

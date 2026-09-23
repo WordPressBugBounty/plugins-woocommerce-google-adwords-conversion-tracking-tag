@@ -619,6 +619,28 @@ class Broker_Client {
 	}
 
 	/**
+	 * A URL the broker may send the browser back to: one on this site's host.
+	 * The broker redirects to it after the connect, so an off-site value would
+	 * turn the flow into an open redirect. @since 1.69.1
+	 *
+	 * @param mixed $url
+	 * @return string The URL, or an empty string.
+	 */
+	public static function same_site_url( $url ) {
+
+		$url = esc_url_raw((string) $url);
+
+		if ('' === $url) {
+			return '';
+		}
+
+		$host = wp_parse_url($url, PHP_URL_HOST);
+		$home = wp_parse_url(home_url(), PHP_URL_HOST);
+
+		return ( $host && $home && strtolower($host) === strtolower($home) ) ? $url : '';
+	}
+
+	/**
 	 * POST /broker/connect/start: begin the Google connect. Enrolls the site
 	 * first when needed (one button does both). Returns the redirect URL the
 	 * browser must navigate to (top-level redirect, not a popup).
@@ -626,7 +648,7 @@ class Broker_Client {
 	public function handle_connect_start( $request ) {
 
 		$params     = $request->get_json_params();
-		$return_url = ( is_array($params) && isset($params['returnUrl']) ) ? esc_url_raw($params['returnUrl']) : '';
+		$return_url = ( is_array($params) && isset($params['returnUrl']) ) ? self::same_site_url($params['returnUrl']) : '';
 
 		if (!$return_url) {
 			return new \WP_REST_Response(
@@ -964,7 +986,7 @@ class Broker_Client {
 	public function handle_meta_connect_start( $request ) {
 
 		$params     = $request->get_json_params();
-		$return_url = ( is_array($params) && isset($params['returnUrl']) ) ? esc_url_raw($params['returnUrl']) : '';
+		$return_url = ( is_array($params) && isset($params['returnUrl']) ) ? self::same_site_url($params['returnUrl']) : '';
 
 		if (!$return_url) {
 			return new \WP_REST_Response(

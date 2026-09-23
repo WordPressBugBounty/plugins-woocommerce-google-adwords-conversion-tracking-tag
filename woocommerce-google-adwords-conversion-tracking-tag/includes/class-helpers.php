@@ -490,7 +490,9 @@ class Helpers {
         if ( in_array( $algo, hash_algos(), true ) ) {
             return hash( $algo, $string );
         }
-        return $string;
+        // Never fall back to the plaintext: every caller sends the result to a
+        // third party in place of an email address or a phone number. @since 1.69.1
+        return '';
     }
 
     public static function get_random_ip() {
@@ -1183,6 +1185,37 @@ class Helpers {
             $script_string .= ' ' . $attribute . '="' . implode( ' ', $values ) . '"';
         }
         return $script_string;
+    }
+
+    /**
+     * JSON-encodes a value for output inside an inline <script> element.
+     *
+     * The HTML parser ends a script element at the first `</script` it meets,
+     * whatever the JavaScript around it says, and it does so before the script
+     * has been parsed as JavaScript at all. A string in the encoded data that
+     * contains that sequence therefore closes the element, and everything after
+     * it is read as HTML. Post titles reach the data layer entity-decoded, and
+     * WordPress keeps `&lt;` and `&gt;` in a title saved by a Contributor, so a
+     * title can carry exactly that sequence.
+     *
+     * JSON_HEX_TAG writes `<` and `>` as `\u003C` and `\u003E`, which the HTML
+     * parser never recognises and JavaScript reads back as the same characters.
+     * JSON_HEX_AMP does the same for `&`, so no entity can form either. Slashes
+     * stay unescaped for readable URLs; with the angle brackets gone they can no
+     * longer take part in a closing tag.
+     *
+     * Every inline script the plugin prints must encode its data through this
+     * method, never through wp_json_encode() directly. A test scans for it.
+     *
+     * @since 1.69.1
+     *
+     * @param mixed $data  The value to encode.
+     * @param int   $flags Extra json_encode() flags, such as JSON_PRETTY_PRINT.
+     *
+     * @return string|false The JSON, or false when the value cannot be encoded.
+     */
+    public static function json_encode_for_script( $data, $flags = 0 ) {
+        return wp_json_encode( $data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | $flags );
     }
 
     public static function make_full_url( $url ) {

@@ -256,11 +256,12 @@ class Shop {
 
     public static function is_nodedupe_parameter_set() {
         $_get = Helpers::get_input_vars( INPUT_GET );
-        if ( isset( $_get['nodedupe'] ) ) {
-            return true;
-        } else {
-            return false;
-        }
+        // Deliberately not gated on a capability: support debugs shops from the
+        // outside by having the merchant, or the support engineer, open the
+        // confirmation URL with this parameter, without a login on that shop.
+        // The holder of a confirmation URL can re-fire that one order; that is
+        // an accepted trade-off for a working debugging path. Decided 2026-09-21.
+        return isset( $_get['nodedupe'] );
     }
 
     public static function has_conversion_pixel_already_fired( $order ) {
@@ -770,7 +771,53 @@ class Shop {
         if ( !$order_key ) {
             return false;
         }
+        if ( !self::is_plausible_order_key( $order_key ) ) {
+            return false;
+        }
+        if ( self::is_request_context_that_cannot_confirm_an_order() ) {
+            return false;
+        }
         return (bool) self::get_order_id_by_order_key( $order_key );
+    }
+
+    /**
+     * Whether a string has the shape of a WooCommerce order key.
+     *
+     * WooCommerce generates wc_order_ followed by 13 random characters, and a
+     * filter may change the prefix. On shops that still use the post storage the
+     * lookup scans an unindexed column, so nothing that cannot be a key is
+     * looked up at all.
+     *
+     * @param mixed $order_key
+     * @return bool
+     *
+     * @since 1.69.1
+     */
+    public static function is_plausible_order_key( $order_key ) {
+        return is_string( $order_key ) && (bool) preg_match( '/^[A-Za-z0-9_-]{8,64}\\z/', $order_key );
+    }
+
+    /**
+     * Whether the current request is a page that can never be an order
+     * confirmation: the front page, the blog index, an archive, a search or a
+     * 404. WooCommerce's endpoint and custom thank-you pages are singular pages.
+     * A visitor could append an order key to any URL, and the plugin used to
+     * treat the home page as the confirmation of that order and print its
+     * customer data into a page that caches are most likely to store.
+     *
+     * @return bool
+     *
+     * @since 1.69.1
+     */
+    private static function is_request_context_that_cannot_confirm_an_order() {
+        // Before the main query is parsed the conditionals are not usable.
+        if ( !did_action( 'wp' ) ) {
+            return false;
+        }
+        if ( function_exists( 'is_order_received_page' ) && is_order_received_page() ) {
+            return false;
+        }
+        return is_front_page() || is_home() || is_archive() || is_search() || is_404();
     }
 
     public static function add_parent_category_id( $category, $list_suffix ) {
