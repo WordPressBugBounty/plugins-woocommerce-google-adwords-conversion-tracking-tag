@@ -361,6 +361,13 @@ class Options {
 						'token'         => '',
 					],
 				],
+				'applovin'   => [
+					'event_key'         => '',
+					'advanced_matching' => false,
+					'capi'              => [
+						'token' => '',
+					],
+				],
 				'klaviyo'    => [
 					'public_api_key'     => '',
 					'coexistence'        => 'auto',
@@ -902,8 +909,49 @@ class Options {
 		return self::get_options_obj()->google->analytics->ga4->api_secret;
 	}
 
+	/**
+	 * Whether the Measurement Protocol is set up and can actually deliver.
+	 *
+	 * The GA4 ID field also accepts a Google tag ID (GT-) or a Google Ads ID
+	 * (AW-), because the browser tag works with either. The Measurement
+	 * Protocol does not: it only accepts the G- measurement ID of a web data
+	 * stream, and the GA4 session cookie is named after that ID too. With any
+	 * other ID every server-side purchase would be discarded or land under
+	 * "(not set)", while the browser tag stands down from sending the
+	 * purchase because the Measurement Protocol looks active. So the
+	 * Measurement Protocol only counts as active with a G- ID, and the
+	 * browser tag keeps the purchase otherwise.
+	 *
+	 * @return bool
+	 */
 	public static function is_ga4_mp_active() {
-		return self::is_ga4_enabled() && self::get_ga4_mp_api_secret();
+		return self::is_ga4_enabled()
+			&& (bool) self::get_ga4_mp_api_secret()
+			&& self::is_ga4_measurement_id_mp_capable();
+	}
+
+	/**
+	 * Whether the configured GA4 ID is a G- measurement ID, the only ID type
+	 * the Measurement Protocol accepts.
+	 *
+	 * @return bool
+	 * @since 1.69.3
+	 */
+	public static function is_ga4_measurement_id_mp_capable() {
+		return (bool) preg_match('/^G-[A-Z0-9]+$/', (string) self::get_ga4_measurement_id());
+	}
+
+	/**
+	 * Whether an API secret is saved but the Measurement Protocol cannot run
+	 * because the GA4 ID is not a G- measurement ID.
+	 *
+	 * @return bool
+	 * @since 1.69.3
+	 */
+	public static function is_ga4_mp_blocked_by_measurement_id() {
+		return self::is_ga4_enabled()
+			&& (bool) self::get_ga4_mp_api_secret()
+			&& !self::is_ga4_measurement_id_mp_capable();
 	}
 
 	public static function is_google_tcf_support_active() {
@@ -1216,6 +1264,32 @@ class Options {
 		return self::is_spotify_active()
 			&& (bool) self::get_spotify_capi_connection_id()
 			&& (bool) self::get_spotify_capi_token();
+	}
+
+	/**
+	 * AppLovin
+	 *
+	 * @since 1.69.3
+	 */
+
+	public static function get_applovin_event_key() {
+		return self::get_options_obj()->pixels->applovin->event_key;
+	}
+
+	public static function is_applovin_active() {
+		return (bool) self::get_applovin_event_key();
+	}
+
+	public static function is_applovin_advanced_matching_enabled() {
+		return (bool) self::get_options_obj()->pixels->applovin->advanced_matching;
+	}
+
+	public static function get_applovin_capi_token() {
+		return self::get_options_obj()->pixels->applovin->capi->token;
+	}
+
+	public static function is_applovin_capi_active() {
+		return self::is_applovin_active() && (bool) self::get_applovin_capi_token();
 	}
 
 	/**

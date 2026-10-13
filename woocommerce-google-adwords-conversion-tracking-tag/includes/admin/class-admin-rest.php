@@ -35,6 +35,58 @@ class Admin_REST {
 		return Environment::can_current_user_edit_options();
 	}
 
+	/**
+	 * The plugin's own WooCommerce log files for a log source.
+	 *
+	 * Shared by the log download route and the pmw/get-logs ability, so both
+	 * apply the same restriction: only sources starting with "pmw" can be read,
+	 * anything else falls back to "pmw".
+	 *
+	 * @param string|null $source Requested log source, "pmw" when empty.
+	 * @return array|\WP_Error { source: string, dir: string, files: array<string, string> } Files keyed by log key.
+	 *
+	 * @since 1.69.3
+	 */
+	public static function get_plugin_log_files( $source ) {
+
+		if (empty($source) || !is_string($source)) {
+			$source = self::$log_source;
+		}
+		$source = sanitize_text_field($source);
+
+		// Only the plugin's own log sources can be downloaded here. @since 1.69.1
+		if (0 !== strpos($source, self::$log_source)) {
+			$source = self::$log_source;
+		}
+
+		if (!class_exists('\WC_Log_Handler_File')) {
+			return new \WP_Error('pmw_no_log_files', esc_html__('No log files found.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+		}
+
+		$logs = \WC_Log_Handler_File::get_log_files();
+		if (empty($logs)) {
+			return new \WP_Error('pmw_no_log_files', esc_html__('No log files found.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+		}
+
+		$filtered_logs = array_filter(
+			$logs,
+			function ( $key ) use ( $source ) {
+				return strpos($key, $source . '-') === 0;
+			},
+			ARRAY_FILTER_USE_KEY
+		);
+
+		if (empty($filtered_logs)) {
+			return new \WP_Error('pmw_no_log_files', esc_html__('No log files found for the specified source.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+		}
+
+		return [
+			'source' => $source,
+			'dir'    => dirname(\WC_Log_Handler_File::get_log_file_path('dummy')),
+			'files'  => $filtered_logs,
+		];
+	}
+
 	public function register_routes() {
 
 		$this->register_settings_save_route();
@@ -46,7 +98,7 @@ class Admin_REST {
 				$data = Helpers::generic_sanitization($request->get_json_params());
 
 				if (!array_key_exists('type', $data) || !array_key_exists('id', $data)) {
-					wp_send_json_error('No type or id specified');
+					return Helpers::rest_envelope(false, 'No type or id specified');
 				}
 
 				if ('generic-notification' === $data['type']) {
@@ -63,22 +115,22 @@ class Admin_REST {
 					$pmw_notifications[$data['id']]['dismissed'] = time();
 
 					update_option(PMW_DB_NOTIFICATIONS_NAME, $pmw_notifications);
-					wp_send_json_success();
+					return Helpers::rest_envelope(true);
 				}
 
 				if ('dismiss_opportunity' === $data['type']) {
 					Opportunities::dismiss_opportunity($data['id']);
-					wp_send_json_success();
+					return Helpers::rest_envelope(true);
 				}
 
 				if ('restore_opportunity' === $data['type']) {
 					Opportunities::restore_opportunity($data['id']);
-					wp_send_json_success();
+					return Helpers::rest_envelope(true);
 				}
 
 				if ('dismiss_notification' === $data['type']) {
 					Notifications::dismiss_notification($data['id']);
-					wp_send_json_success();
+					return Helpers::rest_envelope(true);
 				}
 
 				// Onboarding checklist actions from the Nova dashboard.
@@ -86,34 +138,34 @@ class Admin_REST {
 
 					if ('dismiss' === $data['id']) {
 						Onboarding::dismiss();
-						wp_send_json_success();
+						return Helpers::rest_envelope(true);
 					}
 
 					if (Onboarding::complete_step($data['id'])) {
-						wp_send_json_success();
+						return Helpers::rest_envelope(true);
 					}
 
-					wp_send_json_error('Unknown onboarding step');
+					return Helpers::rest_envelope(false, 'Unknown onboarding step');
 				}
 
 				// First-event confirmation: hide the "first order tracked" celebration.
 				if ('first_event' === $data['type']) {
 
 					if ('dismiss-celebration' === $data['id'] && First_Event_Confirmation::dismiss_celebration()) {
-						wp_send_json_success();
+						return Helpers::rest_envelope(true);
 					}
 
-					wp_send_json_error('Unknown first-event action');
+					return Helpers::rest_envelope(false, 'Unknown first-event action');
 				}
 
 				// One-time server-load warning acknowledgement (CAPI / Tag Gateway).
 				if ('server_load_warning' === $data['type']) {
 
 					if (Server_Load_Warning::acknowledge($data['id'])) {
-						wp_send_json_success();
+						return Helpers::rest_envelope(true);
 					}
 
-					wp_send_json_error('Unknown server load warning');
+					return Helpers::rest_envelope(false, 'Unknown server load warning');
 				}
 
 				// Rating card actions from the Nova admin UI.
@@ -121,18 +173,18 @@ class Admin_REST {
 
 					if ('rating_done' === $data['id']) {
 						Ask_For_Rating::mark_rating_done();
-						wp_send_json_success();
+						return Helpers::rest_envelope(true);
 					}
 
 					if ('later' === $data['id']) {
 						Ask_For_Rating::postpone_rating();
-						wp_send_json_success();
+						return Helpers::rest_envelope(true);
 					}
 
-					wp_send_json_error('Unknown rating action');
+					return Helpers::rest_envelope(false, 'Unknown rating action');
 				}
 
-				wp_send_json_error('Unknown notification action');
+				return Helpers::rest_envelope(false, 'Unknown notification action');
 			},
 			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
@@ -143,7 +195,7 @@ class Admin_REST {
 		register_rest_route(self::$rest_namespace, '/onboarding/first-event/', [
 			'methods'             => 'GET',
 			'callback'            => function () {
-				wp_send_json_success(First_Event_Confirmation::get_data_for_nova());
+				return Helpers::rest_envelope(true, First_Event_Confirmation::get_data_for_nova());
 			},
 			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
@@ -199,14 +251,14 @@ class Admin_REST {
 				// Scheduler. The Nova control is hidden without a license, but a
 				// hidden button is not a gate: this route is reachable directly.
 				if (!Helpers::is_pmw_pro_version_active() && !Options::is_pro_version_demo_active()) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => esc_html__('The lifetime value calculation requires an active Pro license.', 'woocommerce-google-adwords-conversion-tracking-tag'),
 						'status'  => LTV::get_ltv_recalculation_status(),
 					]);
 				}
 
 				if (!isset($data['action'])) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => 'No action specified',
 						'status'  => LTV::get_ltv_recalculation_status(),
 					]);
@@ -215,7 +267,7 @@ class Admin_REST {
 				if ('stop_ltv_recalculation' === $data['action']) {
 					LTV::stop_ltv_recalculation();
 					Logger::debug('Stopped LTV recalculation');
-					wp_send_json_success(
+					return Helpers::rest_envelope(true,
 						[
 							'message' => esc_html__('Stopped all LTV Action Scheduler tasks', 'woocommerce-google-adwords-conversion-tracking-tag'),
 							'status'  => LTV::get_ltv_recalculation_status(),
@@ -224,7 +276,7 @@ class Admin_REST {
 				}
 
 				if (Environment::cannot_run_action_scheduler()) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => 'LTV recalculation is not available in this environment. The active Action Scheduler version is ' . Environment::get_action_scheduler_version() . ' and the minimum required version is ' . Environment::get_action_scheduler_minimum_version(),
 						'status'  => LTV::get_ltv_recalculation_status(),
 					]);
@@ -233,7 +285,7 @@ class Admin_REST {
 				if ('schedule_ltv_recalculation' === $data['action']) {
 					LTV::schedule_complete_vertical_ltv_calculation();
 					Logger::debug('Scheduled LTV recalculation');
-					wp_send_json_success([
+					return Helpers::rest_envelope(true, [
 						'message' => esc_html__('LTV recalculation scheduled', 'woocommerce-google-adwords-conversion-tracking-tag'),
 						'status'  => LTV::get_ltv_recalculation_status(),
 					]);
@@ -242,7 +294,7 @@ class Admin_REST {
 				if ('run_ltv_recalculation' === $data['action']) {
 					LTV::run_complete_vertical_ltv_calculation();
 					Logger::debug('Run LTV recalculation');
-					wp_send_json_success([
+					return Helpers::rest_envelope(true, [
 						'message' => esc_html__('LTV recalculation running', 'woocommerce-google-adwords-conversion-tracking-tag'),
 						'status'  => LTV::get_ltv_recalculation_status(),
 					]);
@@ -250,7 +302,7 @@ class Admin_REST {
 
 				if ('get_ltv_recalculation_status' === $data['action']) {
 					Logger::debug('Get LTV recalculation status');
-					wp_send_json_success(
+					return Helpers::rest_envelope(true,
 						[
 							'message' => esc_html__('Received LTV recalculation status', 'woocommerce-google-adwords-conversion-tracking-tag'),
 							'status'  => LTV::get_ltv_recalculation_status(),
@@ -258,12 +310,12 @@ class Admin_REST {
 					);
 				}
 
-				wp_send_json_error([
+				Logger::debug('Unknown LTV recalculation action: ' . $data['action']);
+
+				return Helpers::rest_envelope(false, [
 					'message' => 'Unknown action',
 					'status'  => LTV::get_ltv_recalculation_status(),
 				]);
-
-				Logger::debug('Unknown LTV recalculation action: ' . $data['action']);
 			},
 			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
@@ -276,7 +328,7 @@ class Admin_REST {
 
 				// Validate the timestamp
 				if (!$timestamp) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => esc_html('Invalid timestamp provided'),
 					]);
 				}
@@ -286,7 +338,7 @@ class Admin_REST {
 				$current_timestamp = isset($current_options['timestamp']) ? $current_options['timestamp'] : null;
 
 				if (null !== $current_timestamp && $timestamp == $current_timestamp) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => esc_html('Cannot restore the currently active backup'),
 					]);
 				}
@@ -295,14 +347,14 @@ class Admin_REST {
 				$backup = Options::get_automatic_options_backup_by_timestamp($timestamp);
 
 				if (empty($backup)) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => esc_html('Backup not found for the specified timestamp'),
 					]);
 				}
 
 				// Validate the backup options
 				if (!Validations::validate_imported_options($backup)) {
-					wp_send_json_error([
+					return Helpers::rest_envelope(false, [
 						'message' => esc_html('Backup validation failed'),
 					]);
 				}
@@ -310,7 +362,7 @@ class Admin_REST {
 				// All good, save options with timestamp and automatic backup
 				Options::save_options_with_timestamp($backup, false, $timestamp);
 
-				wp_send_json_success([
+				return Helpers::rest_envelope(true, [
 					'message'   => esc_html('Backup restored successfully'),
 					'timestamp' => $timestamp,
 				]);
@@ -325,33 +377,14 @@ class Admin_REST {
 				require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
 				require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
 
-				$source = $request->get_param('source');
-				if (empty($source)) {
-					$source = self::$log_source;
-				}
-				$source = sanitize_text_field($source);
+				$selection = self::get_plugin_log_files($request->get_param('source'));
 
-				// Only the plugin's own log sources can be downloaded here. @since 1.69.1
-				if (0 !== strpos($source, self::$log_source)) {
-					$source = self::$log_source;
+				if (is_wp_error($selection)) {
+					return Helpers::rest_envelope(false, [ 'message' => $selection->get_error_message() ]);
 				}
 
-				$logs = \WC_Log_Handler_File::get_log_files();
-				if (empty($logs)) {
-					wp_send_json_error([ 'message' => esc_html__('No log files found.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
-				}
-
-				$filtered_logs = array_filter(
-					$logs,
-					function ( $key ) use ( $source ) {
-						return strpos($key, $source . '-') === 0;
-					},
-					ARRAY_FILTER_USE_KEY
-				);
-
-				if (empty($filtered_logs)) {
-					wp_send_json_error([ 'message' => esc_html__('No log files found for the specified source.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
-				}
+				$source        = $selection['source'];
+				$filtered_logs = $selection['files'];
 
 				$temp_dir = get_temp_dir() . $source . '_logs_' . time();
 				if (!file_exists($temp_dir)) {
@@ -363,7 +396,7 @@ class Admin_REST {
 				$zip          = new \ZipArchive();
 
 				if ($zip->open($zip_file, \ZipArchive::CREATE) !== true) {
-					wp_send_json_error([ 'message' => esc_html__('Could not create ZIP archive.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
+					return Helpers::rest_envelope(false, [ 'message' => esc_html__('Could not create ZIP archive.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
 				}
 
 				$log_dir = \WC_Log_Handler_File::get_log_file_path('dummy');
@@ -382,7 +415,7 @@ class Admin_REST {
 				if (0 === $files_added) {
 					wp_delete_file($zip_file);
 					rmdir($temp_dir);
-					wp_send_json_error([ 'message' => esc_html__('No files could be added to the ZIP archive.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
+					return Helpers::rest_envelope(false, [ 'message' => esc_html__('No files could be added to the ZIP archive.', 'woocommerce-google-adwords-conversion-tracking-tag') ]);
 				}
 
 				if (!headers_sent()) {
@@ -422,7 +455,7 @@ class Admin_REST {
 	 */
 	private function register_nova_routes() {
 
-		// PATCH /options — update a single option by dot-notation path
+		// PATCH /options: update a single option by dot-notation path.
 		register_rest_route(self::$rest_namespace, '/options', [
 			'methods'             => 'PATCH',
 			'callback'            => [ $this, 'handle_option_patch' ],

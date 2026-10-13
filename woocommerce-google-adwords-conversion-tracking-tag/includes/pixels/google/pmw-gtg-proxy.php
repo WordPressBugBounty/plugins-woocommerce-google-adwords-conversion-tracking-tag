@@ -455,6 +455,12 @@ final class PMW_GTG_Proxy_Standalone {
 		'content-disposition',
 		'date',
 		'age',
+		// Lets the Tag Gateway service worker take the scope gtag asks for
+		// (<measurement_path>/_/service_worker). Without it every registration
+		// fails with a console error. FPS always ends the value in
+		// /_/service_worker, so it cannot widen a worker beyond that subtree.
+		// @since 1.69.3
+		'service-worker-allowed',
 	];
 
 	/**

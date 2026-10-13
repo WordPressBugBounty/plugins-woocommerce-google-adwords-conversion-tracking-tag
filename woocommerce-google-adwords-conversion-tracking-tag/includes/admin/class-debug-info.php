@@ -82,6 +82,14 @@ class Debug_Info {
             $html .= 'hook_suffix:                  ' . $hook_suffix . PHP_EOL;
             $html .= PHP_EOL;
             $html .= 'Hosting provider: ' . Environment::get_hosting_provider() . PHP_EOL;
+            // Other plugins that track the same shop explain double or missing
+            // events faster than any log. @since 1.69.3
+            $other_tracking_plugins = self::get_other_tracking_plugins();
+            $html .= PHP_EOL . 'Other tracking plugins active: ' . (( empty( $other_tracking_plugins ) ? 'none detected' : implode( ', ', $other_tracking_plugins ) )) . PHP_EOL;
+            // PMW writes through WooCommerce's logger, so an empty log can be
+            // WooCommerce's doing: logging switched off, a level threshold, or
+            // a database handler. @since 1.69.3
+            $html .= PHP_EOL . '## Logging ##' . PHP_EOL . PHP_EOL . Logger::get_debug_info();
             $html = self::add_facebook_event_setup_info( $html );
             $html = self::add_facebook_restricted_events_info( $html );
             $html = self::add_facebook_capi_gateway_info( $html );
@@ -219,6 +227,58 @@ class Debug_Info {
         } catch ( Exception $e ) {
             return $e->getMessage();
         }
+    }
+
+    /**
+     * Other Google Analytics, Google Tag Manager and ad pixel plugins that are
+     * active on the site, network-activated ones included. Any of them can send
+     * the same events a second time, or hold back or rewrite the Pixel
+     * Manager's, which is the first thing support needs to know about a shop.
+     *
+     * @return string[] "Name (plugin file)" per active plugin.
+     * @since 1.69.3
+     */
+    public static function get_other_tracking_plugins() {
+        if ( !function_exists( 'is_plugin_active' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        // Plugin file => name. Environment's own checks are used where they exist.
+        $plugins = [
+            'google-analytics-for-wordpress/googleanalytics.php'                                              => 'MonsterInsights',
+            'google-analytics-premium/googleanalytics-premium.php'                                            => 'MonsterInsights Pro',
+            'google-analytics-dashboard-for-wp/gadwp.php'                                                     => 'ExactMetrics',
+            'exactmetrics-premium/exactmetrics-premium.php'                                                   => 'ExactMetrics Pro',
+            'ga-google-analytics/ga-google-analytics.php'                                                     => 'GA Google Analytics',
+            'duracelltomi-google-tag-manager/duracelltomi-google-tag-manager-for-wordpress.php'               => 'GTM4WP',
+            'duracelltomi-google-tag-manager-for-wordpress/duracelltomi-google-tag-manager-for-wordpress.php' => 'GTM4WP',
+            'pixelyoursite/facebook-pixel-master.php'                                                         => 'PixelYourSite',
+            'pixelyoursite-pro/pixelyoursite-pro.php'                                                         => 'PixelYourSite Pro',
+            'google-listings-and-ads/google-listings-and-ads.php'                                             => 'Google for WooCommerce',
+            'woocommerce-google-analytics-integration/woocommerce-google-analytics-integration.php'           => 'Google Analytics for WooCommerce',
+            'google-site-kit/google-site-kit.php'                                                             => 'Site Kit by Google',
+            'facebook-for-woocommerce/facebook-for-woocommerce.php'                                           => 'Facebook for WooCommerce',
+            'tiktok-for-business/tiktok-for-woocommerce.php'                                                  => 'TikTok for WooCommerce',
+            'pinterest-for-woocommerce/pinterest-for-woocommerce.php'                                         => 'Pinterest for WooCommerce',
+            'reddit-for-woocommerce/reddit-for-woocommerce.php'                                               => 'Reddit for WooCommerce',
+            'enhanced-e-commerce-for-woocommerce-store/enhanced-ecommerce-google-analytics.php'               => 'Conversios',
+            'actionable-google-analytics/actionable-google-analytics.php'                                     => 'Tatvic Actionable Google Analytics',
+            'woocommerce-conversion-tracking/conversion-tracking.php'                                         => 'WooCommerce Conversion Tracking',
+            'woocommerce-conversion-tracking-pro/woocommerce-conversion-tracking-pro.php'                     => 'WooCommerce Conversion Tracking Pro',
+            'facebook-conversion-pixel/facebook-conversion-pixel.php'                                         => 'Pixel Cat',
+        ];
+        $helpers = [
+            'google-site-kit/google-site-kit.php'            => [Environment::class, 'is_google_site_kit_active'],
+            'tiktok-for-business/tiktok-for-woocommerce.php' => [Environment::class, 'is_tiktok_for_woocommerce_active'],
+        ];
+        $active = [];
+        foreach ( $plugins as $file => $name ) {
+            // is_plugin_active() covers network-activated plugins as well.
+            $is_active = ( isset( $helpers[$file] ) ? call_user_func( $helpers[$file] ) : is_plugin_active( $file ) );
+            if ( $is_active ) {
+                $active[] = $name . ' (' . $file . ')';
+            }
+        }
+        return $active;
     }
 
     private static function add_freemius_account_details( $html ) {

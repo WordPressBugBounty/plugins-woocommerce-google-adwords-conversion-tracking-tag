@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.69.1
+Stable tag: 1.70.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -96,6 +96,7 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 
 * AB Tasty – A/B testing and personalization (beta)
 * Adroll Ads
+* AppLovin – conversion tracking through the AppLovin (Axon) pixel, with the full shopping funnel and server-side events through the Conversion API (beta)
 * Contentsquare Statistics
 * CrazyEgg Analytics
 * Criteo Ads – retargeting and audience events through the Criteo OneTag (beta)
@@ -117,7 +118,7 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 **Premium Features**
 
 * [Automatic Conversion Recovery (ACR)](https://sweetcode.com/docs/pmw/features/acr?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=acr) – automatically recover missed conversions nightly
-* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, OpenAI, Nextdoor, Spotify, Microsoft Ads, GA4 Measurement Protocol
+* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, OpenAI, Nextdoor, Spotify, AppLovin, Microsoft Ads, GA4 Measurement Protocol
 * Advanced Order Duplication Prevention
 * Google Ads Enhanced Conversions – first-party data for improved attribution
 * Google Ads Conversion Adjustments – send refund data back to Google Ads
@@ -338,6 +339,37 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.70.0  =
+*Release date - 13.10.2026*
+
+* New: With Explicit Consent Mode off, the Pixel Manager now applies the cookie banner's own pre-decision state, so opt-in banners from Complianz, Cookiebot, CookieYes, OneTrust, iubenda, Usercentrics and others no longer let pixels fire before the visitor answers. For banners that load asynchronously it waits up to two seconds for their answer
+* New: The debug report lists the other active Google Analytics, Google Tag Manager and ad pixel plugins, so a second tracking setup shows up in the first support reply
+* New: AI agents can now do everything the admin offers through the Abilities API, from backups, imports and logs to opportunities, SweetCode Cloud and the Google and Meta account connections, with exactly the access their user has in the admin, shop managers included. All abilities appear on the WordPress MCP Adapter's default server
+* Tweak: The Meta Conversions API Gateway and Event Setup Tool checks run daily instead of weekly, and both cards say that Meta can keep reporting a removed setup for a while
+* Tweak: A settings save that a security plugin or host firewall blocks before it reaches WordPress now says so and names the blocked request, instead of showing "API error 403"
+* Tweak: A Nova page that hits an error no longer takes down the whole admin. Only that page is replaced by a request to contact support, with a button that copies the error details
+* Tweak: With Explicit Consent Mode on, click IDs from the landing page URL are no longer stored in the browser before the visitor allows marketing. In every mode, declining or withdrawing marketing consent removes the stored click IDs
+* Tweak: Updated Freemius SDK to the latest version
+* Fix: The Google setup assistant now shows which permissions you allowed on Google's consent screen and what stops working for the ones you declined. Reconnecting asks for the declined permissions again instead of silently reusing the earlier choice
+* Fix: Google Ads conversions with cart data no longer deduct coupons twice. Item prices are now sent before coupons, as Google requires, because Google subtracts the order discount from the cart itself
+* Fix: Beautiful and Responsive Cookie Consent's built-in Pixel Manager integration no longer saves a permanent consent record that overrides the banner, which could keep a visitor who allowed marketing denied on every page. Visitors already affected are fixed on their next page view
+* Fix: Cookiebot declines, Cookiefirst decisions and Usercentrics saved selections now reach the Pixel Manager, and unnamed Cookiefirst and Cookie Compliance categories count as denied
+* Fix: A pixel that never loads, for example Meta behind an ad blocker, no longer suppresses the page view of every other pixel. The page view waits only when server-side page views are active, for at most three seconds, and never for a pixel the visitor has not consented to
+* Fix: GA4 keeps tracking when the shop's server cannot reach Google to check the tag ID, and an ID Google rejects gets an admin notice that explains the GT- alternative. Shops that also send GA4 through another tag, such as a GTM container, may now see page views double and should keep one sender
+* Fix: Visitors recognised as bots or excluded by the IP exclusion list no longer load any browser pixel, so GA4's automatic page view and the Google Ads remarketing hit no longer reach Google for them
+* Fix: The Pixel Manager log no longer stays empty when WooCommerce logging is disabled or its level threshold is higher, and the Logger card says where the entries go
+* Fix: A failed cart sync request no longer clears the stored cart, so the next page still has cart data for checkout events, and its error message says the request only reads the cart
+* Fix: With the order subtotal value logic, a Stripe fee paid out in another currency than the order, for example AED on a EUR order, is converted to the order currency before it is deducted. It used to be subtracted as is, which under-reported conversion values and turned small orders into zero
+* Fix: Turning off order de-duplication or turning on HTTP request logging through the Abilities API now arms the same timers as the admin interface, so de-duplication comes back on after 6 hours and logging switches off after 12 instead of staying that way
+* Fix: The Google Tag Gateway service worker registers again. Since 1.69.1 the gateway dropped the header Google sends to allow it, so every page logged a service worker scope error in the browser console
+* Fix: The server-load warnings for the Tag Gateway path and the first Conversions API token now appear when you leave the field, instead of interrupting your typing after the first character
+* Fix: GA4 `add_payment_info` events include the selected payment method as `payment_type` again, on the classic checkout and the Checkout block, and switching payment methods within a second is no longer dropped as a duplicate
+
+= 1.69.2  =
+*Release date - 23.09.2026*
+
+* Tweak: Moved the code-scanner annotations in the free version onto their own lines, so the WooCommerce.com security audit no longer reports seven sinks that were already escaped or validated
+
 = 1.69.1  =
 *Release date - 22.09.2026*
 
@@ -364,58 +396,6 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 * Fix: The Google Tag Gateway health check can no longer be answered from a cache. It carried no cache headers at all, and a shop was found serving it from its CDN with a 30 day lifetime, so the check reported the gateway healthy by replaying the last time it had been
 * Tweak: The Tag Gateway measurement path field now recommends an unguessable path instead of suggesting `/metrics`. That is Google's own example, so a great many shops share one predictable path, which is what makes a blocker rule worth writing against all of them at once
 
-
-= 1.68.0  =
-*Release date - 14.09.2026*
-
-* New: The TikTok, Microsoft Ads, Pinterest, Snapchat, Reddit and OpenAI browser pixels are now part of the free plugin, together with Microsoft Ads Consent Mode. The Conversions API and Events API connections, Advanced Matching, Enhanced Match and Enhanced Conversions for these platforms stay in the Pro version
-* New: The new `pmw_order_shipping_profit` filter adds the shipping economics of an order to the profit margin. The calculation leaves shipping out on both sides, because WooCommerce records what the customer was charged but never what the carrier charged the shop, so shops had to rebuild the whole margin to account for it
-* New: With the Marketing value logic set to Profit margin, an alert now names how many recent orders contain a product the plugin knows no cost for, and the new `Profit_Margin::order_has_complete_cogs()` helper answers that for a single order. Such products count with a cost of zero, so their whole revenue is reported as profit
-* New: `pmw.trackCustomGoogleAdsConversion()` sends a conversion to a conversion action of your own, applying the same marketing consent gate and the same wait for the Google tag as the plugin's own Google Ads conversions. A hand-written `gtag()` call sent nothing at all on shops that defer or delay JavaScript
-* New: The Abilities API now offers every setting the admin interface offers. Ten were missing, among them the lifetime value calculation, the logger and the server-side tracking toggles, so an AI agent was blind to a part of the plugin a shop owner could see
-* Tweak: X (Twitter) now counts as a popular pixel on the Tracking Pixels tab, so it shows under the Popular filter and in the popular group of the pixel list
-* Tweak: An opportunity card for a Pro feature now says so on installs that cannot use it and carries the upgrade button, and the Payment Gateway Tracking Accuracy alert names server-side tracking and Automatic Conversion Recovery as the fix for the untracked orders it lists. Both only linked to the documentation before
-* Tweak: The Consent Management Platforms card no longer reads "None detected on this site" when it finds no cookie banner plugin. It now says that only platforms installed as a WordPress plugin can be listed there, that a platform loaded as a script works on the shop all the same, and how to confirm that in the browser console
-* Tweak: With "Always send server-side events" enabled, the Payment Gateway Tracking Accuracy report stops offering that setting as the fix for orders excluded because the visitor denied all consent categories. It now says those conversions were still sent server-side and only stay out of the report because the report measures the browser, and the order records that too
-* Tweak: When the accuracy trend compares two periods, it now names how much of the change comes from orders that left the report because the visitor denied all consent categories, and what the change is with those orders counted as untracked in both periods. A shift in that population moves the average accuracy on its own, without a single additional purchase being measured
-* Tweak: A script that takes over the plugin's `pmw` object now reports itself through the new `pmw:warning:global-replaced` event and a running count on `pmw.globalGuard`, not only as a console warning. The shop that reported this could confirm that the errors had stopped but not how often the race still happened, because its analytics tool records errors and not warnings
-* Tweak: The extra order data output on order pages is no longer marked as a Pro setting. The plugin allowed it on the free version everywhere except the settings interface, which locked the toggle
-* Tweak: The Pinterest events now carry the product brand and category, on the browser pixel and on the Conversions API. Pinterest lists both among the parameters it wants on a checkout and reads their absence as a coverage gap, which holds its automated bidding back
-* Tweak: The direct integrations for Borlabs Cookie and Real Cookie Banner have been removed. Direct support for both was deprecated in 1.41.1, and both still reach the plugin through Google Consent Mode update calls, which the plugin reads like any other consent signal
-* Tweak: The HTTP request logging setting is no longer marked as a Pro setting. It sits in the otherwise free logger group, and the plugin allowed it on the free version everywhere except the settings interface
-* Fix: Under WooCommerce's built-in Cost of Goods Sold, a variation that inherits or adds to its parent's cost is priced with that cost at last. The plugin read a meta field that only exists on order line items, so those variations counted with a cost of zero and their whole revenue was reported as profit
-* Fix: Pricing an order no longer writes a WooCommerce "doing it wrong" notice into the log for every line item on shops with the built-in Cost of Goods Sold enabled. The cost was read with the generic meta accessor, which WooCommerce answers from the same getter anyway and warns about on the way
-* Fix: The lifetime value calculation on orders now asks for an active Pro license everywhere. Its settings field, the route that schedules a recalculation and the calculation itself did not, so it was reachable on the free version and a Pro shop whose license had lapsed kept recalculating its whole order history
-* Fix: The trial card on the dashboard no longer claims that no credit card is required. The 14-day trial does ask for a card at checkout, so the card now says so and that cancelling before the trial ends costs nothing
-* Fix: A consent tool in auto-blocking mode, such as Cookiebot, could run the plugin's configuration line again after the tracking library had started, which replaced the library's object and silently stopped add-to-cart, product click and checkout tracking. The configuration now merges into that object, and the library restores it if another script replaces it
-* Fix: A tracking library that stops starting up part way through now reports it in the console, and through the new `pmw:error:init-aborted` event, instead of leaving the shop partially tracked without a word. The listener files no longer depend on the load order for the functions they use while they register
-* Fix: On shops that run CookieYes, the visitor is no longer treated as having answered the cookie banner before they have. CookieYes writes its consent cookie, and fires its consent update event, on the first page view already, in shapes that carry a consent value but no answer, and reading any of those as a choice skipped the region check, so visitors outside the configured Explicit Consent Regions stayed blocked
-* Fix: The Cookiebot and OneTrust consent readers now deny a category their cookie does not name instead of granting it. A OneTrust cookie that carries no consent groups, which OneTrust also writes for its own bookkeeping, is ignored rather than raising an error, and one written before the visitor answered the banner no longer counts as a decision
-* Fix: On shops that run OneTrust or CookiePro with its standard cookie categories, the visitor's choice is read at last. The Pixel Manager only understood the plain group numbers, not the C0001 to C0004 ids OneTrust ships by default, so neither the consent cookie nor the consent change event told it anything
-* Fix: A `gtag('consent', 'update')` issued by a cookie banner itself is no longer stored as the Pixel Manager's own decision. That record has no expiry and outlived the banner that made it, so a decline kept declining after the banner had forgotten it. Such an update can also no longer deny the necessary category
-* Fix: On shops that run Complianz, Complianz' own Google Consent Mode is switched off while the Pixel Manager's is active, the same as for Cookiebot. Two consent default blocks on one page compete and the last one wins, so the pixels could run against a default consent state the Pixel Manager never set
-* Fix: Requests for the Google Tag Gateway service worker that arrive after the measurement path was changed or removed are now answered with a 410 before WordPress runs its query and renders a 404 page. Browsers send one per visit until the old worker is gone, and on a busy shop each one held a PHP worker for seconds
-* Fix: One shopper action that the theme, a funnel builder or WooCommerce itself reports twice is now counted once. Each pass carried its own event ID, so a single product view or add to cart reached Pinterest, Meta and GA4 several times, on the browser pixel and on the server-side API alike
-* Fix: A Pro setting submitted through the Abilities API on a site without an active Pro license is now refused instead of saved. It was stored with a note that it would not take effect, which left a configuration the plugin could not act on, while the REST API refused the very same value
-* Fix: The remove from cart event fires again on the cart and the mini cart. A cart synced from the server replaced the cart item key map that the remove button is resolved through with a different structure, so the event failed with "Wasn't able to retrieve a productId", and an item the map does not list now falls back to the product ID on the remove button itself
-
-= 1.67.0  =
-*Release date - 07.09.2026*
-
-* New: The new `pmw_fire_parent_view_item_on_variable_products` filter fires a `view_item` with the parent product when a variable product page loads. With variations reported separately, no `view_item` went out at all until the shopper picked a variation, and WooCommerce preselects none by default, so those page views were unreported
-* New: The new `pmw_facebook_auto_config` filter switches Meta's automatic configuration off per pixel, which stops Meta's automatic event detection, its microdata scraping and its SmartSetup instrumentation. The snippet our troubleshooting page documented for this defined a placeholder `fbq` and stopped the Meta pixel from loading at all
-* Tweak: The Meta Event Setup Tool warning and the debug report now name every rule and value extractor by its ID and by the URL it is scoped to. Meta sometimes keeps delivering rules after they were deleted in the Events Manager, and only Meta support can remove those, for which they need those IDs
-* Tweak: The debug report now has a Google Tag Gateway section that counts gateway requests which ended in a WordPress 404 that day, and names the last one. Nothing in the plugin could show that gateway traffic was being dropped, which is what made the resulting server load so hard to trace
-* Tweak: The Pinterest events now use Pinterest's own standard event names throughout. Product views move from PageVisit to ViewContent, and starting a checkout is reported as InitiateCheckout instead of Checkout. Expect reported Pinterest Checkout conversions to drop, because checkout starts were previously counted as completed orders
-* Tweak: The Freemius section of the debug report now states whether the in-dashboard account page exists, why it does not, and which link the plugin hands out in its place. None of that was visible anywhere, so a shop reporting a dead account link could not be diagnosed from a debug report
-* Fix: Purchase tracking no longer ends in a fatal error when WooCommerce cannot resolve the order behind an order line item. That broke the checkout response after the payment had already been captured, so those customers read it as a failed payment and ordered again, which charged them twice
-* Fix: On LiteSpeed Cache the Pixel Manager excludes itself from "Load JS Deferred: Delayed", which held every script back until the visitor clicked or scrolled and lost purchases on the order confirmation page. It also keeps its `?ver` cache buster when "Remove Query Strings" is on, so browsers stop replaying a pre-update script that requests chunk files no longer shipped
-* Fix: The automatic cache purge after a Pixel Manager update now clears NitroPack, Kinsta and Proxy Cache Purge, which failed silently and left those shops serving the previous release's tracking library, so it disabled itself and tracked nothing. A cache that cannot be cleared now raises an admin notice, and a stale library names itself in the console
-* Fix: `pmw.trackCustomFacebookEvent()` now honors the visitor's current marketing consent, the same gate every other Meta event passes. It only checked whether the pixel had loaded at some point, so a custom event fired from a shop's own snippet still reached Meta after the visitor withdrew consent in the cookie banner
-* Fix: A jQuery snippet that fires a Pixel Manager event from a `pmwLoad` handler no longer sends the page into an endless loop that freezes the browser and floods the server with requests, which our own documented parent `view_item` snippet did. Legacy jQuery handlers on the lifecycle events also ran twice per page load and now run once
-* Fix: The deprecated `wpmLoad` event again reaches listeners that register after the tracking library has loaded. Printing the deprecation warning also switched off the compatibility dispatch, so a snippet registering from `_pmwq` or from any late-loading script was warned that the event is deprecated and then never called, while identical code running earlier still worked
-* Fix: Requests to the Google Tag Gateway service worker, which Google's tag registers under the measurement path, are answered by the gateway instead of falling through to a full WordPress 404 page. Every visitor triggered one, which flooded 404 logs and put shops with regular traffic under load they had no way to explain
-* Fix: The Google Tag Gateway proxy no longer writes several log lines per tracking request at the info level, which grew a normal shop's daily log to several megabytes and buried the entries the logger was turned on to find. That detail is now logged at the debug level; warnings and errors are unchanged
 
 = Earlier versions =
 

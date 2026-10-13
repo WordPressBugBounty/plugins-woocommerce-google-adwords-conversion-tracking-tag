@@ -1067,6 +1067,36 @@ class Validations {
 			}
 		}
 
+		// Validate the AppLovin event key
+		if (isset($input['pixels']['applovin']['event_key'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['applovin']['event_key'] = Helpers::trim_string($input['pixels']['applovin']['event_key']);
+
+			if (!self::is_applovin_event_key($input['pixels']['applovin']['event_key'])) {
+				$input['pixels']['applovin']['event_key']
+					= Options::get_applovin_event_key()
+					? Options::get_applovin_event_key()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-applovin-event-key', esc_html__('You have entered an invalid AppLovin event key.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the AppLovin Conversion API key
+		if (isset($input['pixels']['applovin']['capi']['token'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['applovin']['capi']['token'] = Helpers::trim_string($input['pixels']['applovin']['capi']['token']);
+
+			if (!self::is_applovin_capi_token($input['pixels']['applovin']['capi']['token'])) {
+				$input['pixels']['applovin']['capi']['token']
+					= Options::get_applovin_capi_token()
+					? Options::get_applovin_capi_token()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-applovin-capi-token', esc_html__('You have entered an invalid AppLovin Conversion API key.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
 		// Validate the Hyros product hash
 		if (isset($input['pixels']['hyros']['product_hash'])) {
 
@@ -1312,7 +1342,7 @@ class Validations {
 		}
 
 		/**
-		 * Set delay to 3 hours.
+		 * Set delay to 12 hours.
 		 *
 		 * @since 1.58.5
 		 */
@@ -1528,6 +1558,9 @@ class Validations {
 			'pixels.reddit.advanced_matching',
 			'pixels.reddit.capi.test_event_code',
 			'pixels.reddit.capi.token',
+			'pixels.applovin.advanced_matching',
+			'pixels.applovin.capi.token',
+			'pixels.applovin.event_key',
 			'pixels.spotify.advanced_matching',
 			'pixels.spotify.capi.connection_id',
 			'pixels.spotify.capi.token',
@@ -2204,6 +2237,25 @@ class Validations {
 		return self::validate_with_regex($re, $string);
 	}
 
+	public static function is_applovin_event_key( $string ) {
+
+		// AppLovin publishes no format for the event key, which is also the
+		// Conversion API's pixel_id. Deliberately permissive: URL-safe
+		// characters, sane length.
+		$re = '/^[A-Za-z0-9_-]{8,128}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	public static function is_applovin_capi_token( $string ) {
+
+		// The Conversion API key is an opaque key from the Keys page of the
+		// AppLovin dashboard, so this is deliberately permissive.
+		$re = '/^[A-Za-z0-9._~+\/=-]{10,4096}$/m';
+
+		return self::validate_with_regex($re, $string);
+	}
+
 	public static function is_spotify_pixel_id( $string ) {
 
 		// Spotify Ad Analytics pixel IDs are 32 lowercase hexadecimal characters.
@@ -2553,6 +2605,8 @@ class Validations {
 			'pixels.nextdoor.pixel_id'                          => [ 'is_nextdoor_pixel_id', __('Invalid Nextdoor pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.nextdoor.capi.token'                        => [ 'is_nextdoor_capi_token', __('Invalid Nextdoor Conversion API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.nextdoor.capi.test_event_code'              => [ 'is_nextdoor_capi_test_event_code', __('Invalid Nextdoor Conversion API test event code.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.applovin.event_key'                         => [ 'is_applovin_event_key', __('Invalid AppLovin event key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.applovin.capi.token'                        => [ 'is_applovin_capi_token', __('Invalid AppLovin Conversion API key.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.spotify.pixel_id'                           => [ 'is_spotify_pixel_id', __('Invalid Spotify Ads pixel ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.spotify.capi.connection_id'                 => [ 'is_spotify_capi_connection_id', __('Invalid Spotify Conversions API connection ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 			'pixels.spotify.capi.token'                         => [ 'is_spotify_capi_token', __('Invalid Spotify Conversions API token.', 'woocommerce-google-adwords-conversion-tracking-tag') ],

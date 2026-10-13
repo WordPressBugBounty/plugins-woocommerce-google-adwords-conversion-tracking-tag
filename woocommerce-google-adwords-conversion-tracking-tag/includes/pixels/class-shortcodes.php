@@ -2,6 +2,7 @@
 
 namespace SweetCode\Pixel_Manager\Pixels;
 
+use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
@@ -93,6 +94,8 @@ class Shortcodes {
 			'spotify-event'         => 'lead',
 			'spotify-lead-type'     => '',
 			'spotify-lead-category' => '',
+			'applovin-event'        => 'generate_lead',
+			'applovin-value'        => 0,
 			'taboola-event'         => '',
 			'tiktok-event'          => 'SubmitForm',
 			'contentsquare-event'   => '',
@@ -199,6 +202,15 @@ class Shortcodes {
 			&& Options::is_spotify_active()
 		) {
 			self::conversion_html_spotify($shortcode_attributes);
+		}
+
+		// AppLovin (Premium only)
+		if (
+			wpm_fs()->can_use_premium_code__premium_only()
+			&& self::should_tracking_event_be_injected($shortcode_attributes, 'applovin')
+			&& Options::is_applovin_active()
+		) {
+			self::conversion_html_applovin($shortcode_attributes);
 		}
 
 		// Taboola
@@ -615,6 +627,49 @@ class Shortcodes {
 			);
 		</script>
 		<?php
+	}
+
+	/**
+	 * Output the AppLovin conversion tracking script.
+	 *
+	 * Only the events a shortcode can stand for are accepted: generate_lead
+	 * (the default), sign_up and subscribe. The commerce events are driven by
+	 * the shop itself. AppLovin requires a currency and a value on
+	 * generate_lead and discounts or excludes leads with a value of 0, so the
+	 * shortcode takes the value as an attribute.
+	 *
+	 * @param array $shortcode_attributes
+	 * @return void
+	 * @since 1.69.3
+	 */
+	private static function conversion_html_applovin( $shortcode_attributes ) {
+
+		$allowed_events = [ 'generate_lead', 'sign_up', 'subscribe' ];
+		$event_name     = strtolower((string) $shortcode_attributes['applovin-event']);
+
+		if (!in_array($event_name, $allowed_events, true)) {
+			$event_name = 'generate_lead';
+		}
+
+		$event_data = [];
+
+		// sign_up takes no value; generate_lead and subscribe do.
+		if ('sign_up' !== $event_name) {
+			$event_data['currency'] = function_exists('get_woocommerce_currency') ? get_woocommerce_currency() : '';
+			$event_data['value']    = is_numeric($shortcode_attributes['applovin-value']) ? (float) $shortcode_attributes['applovin-value'] : 0;
+		}
+
+		// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
+		?>
+
+		<script>
+			pmwFunctionExists("axon").then(function () {
+					axon("track", <?php echo Helpers::json_encode_for_script($event_name); ?>, <?php echo Helpers::json_encode_for_script((object) $event_data); ?>);
+				},
+			);
+		</script>
+		<?php
+		// phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	protected static function function_exists_script() {

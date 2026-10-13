@@ -804,7 +804,7 @@ class Broker_Client {
 	 *
 	 * @param array $payload The full events:ingest request body.
 	 *
-	 * @return array { success: bool, code: int, request_id: string, error_message: string }
+	 * @return array { success: bool, code: int, request_id: string, error_message: string, field_warnings: array[] }
 	 *
 	 * @since 1.66.0
 	 */
@@ -827,11 +827,51 @@ class Broker_Client {
 		}
 
 		return [
-			'success'       => $result['ok'],
-			'code'          => (int) $result['status'],
-			'request_id'    => $request_id,
-			'error_message' => $error_message,
+			'success'        => $result['ok'],
+			'code'           => (int) $result['status'],
+			'request_id'     => $request_id,
+			'error_message'  => $error_message,
+			'field_warnings' => self::sanitize_field_warnings(isset($result['body']['fieldWarnings']) ? $result['body']['fieldWarnings'] : []),
 		];
+	}
+
+	/**
+	 * Keeps the well-formed entries of the fieldWarnings list Google attaches
+	 * to an accepted events:ingest upload (Data Manager API v1.8+). Each one
+	 * names a field Google dropped while still recording the conversion.
+	 *
+	 * @param mixed $warnings The fieldWarnings value relayed by the broker.
+	 *
+	 * @return array[] List of { reason: string, field: string, description: string }.
+	 *
+	 * @since 1.69.3
+	 */
+	public static function sanitize_field_warnings( $warnings ) {
+
+		if (!is_array($warnings)) {
+			return [];
+		}
+
+		$sanitized = [];
+
+		foreach ($warnings as $warning) {
+
+			if (!is_array($warning) || empty($warning['reason']) || !is_string($warning['reason'])) {
+				continue;
+			}
+
+			$sanitized[] = [
+				'reason'      => substr(sanitize_text_field($warning['reason']), 0, 100),
+				'field'       => isset($warning['field']) && is_string($warning['field']) ? substr(sanitize_text_field($warning['field']), 0, 200) : '',
+				'description' => isset($warning['description']) && is_string($warning['description']) ? substr(sanitize_text_field($warning['description']), 0, 300) : '',
+			];
+
+			if (count($sanitized) >= 20) {
+				break;
+			}
+		}
+
+		return $sanitized;
 	}
 
 	/**

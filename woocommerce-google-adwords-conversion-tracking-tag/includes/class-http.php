@@ -61,6 +61,14 @@ class HTTP {
 		return apply_filters('pmw_http_post_request_args', $this->request_args);
 	}
 
+	/**
+	 * Send a POST request.
+	 *
+	 * @param string $url
+	 * @param mixed  $payload               Encoded as JSON when set.
+	 * @param array  $request_args_override
+	 * @return array|\WP_Error The wp_safe_remote_post() response (returned @since 1.69.3).
+	 */
 	public function post( $url, $payload = null, $request_args_override = [] ) {
 
 		if ($payload) {
@@ -79,6 +87,8 @@ class HTTP {
 		if (Options::is_http_request_logging_enabled()) {
 			$this->log_request($url, $response, $payload, $request_args_override);
 		}
+
+		return $response;
 	}
 
 	public function get( $url ) {

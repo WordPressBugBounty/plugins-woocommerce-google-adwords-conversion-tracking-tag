@@ -27,12 +27,14 @@ use SweetCode\Pixel_Manager\Pixels\Reddit\Reddit_CAPI;
 use SweetCode\Pixel_Manager\Pixels\OpenAI\OpenAI_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Nextdoor\Nextdoor_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Spotify\Spotify_CAPI;
+use SweetCode\Pixel_Manager\Pixels\AppLovin\AppLovin_CAPI;
 use SweetCode\Pixel_Manager\Pixels\Bing\Bing_CAPI;
 use SweetCode\Pixel_Manager\Pixels\TripleWhale\Triple_Whale;
 use SweetCode\Pixel_Manager\Pixels\Mixpanel\Mixpanel_API;
 use SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_API;
 use SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_Takeover;
 use SweetCode\Pixel_Manager\Pixels\VWO\VWO;
+use SweetCode\Pixel_Manager\Failed_Order_Retractions;
 use SweetCode\Pixel_Manager\First_Event_Confirmation;
 use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Helpers;
@@ -343,6 +345,7 @@ class Pixel_Manager {
     }
 
     public function inject_products_from_transient_into_datalayer( $products ) {
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
         ?>
 		<script<?php 
         echo wp_kses( Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html() );
@@ -350,10 +353,10 @@ class Pixel_Manager {
 			(window.pmwDataLayer = window.pmwDataLayer || {}).products = window.pmwDataLayer.products || {};
 			window.pmwDataLayer.products                               = Object.assign(window.pmwDataLayer.products, <?php 
         echo Helpers::json_encode_for_script( (object) $products );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>);
 		</script>
 		<?php 
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
     }
 
     public function get_google_ads_conversion_adjustments_endpoint() {
@@ -819,8 +822,7 @@ class Pixel_Manager {
     private static function is_rate_limited( $bucket, $max = 120 ) {
         // Read from $_SERVER rather than filter_input(INPUT_SERVER), which only
         // sees PHP's request snapshot and is empty under some SAPIs and in tests.
-        $remote_addr = ( isset( $_SERVER['REMOTE_ADDR'] ) ? (string) wp_unslash( $_SERVER['REMOTE_ADDR'] ) : '' );
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated as an IP address on the next line
+        $remote_addr = ( isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '' );
         $remote_addr = ( filter_var( $remote_addr, FILTER_VALIDATE_IP ) ? $remote_addr : '' );
         $ip = Geolocation::get_user_ip();
         if ( empty( $ip ) && empty( $remote_addr ) ) {
@@ -913,10 +915,14 @@ class Pixel_Manager {
      * and the platform reads the event name from inside that object. A check
      * on the wrapper's event field alone therefore let an unauthenticated
      * client post {"facebook":{"event_name":"Purchase","custom_data":{"value":99999}}}
-     * and land a fabricated purchase in the merchant's Conversions API. The
-     * wrapper field is now required, and every pixel object is searched for a
-     * purchase name at any depth. Purchases only ever leave through the
-     * server-side order hooks.
+     * and land a fabricated purchase in the merchant's Conversions API. Every
+     * pixel object is therefore searched for a purchase name at any depth.
+     * Purchases only ever leave through the server-side order hooks.
+     *
+     * The wrapper field is optional. pmw.trackCustomFacebookEvent(), the Meta
+     * branch of the conversion shortcode and documented shop snippets send
+     * only a pixel object, and requiring the wrapper refused all of them
+     * while adding no protection, since a client can set any wrapper value.
      *
      * @param mixed $data The decoded request payload.
      * @return bool
@@ -927,10 +933,10 @@ class Pixel_Manager {
         if ( !is_array( $data ) ) {
             return true;
         }
-        if ( !isset( $data['event'] ) || !is_string( $data['event'] ) || '' === $data['event'] ) {
+        if ( isset( $data['event'] ) && !is_string( $data['event'] ) ) {
             return true;
         }
-        if ( self::is_purchase_event_name( $data['event'] ) ) {
+        if ( isset( $data['event'] ) && self::is_purchase_event_name( $data['event'] ) ) {
             return true;
         }
         foreach ( $data as $pixel => $pixel_data ) {
@@ -1140,31 +1146,31 @@ class Pixel_Manager {
     public function pmw_save_imported_settings( $request ) {
         // Verify nonce
         if ( !wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
-            wp_send_json_error( 'Invalid nonce' );
+            return Helpers::rest_envelope( false, 'Invalid nonce' );
         }
         $options = $request->get_params();
         // Sanitize nested array $options
         $options = Helpers::generic_sanitization( $options );
         if ( !is_array( $options ) ) {
-            wp_send_json_error( 'Invalid options. Not an array.' );
+            return Helpers::rest_envelope( false, 'Invalid options. Not an array.' );
         }
         // Validate imported options
         if ( !Validations::validate_imported_options( $options ) ) {
-            wp_send_json_error( [
+            return Helpers::rest_envelope( false, [
                 'message' => 'Invalid options. Didn\'t pass validation.',
             ] );
         }
         // Every field runs its own validator, unknown keys are dropped. @since 1.69.1
         $validated = Validations::validate_imported_options_tree( $options );
         if ( !$validated['valid'] ) {
-            wp_send_json_error( [
+            return Helpers::rest_envelope( false, [
                 'message' => 'Invalid options. These settings did not pass validation: ' . implode( ', ', $validated['errors'] ),
                 'paths'   => $validated['errors'],
             ] );
         }
         // All good, save options with timestamp and automatic backup
         Options::save_options_with_timestamp( $validated['options'], true );
-        wp_send_json_success( [
+        return Helpers::rest_envelope( true, [
             'message' => 'Options saved',
         ] );
     }
@@ -1399,6 +1405,7 @@ class Pixel_Manager {
         // dropped it, or a theme that pulls the fragment into a page without the
         // Pixel Manager. Assigning into an undefined window.pmwDataLayer threw a
         // TypeError there, in the middle of WooCommerce's fragment replacement.
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
         ?>
 		<script>
 			(window.pmwDataLayer = window.pmwDataLayer || {}).cart_item_keys            = window.pmwDataLayer.cart_item_keys || {};
@@ -1406,11 +1413,11 @@ class Pixel_Manager {
         echo esc_js( $cart_item_key );
         ?>'] = <?php 
         echo Helpers::json_encode_for_script( $data );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>;
 		</script>
 
 		<?php 
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
     }
 
     // on the product page
@@ -1561,6 +1568,9 @@ class Pixel_Manager {
      * @since 1.32.6
      **/
     private function inject_data_layer_litespeed_esi() {
+        // The WooCommerce.com build may not echo the unescaped ESI tag, and wp_kses()
+        // strips <esi:include> before WordPress 7.2 (core #58921), so it disables the
+        // cache for logged-in users instead. See DD-050 for the planned replacement.
         if ( 'wcm' === PMW_DISTRO ) {
             /**
              * Fires Litespeed control set nocache.
@@ -1593,6 +1603,7 @@ class Pixel_Manager {
         // Those attributes are primarily to exclude the script from being processed
         // by various script loaders and script blockers.
         // Some exclusion techniques use HTML comments, but those comments may be stripped by HTML minifiers.
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
         ?>
 
 		<script<?php 
@@ -1602,12 +1613,12 @@ class Pixel_Manager {
 			window.pmwDataLayer = window.pmwDataLayer || {};
 			window.pmwDataLayer = Object.assign(window.pmwDataLayer, <?php 
         echo Helpers::json_encode_for_script( $this->get_data_for_data_layer() );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>);
 
 		</script>
 
 		<?php 
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
     }
 
     /**
@@ -1940,6 +1951,21 @@ class Pixel_Manager {
             'advanced_matching'   => Options::is_spotify_advanced_matching_enabled(),
             'dynamic_remarketing' => [
                 'id_type' => Product::get_dyn_r_id_type( 'spotify' ),
+            ],
+        ];
+    }
+
+    /**
+     * AppLovin data layer configuration
+     *
+     * @since 1.69.3
+     */
+    private static function get_applovin_pixel_data() {
+        return [
+            'event_key'           => Options::get_applovin_event_key(),
+            'advanced_matching'   => Options::is_applovin_advanced_matching_enabled(),
+            'dynamic_remarketing' => [
+                'id_type' => Product::get_dyn_r_id_type( 'applovin' ),
             ],
         ];
     }
@@ -2913,6 +2939,20 @@ class Pixel_Manager {
         ];
         if ( Options::are_restricted_consent_regions_set() ) {
             $data['consent_management']['restricted_regions'] = Options::get_restricted_consent_regions();
+        }
+        /**
+         * The consent model of the detected CMPs, where it is the same for every
+         * visitor. The browser applies it as the CMP default in implicit consent
+         * mode until the CMP reports a decision. Explicit consent mode denies by
+         * itself and never reads it.
+         *
+         * @since 1.69.3
+         */
+        if ( !Options::is_consent_management_explicit_consent_active() ) {
+            $cmp_hints = Environment::get_cmp_consent_hints();
+            if ( !empty( $cmp_hints ) ) {
+                $data['consent_management']['cmp_hints'] = $cmp_hints;
+            }
         }
         // First-run onboarding: ask the storefront for a one-shot "pixels are
         // live" report. Only injected on fresh installs until the first

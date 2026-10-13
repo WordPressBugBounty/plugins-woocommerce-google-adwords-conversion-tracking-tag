@@ -27,12 +27,45 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  * settings values, setup status) expose the plugin state to AI agents. Write
  * abilities (update settings, configure pixel) apply validated sparse patches
  * to the options tree and can be disabled site-wide via the
- * pmw_abilities_allow_write filter. All abilities require the same capability
- * as the settings UI (manage_options or manage_woocommerce).
+ * pmw_abilities_allow_write filter. The admin action abilities (backups,
+ * diagnostics, logs, opportunities, SweetCode Cloud, account connections and
+ * more) come from Abilities_Admin. All abilities use the permission function of
+ * the admin UI, Environment::can_current_user_edit_options(), so an agent can do
+ * exactly what its user can do in the admin.
  *
  * @since 1.57.0
  */
 class Abilities {
+
+	/**
+	 * The PMW ability category slug.
+	 *
+	 * Category slugs are a global namespace shared by every plugin, so the
+	 * slug carries the plugin prefix instead of a generic "tracking".
+	 *
+	 * @since 1.69.3
+	 */
+	const CATEGORY = 'pmw-tracking';
+
+	/**
+	 * Input schema for abilities that take no parameters.
+	 *
+	 * An object schema with no properties, so MCP clients and the REST
+	 * validator see an explicit "no input" contract instead of none at all.
+	 * The default matters: the Abilities API validates a call without input
+	 * as null, which an object schema rejects unless a default fills it in.
+	 *
+	 * @since 1.69.3
+	 * @return array
+	 */
+	private static function empty_input_schema() {
+		return [
+			'type'                 => 'object',
+			'properties'           => new \stdClass(),
+			'additionalProperties' => false,
+			'default'              => [],
+		];
+	}
 
 	/**
 	 * Initialize the Abilities API integration.
@@ -61,7 +94,7 @@ class Abilities {
 	 * @return void
 	 */
 	public static function register_categories() {
-		\wp_register_ability_category('tracking', [
+		\wp_register_ability_category(self::CATEGORY, [
 			'label'       => __('Tracking & Analytics', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description' => __('Abilities related to conversion tracking, analytics pixels, and marketing tag management.', 'woocommerce-google-adwords-conversion-tracking-tag'),
 		]);
@@ -87,6 +120,73 @@ class Abilities {
 			self::register_update_settings();
 			self::register_configure_pixel();
 		}
+
+		// Everything else the admin UI can do, one ability per action.
+		foreach (Abilities_Admin::get_definitions() as $definition) {
+
+			if (!empty($definition['write']) && !Abilities_Settings::is_write_enabled()) {
+				continue;
+			}
+
+			self::register_admin_ability($definition);
+		}
+	}
+
+	/**
+	 * Register one admin action ability from its Abilities_Admin definition.
+	 *
+	 * Every admin ability gets the plugin category, the permission function
+	 * the admin UI uses, REST and MCP visibility, and explicit annotations.
+	 *
+	 * @param array $definition Definition from Abilities_Admin::get_definitions().
+	 * @return void
+	 *
+	 * @since 1.69.3
+	 */
+	private static function register_admin_ability( $definition ) {
+
+		if (empty($definition['input'])) {
+			$input_schema = self::empty_input_schema();
+		} else {
+			$input_schema = [
+				'type'                 => 'object',
+				'properties'           => $definition['input'],
+				'additionalProperties' => false,
+			];
+
+			if (empty($definition['required'])) {
+				// Only optional parameters: a call without input is valid too.
+				$input_schema['default'] = [];
+			} else {
+				$input_schema['required'] = $definition['required'];
+			}
+		}
+
+		\wp_register_ability($definition['name'], [
+			'label'               => $definition['label'],
+			'description'         => $definition['description'],
+			'category'            => self::CATEGORY,
+			'input_schema'        => $input_schema,
+			'output_schema'       => $definition['output'],
+			'execute_callback'    => $definition['execute'],
+			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations'  => array_merge(
+					[
+						'readonly'    => false,
+						'destructive' => false,
+						'idempotent'  => false,
+					],
+					isset($definition['annotations']) ? $definition['annotations'] : []
+				),
+				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
+			],
+		]);
 	}
 
 	/**
@@ -102,7 +202,8 @@ class Abilities {
 		\wp_register_ability('pmw/get-tracking-status', [
 			'label'               => __('Get Tracking Status', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Retrieves the status of all configured tracking pixels in Pixel Manager for WooCommerce, including which pixels are active, their categories (marketing, statistics, optimization), and whether they use browser-side or server-side tracking.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
+			'input_schema'        => self::empty_input_schema(),
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
@@ -189,7 +290,9 @@ class Abilities {
 			],
 			'execute_callback'    => [ __CLASS__, 'execute_get_tracking_status' ],
 			'permission_callback' => function () {
-				return current_user_can('manage_options');
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
+				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
 				'annotations' => [
@@ -198,6 +301,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -215,7 +319,8 @@ class Abilities {
 		\wp_register_ability('pmw/get-plugin-info', [
 			'label'               => __('Get Plugin Info', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Retrieves general information about the Pixel Manager for WooCommerce plugin, including version, license tier (free/pro), distribution channel, and environment compatibility status.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
+			'input_schema'        => self::empty_input_schema(),
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
@@ -251,7 +356,9 @@ class Abilities {
 			],
 			'execute_callback'    => [ __CLASS__, 'execute_get_plugin_info' ],
 			'permission_callback' => function () {
-				return current_user_can('manage_options');
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
+				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
 				'annotations' => [
@@ -260,6 +367,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -277,19 +385,48 @@ class Abilities {
 		\wp_register_ability('pmw/get-debug-info', [
 			'label'               => __('Get Debug Info', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Retrieves the full Pixel Manager for WooCommerce debug information report, including system environment details, active pixel configurations, consent mode settings, and tracking accuracy data. Useful for troubleshooting and support.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
+			'input_schema'        => self::empty_input_schema(),
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
-					'report' => [
+					'report'                 => [
 						'type'        => 'string',
-						'description' => 'Full debug information report as formatted text',
+						'description' => 'Full debug information report as formatted text, for humans and support tickets',
+					],
+					'plugin'                 => [
+						'type'        => 'object',
+						'description' => 'Plugin and environment info, same shape as pmw/get-plugin-info',
+					],
+					'active_pixels'          => [
+						'type'        => 'array',
+						'description' => 'Active tracking pixels, same shape as active_pixels in pmw/get-tracking-status',
+					],
+					'other_tracking_plugins' => [
+						'type'        => 'array',
+						'description' => 'Other active analytics, tag manager and ad pixel plugins that may send duplicate events, as "Name (plugin file)"',
+						'items'       => [ 'type' => 'string' ],
+					],
+					'gateway_accuracy'       => [
+						'type'        => 'array',
+						'description' => 'Per payment gateway share of orders whose purchase was measured in the browser, last 30 days. Empty when no analysis has run yet.',
+						'items'       => [
+							'type'       => 'object',
+							'properties' => [
+								'gateway_id'           => [ 'type' => 'string' ],
+								'order_count_total'    => [ 'type' => 'integer' ],
+								'order_count_measured' => [ 'type' => 'integer' ],
+								'percentage'           => [ 'type' => 'number' ],
+							],
+						],
 					],
 				],
 			],
 			'execute_callback'    => [ __CLASS__, 'execute_get_debug_info' ],
 			'permission_callback' => function () {
-				return current_user_can('manage_options');
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
+				return Environment::can_current_user_edit_options();
 			},
 			'meta'                => [
 				'annotations' => [
@@ -298,6 +435,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -316,7 +454,8 @@ class Abilities {
 		\wp_register_ability('pmw/get-settings-schema', [
 			'label'               => __('Get Settings Schema', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Retrieves the machine-readable catalog of all configurable Pixel Manager for WooCommerce settings, grouped by tracking destination (pixel) and plugin area. Each setting includes its dot-notation path, type, description (including where to find the value), default, whether it is required to activate the pixel, whether it is an advanced feature and what its benefit is, whether it requires the Pro version, and whether it is a secret. Settings that belong to the Pro version are always listed, but on a site without an active Pro license they are marked writable false and pmw/update-settings refuses them. Use this before reading or updating settings.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
+			'input_schema'        => self::empty_input_schema(),
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
@@ -372,6 +511,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -389,7 +529,8 @@ class Abilities {
 		\wp_register_ability('pmw/get-settings', [
 			'label'               => __('Get Settings', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Retrieves the current values of all configurable Pixel Manager for WooCommerce settings. Secret values such as API tokens are never returned; for those only a set/not-set flag is included. Use pmw/get-settings-schema first to understand what each setting does.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
+			'input_schema'        => self::empty_input_schema(),
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
@@ -424,6 +565,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -443,7 +585,8 @@ class Abilities {
 		\wp_register_ability('pmw/get-setup-status', [
 			'label'               => __('Get Setup Status', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Retrieves a setup checklist for Pixel Manager for WooCommerce: which tracking pixels are configured and active, which required settings are missing, which advanced features are available but not enabled (including their benefits), and prioritized recommendations for the next setup step. Designed to drive guided setup conversations.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
+			'input_schema'        => self::empty_input_schema(),
 			'output_schema'       => [
 				'type'       => 'object',
 				'properties' => [
@@ -503,6 +646,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -521,7 +665,7 @@ class Abilities {
 		\wp_register_ability('pmw/update-settings', [
 			'label'               => __('Update Settings', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Updates one or more Pixel Manager for WooCommerce settings by dot-notation path. Only the submitted settings are changed, all other settings are preserved. Each value is validated with the same rules as the admin UI (including format checks for IDs and tokens), and every save creates an automatic settings backup. A setting that belongs to the Pro version is refused with status forbidden on a site without an active Pro license, and nothing is written for it. Use pmw/get-settings-schema to discover the available paths, types and value formats.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
 			'input_schema'        => [
 				'type'       => 'object',
 				'properties' => [
@@ -566,6 +710,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -594,7 +739,7 @@ class Abilities {
 		\wp_register_ability('pmw/configure-pixel', [
 			'label'               => __('Configure Pixel', 'woocommerce-google-adwords-conversion-tracking-tag'),
 			'description'         => __('Configures a tracking pixel (destination) in Pixel Manager for WooCommerce in one call. Accepts the pixel key and a map of setting keys to values (e.g. for google_ads: conversion_id and conversion_label). Validates and saves the values, then returns the pixel\'s setup status: whether it is active, which required settings are still missing, and which advanced features are available with their benefits. Ideal for guided setup conversations.', 'woocommerce-google-adwords-conversion-tracking-tag'),
-			'category'            => 'tracking',
+			'category'            => self::CATEGORY,
 			'input_schema'        => [
 				'type'       => 'object',
 				'properties' => [
@@ -633,6 +778,7 @@ class Abilities {
 					'idempotent'  => true,
 				],
 				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
 			],
 		]);
 	}
@@ -694,7 +840,8 @@ class Abilities {
 
 		global $wp_version;
 
-		$tier = wpm_fs()->can_use_premium_code__premium_only() ? 'pro' : 'free';
+		// Not wpm_fs(): the WooCommerce.com builds ship without Freemius.
+		$tier = Helpers::is_pmw_pro_version_active() ? 'pro' : 'free';
 
 		$info = [
 			'version'             => PMW_CURRENT_VERSION,
@@ -722,8 +869,16 @@ class Abilities {
 	 * @return array Debug information data
 	 */
 	public static function execute_get_debug_info() {
+		$gateway_accuracy = Debug_Info::get_gateway_analysis_array();
+
+		// The report stays for humans and support tickets; the structured
+		// fields next to it are what an agent should reason over.
 		return [
-			'report' => Debug_Info::get_debug_info(),
+			'report'                 => Debug_Info::get_debug_info(),
+			'plugin'                 => self::execute_get_plugin_info(),
+			'active_pixels'          => self::execute_get_tracking_status()['active_pixels'],
+			'other_tracking_plugins' => array_values(Debug_Info::get_other_tracking_plugins()),
+			'gateway_accuracy'       => is_array($gateway_accuracy) ? array_values($gateway_accuracy) : [],
 		];
 	}
 }

@@ -885,7 +885,7 @@ class Shop {
         $order_fees = 0;
         // Add Stripe fees
         // because Stripe doesn't save the fee on the order fees
-        $order_fees += self::get_fee_by_postmeta_key( $order, '_stripe_fee' );
+        $order_fees += self::get_stripe_fee_in_order_currency( $order );
         // Add _paypal_transaction_fee
         // because PayPal doesn't save the fee on the order fees
         // https://stackoverflow.com/a/56129332/4688612
@@ -894,8 +894,11 @@ class Shop {
         // because PayPal doesn't save the fee on the order fees
         if ( $order->meta_exists( '_ppcp_paypal_fees' ) ) {
             $ppcp_paypal_fees = $order->get_meta( '_ppcp_paypal_fees', true );
-            if ( !empty( $ppcp_paypal_fees['paypal_fee']['value'] ) ) {
-                $order_fees += $ppcp_paypal_fees['paypal_fee']['value'];
+            // PayPal reports this fee in the currency of the transaction, which is the order
+            // currency. Should it ever come in another one, it can't be converted from here,
+            // and subtracting it unconverted would distort the value far more than leaving it out.
+            if ( !empty( $ppcp_paypal_fees['paypal_fee']['value'] ) && (empty( $ppcp_paypal_fees['paypal_fee']['currency_code'] ) || strtoupper( (string) $ppcp_paypal_fees['paypal_fee']['currency_code'] ) === strtoupper( (string) $order->get_currency() )) ) {
+                $order_fees += (float) $ppcp_paypal_fees['paypal_fee']['value'];
             }
         }
         /**
@@ -974,6 +977,47 @@ class Shop {
             $fee_refund_total += (float) $order->get_total_refunded_for_item( $fee_id, 'fee' );
         }
         return (float) $fee_refund_total;
+    }
+
+    /**
+     * Return the Stripe fee of an order, converted to the order currency.
+     *
+     * WooCommerce Stripe stores the fee and the net amount in the currency of the Stripe
+     * balance the charge settled into (_stripe_currency), not in the order currency. A shop
+     * that charges EUR and settles in AED therefore holds an AED fee on a EUR order, and
+     * subtracting it unconverted under-reports the order value, down to zero on small orders.
+     *
+     * Fee plus net is what Stripe settled for the part of the charge that has not been
+     * refunded, because WooCommerce Stripe adds each refund's balance transaction to both.
+     * Setting that against the part of the order total that has not been refunded gives
+     * the exchange rate Stripe applied to this very charge, with no rate lookup needed.
+     *
+     * Without a currency on the order (gateway versions that didn't store one) the fee is
+     * taken to be in the order currency, as before. If the currencies differ and no rate can
+     * be derived, the fee is left out: a slightly high value is the lesser error.
+     *
+     * @param $order
+     * @return float
+     *
+     * @since 1.69.3
+     */
+    private static function get_stripe_fee_in_order_currency( $order ) {
+        $stripe_fee = self::get_fee_by_postmeta_key( $order, '_stripe_fee' );
+        if ( $stripe_fee <= 0 ) {
+            return 0;
+        }
+        $stripe_currency = strtoupper( (string) $order->get_meta( '_stripe_currency', true ) );
+        if ( '' === $stripe_currency || strtoupper( (string) $order->get_currency() ) === $stripe_currency ) {
+            return $stripe_fee;
+        }
+        // Without a positive net amount, fee plus net is no settled amount to take a rate
+        // from. A missing net would even make the fee look like the whole charge.
+        $stripe_net = (float) $order->get_meta( '_stripe_net', true );
+        $order_total_left = (float) $order->get_total() - (float) $order->get_total_refunded();
+        if ( $stripe_net <= 0 || $order_total_left <= 0 ) {
+            return 0;
+        }
+        return (float) ($stripe_fee / ($stripe_fee + $stripe_net) * $order_total_left);
     }
 
     /**

@@ -963,6 +963,37 @@ class Abilities_Settings {
 					],
 				],
 			],
+			'applovin'      => [
+				'label'    => 'AppLovin',
+				'category' => 'marketing',
+				'is_pixel' => true,
+				'settings' => [
+					'event_key'         => [
+						'path'        => 'pixels.applovin.event_key',
+						'type'        => 'string',
+						'label'       => 'Event key',
+						'description' => 'AppLovin (Axon) event key, which the Conversion API also calls the pixel ID. Found in the AppLovin dashboard under Account > General > Keys.',
+						'required'    => true,
+					],
+					'advanced_matching' => [
+						'path'        => 'pixels.applovin.advanced_matching',
+						'type'        => 'boolean',
+						'label'       => 'Advanced matching',
+						'description' => 'Sends the SHA-256 hashed email address, phone number and user ID of logged-in customers and purchasers to AppLovin with the pixel and Conversion API events. AppLovin requires this user data on purchase events.',
+						'advanced'    => true,
+						'benefit'     => 'Improves AppLovin attribution and optimization, and completes the purchase events AppLovin requires user data on.',
+					],
+					'capi.token'        => [
+						'path'        => 'pixels.applovin.capi.token',
+						'type'        => 'string',
+						'label'       => 'Conversion API key',
+						'description' => 'AppLovin Conversion API key, from the Keys page of the AppLovin dashboard. If it is not listed there, AppLovin support issues one.',
+						'secret'      => true,
+						'advanced'    => true,
+						'benefit'     => 'Enables server-side tracking through the AppLovin Conversion API, which recovers conversions lost to ad blockers and browser restrictions.',
+					],
+				],
+			],
 			'klaviyo'       => [
 				'label'    => 'Klaviyo',
 				'category' => 'marketing',
@@ -1792,6 +1823,11 @@ class Abilities_Settings {
 		// Saves the full merged tree, creates an automatic backup and
 		// invalidates the options cache.
 		Options::save_options_with_timestamp($options);
+
+		// Arm the same auto-revert timers the admin UI save arms (order
+		// de-duplication back on after 6 hours, HTTP request logging off after
+		// 12). Without this an agent that switched either one stayed switched.
+		Validations::apply_setting_change_side_effects($options, array_keys($updates));
 
 		return [
 			'saved'         => true,

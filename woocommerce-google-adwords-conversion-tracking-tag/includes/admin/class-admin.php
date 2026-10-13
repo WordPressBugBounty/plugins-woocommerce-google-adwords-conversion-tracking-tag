@@ -75,6 +75,7 @@ class Admin {
         // Cache the result for the admin-menu badge (Onboarding::get_open_steps_count()),
         // which runs on every admin page and must not perform a remote check itself.
         set_transient( Onboarding::$cody_available_transient, ( $is_available ? 'yes' : 'no' ), DAY_IN_SECONDS );
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
         ?>
 		<script>
 			var pmw_cody = {
@@ -83,11 +84,11 @@ class Admin {
         ?>,
 				url      : <?php 
         echo Helpers::json_encode_for_script( $chat_url );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>,
 			};
 		</script>
 		<?php 
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
         // Output the floating chatbot widget button
         if ( $is_available ) {
             ?>
@@ -126,14 +127,15 @@ class Admin {
 
     public static function wpm_data_layer() {
         $data['version'] = Helpers::get_version_info();
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
         ?>
 		<script>
 			var pmwDataLayer = <?php 
         echo Helpers::json_encode_for_script( $data );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>;
 		</script>
 		<?php 
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
     }
 
     // This function is only called when our plugin's page loads!
@@ -687,6 +689,14 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // Add the field for the AppLovin pixel
+            add_settings_field(
+                'pmw_plugin_applovin_event_key',
+                esc_html__( 'AppLovin event key', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_applovin_event_key'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             // Add the field for the GroundTruth pixel
             add_settings_field(
                 'pmw_plugin_groundtruth_gtid',
@@ -828,6 +838,7 @@ class Admin {
             self::add_section_advanced_subsection_klaviyo( $section_ids );
             self::add_section_advanced_subsection_nextdoor( $section_ids );
             self::add_section_advanced_subsection_spotify( $section_ids );
+            self::add_section_advanced_subsection_applovin( $section_ids );
             self::add_section_advanced_subsection_hyros( $section_ids );
             self::add_section_advanced_subsection_tiktok( $section_ids );
             if ( Environment::is_woocommerce_active() ) {
@@ -1487,6 +1498,30 @@ class Admin {
         );
     }
 
+    public static function add_section_advanced_subsection_applovin( $section_ids ) {
+        $sub_section_ids = [
+            'title' => 'AppLovin',
+            'slug'  => 'applovin',
+        ];
+        self::add_subsection_div( $section_ids, $sub_section_ids );
+        // Add the field for the AppLovin Conversion API key
+        add_settings_field(
+            'pmw_plugin_applovin_capi_token',
+            esc_html__( 'AppLovin Conversion API: key', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_applovin_capi_token'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+        // Add the field for the AppLovin advanced matching
+        add_settings_field(
+            'pmw_plugin_applovin_advanced_matching',
+            esc_html__( 'AppLovin Advanced Matching', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'option_html_applovin_advanced_matching'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
+    }
+
     public static function add_section_advanced_subsection_spotify( $section_ids ) {
         $sub_section_ids = [
             'title' => 'Spotify Ads',
@@ -1996,15 +2031,16 @@ class Admin {
                 'account' => esc_html__( 'Account', 'woocommerce-google-adwords-conversion-tracking-tag' ),
             ],
         ];
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
         ?>
 
 		<script>
 			const pmwFreemius = <?php 
         echo Helpers::json_encode_for_script( $freemius_data );
-        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper
         ?>;
 		</script>
 		<?php 
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
         if ( wpm_fs()->is__premium_only() && !defined( 'WP_FS__SKIP_EMAIL_ACTIVATION' ) ) {
             add_action( 'admin_notices', function () {
                 Notifications::license_expired_warning__premium_only();
@@ -2450,10 +2486,12 @@ class Admin {
             'serverLoadWarning'                => Server_Load_Warning::get_data_for_nova(),
             'gadsConversionAdjustmentsFeedUrl' => get_site_url() . Pixel_Manager::get_instance()->get_google_ads_conversion_adjustments_endpoint(),
             'recentLogUrl'                     => (string) Helpers::get_admin_url_link_to_recent_wc_log( 'pmw' ),
+            'wcLogging'                        => Logger::get_woocommerce_logging_for_nova(),
             'ga4DataApiClientEmail'            => ( isset( $ga4_credentials['client_email'] ) ? (string) $ga4_credentials['client_email'] : '' ),
             'upgradeUrl'                       => Commercial_Links::upgrade_url(),
             'accountUrl'                       => Commercial_Links::account_url(),
             'supportUrl'                       => Commercial_Links::support_url(),
+            'distribution'                     => Helpers::get_pmw_distro(),
             'pixelRequestUrl'                  => Commercial_Links::pixel_request_url(),
             'trialUrl'                         => Trial_Promotion_Notification::get_available_trial_url(),
             'firstEventConfirmation'           => First_Event_Confirmation::get_data_for_nova(),
@@ -2477,7 +2515,7 @@ class Admin {
      *
      * @since 1.59.0
      */
-    private static function get_backups_for_wp_admin() {
+    public static function get_backups_for_wp_admin() {
         $active_timestamp = (int) Options::get_options_obj()->timestamp;
         $backups = Options::get_automatic_options_backup();
         $list = [];
@@ -2502,7 +2540,7 @@ class Admin {
      *
      * @since 1.59.0
      */
-    private static function get_diagnostics_for_wp_admin() {
+    public static function get_diagnostics_for_wp_admin() {
         return [
             'pmwVersion'      => ( defined( 'PMW_CURRENT_VERSION' ) ? PMW_CURRENT_VERSION : '' ),
             'wpVersion'       => get_bloginfo( 'version' ),
@@ -2633,6 +2671,10 @@ class Admin {
             'CookieYes'                      => 'is_cookieyes_active',
             'Termly'                         => 'is_termly_active',
             'FAZ Cookie Manager'             => 'is_faz_cookie_manager_active',
+            'iubenda'                        => 'is_iubenda_active',
+            'Usercentrics'                   => 'is_usercentrics_cmp_active',
+            'CookiePro'                      => 'is_cookiepro_active',
+            'Beautiful Cookie Consent'       => 'is_beautiful_cookie_consent_active',
         ];
         $detected = [];
         foreach ( $checks as $name => $method ) {
@@ -2669,7 +2711,7 @@ class Admin {
      *
      * @since 1.58.8
      */
-    private static function get_opportunities_for_nova() {
+    public static function get_opportunities_for_nova() {
         Opportunities::load_all_opportunity_classes_for_nova();
         $classes = get_declared_classes();
         $result = [];
@@ -4404,6 +4446,95 @@ class Admin {
 		<?php 
         self::display_status_icon( Options::is_nextdoor_advanced_matching_enabled(), Options::is_nextdoor_active(), true );
         self::get_documentation_html_by_key( 'nextdoor_advanced_matching' );
+        self::html_pro_feature();
+    }
+
+    public static function option_html_applovin_event_key() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_applovin_event_key"
+				name="wgact_plugin_options[pixels][applovin][event_key]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_applovin_event_key() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_applovin_active() );
+        self::get_documentation_html_by_key( 'applovin_event_key' );
+        self::output_advanced_section_cog_html( 'applovin' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter your AppLovin event key. You can find it in the AppLovin dashboard under Account > General > Keys.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    public static function option_html_applovin_capi_token() {
+        ?>
+		<textarea class="pmw mono"
+					id="pmw_plugin_applovin_capi_token"
+					name="wgact_plugin_options[pixels][applovin][capi][token]"
+					cols="60"
+					rows="6"
+					onfocus="this.select();"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>><?php 
+        echo esc_html( Options::get_applovin_capi_token() );
+        ?></textarea>
+		<?php 
+        self::display_status_icon( Options::get_applovin_capi_token(), Options::is_applovin_active() );
+        ?>
+		<?php 
+        self::get_documentation_html_by_key( 'applovin_capi_token' );
+        ?>
+		<?php 
+        self::html_pro_feature();
+        ?>
+		<?php 
+        if ( !Options::is_applovin_active() ) {
+            ?>
+			<p>
+				<span class="dashicons dashicons-info"></span>
+				<?php 
+            esc_html_e( 'You need to activate the AppLovin pixel', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            ?>
+			</p>
+		<?php 
+        }
+        ?>
+		<?php 
+    }
+
+    public static function option_html_applovin_advanced_matching() {
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0" name="wgact_plugin_options[pixels][applovin][advanced_matching]">
+			<input type="checkbox"
+					id="pmw_plugin_applovin_advanced_matching"
+					name="wgact_plugin_options[pixels][applovin][advanced_matching]"
+					value="1"
+				<?php 
+        checked( Options::is_applovin_advanced_matching_enabled() );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Enable AppLovin advanced matching', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::display_status_icon( Options::is_applovin_advanced_matching_enabled(), Options::is_applovin_active(), true );
+        self::get_documentation_html_by_key( 'applovin_advanced_matching' );
         self::html_pro_feature();
     }
 

@@ -65,6 +65,32 @@ class Helpers {
         return sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) );
     }
 
+    /**
+     * A REST response with the body wp_send_json_success() / wp_send_json_error()
+     * would have sent: {success} plus {data} when data is given.
+     *
+     * For route callbacks that answered with wp_send_json_*(). Those print and
+     * die, which also ends any code that dispatches the route internally, such
+     * as an Abilities API ability. Returning this keeps the body and status the
+     * admin UI reads byte for byte the same.
+     *
+     * @param bool     $success Whether the call succeeded.
+     * @param mixed    $data    Optional payload, left out of the body when null.
+     * @param int|null $status  HTTP status, 200 by default like wp_send_json_*().
+     * @return \WP_REST_Response
+     *
+     * @since 1.69.3
+     */
+    public static function rest_envelope( $success, $data = null, $status = null ) {
+        $body = [
+            'success' => (bool) $success,
+        ];
+        if ( null !== $data ) {
+            $body['data'] = $data;
+        }
+        return new \WP_REST_Response($body, ( null === $status ? 200 : (int) $status ));
+    }
+
     private static function sanitize_string( $string, $raw = false ) {
         if ( $raw ) {
             return filter_var( $string, FILTER_UNSAFE_RAW );
@@ -341,6 +367,39 @@ class Helpers {
         $digits = ltrim( preg_replace( '/[^0-9]/', '', (string) $phone_e164 ), '0' );
         $length = strlen( $digits );
         return ( $length >= 8 && $length <= 15 ? $digits : '' );
+    }
+
+    /**
+     * Normalize an email address the way AppLovin hashes it.
+     *
+     * Trimmed and lowercased, then checked against AppLovin's own pattern:
+     * printable ASCII without spaces and exactly one @. For gmail.com and
+     * googlemail.com the local part loses its dots and everything from the
+     * first plus sign on. An address that fails the check, or has nothing left
+     * before the @, returns an empty string, so the caller leaves the
+     * identifier out, as AppLovin asks.
+     *
+     * Reference: https://support.applovin.com/en/growth/promoting-your-websites/track-and-optimize/events-and-objects
+     *
+     * @param string $email
+     * @return string
+     * @since 1.69.3
+     */
+    public static function normalize_for_applovin_email( $email ) {
+        $email = strtolower( trim( (string) $email, " \t\n\r\f\v" ) );
+        if ( !preg_match( '/^[!-?A-~]+@[!-?A-~]+$/', $email ) ) {
+            return '';
+        }
+        list( $local, $domain ) = explode( '@', $email, 2 );
+        if ( 'gmail.com' === $domain || 'googlemail.com' === $domain ) {
+            $plus = strpos( $local, '+' );
+            $local = ( false === $plus ? $local : substr( $local, 0, $plus ) );
+            $local = str_replace( '.', '', $local );
+        }
+        if ( '' === $local ) {
+            return '';
+        }
+        return $local . '@' . $domain;
     }
 
     /**
@@ -636,13 +695,20 @@ class Helpers {
         $email = self::trim_string( $email );
         $email = strtolower( $email );
         //      $email = self::normalize_google_email_address($email);
-        return [
+        $email_object = [
             'raw'       => $email,
             'sha256'    => self::hash_string( $email ),
             'facebook'  => self::hash_string( $email ),
             'pinterest' => self::hash_string( $email ),
             'tiktok'    => self::hash_string( $email ),
         ];
+        // AppLovin normalizes Gmail addresses before hashing and wants no
+        // value at all for a malformed address. @since 1.69.3
+        $email_applovin = self::normalize_for_applovin_email( $email );
+        if ( $email_applovin ) {
+            $email_object['applovin'] = self::hash_string( $email_applovin );
+        }
+        return $email_object;
     }
 
     private static function get_user_object_first_name( $first_name ) {
@@ -720,6 +786,11 @@ class Helpers {
         if ( $phone_digits ) {
             $phone_object['facebook'] = self::hash_string( $phone_digits );
             $phone_object['pinterest'] = self::hash_string( $phone_digits );
+        }
+        // AppLovin: digits only with the country code, no leading zeros. @since 1.69.3
+        $phone_applovin = ltrim( $phone_digits, '0' );
+        if ( $phone_applovin ) {
+            $phone_object['applovin'] = self::hash_string( $phone_applovin );
         }
         // OpenAI wants the E.164 digits without the + and without leading
         // zeroes, 8 to 15 digits long. A number outside that range is left out.

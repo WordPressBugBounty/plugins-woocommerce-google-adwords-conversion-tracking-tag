@@ -86,6 +86,7 @@ class Server_Event_Processor {
 			'SweetCode\Pixel_Manager\Pixels\Mixpanel\Mixpanel_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_Adapter',
 			'SweetCode\Pixel_Manager\Pixels\Spotify\Spotify_Adapter',
+			'SweetCode\Pixel_Manager\Pixels\AppLovin\AppLovin_Adapter',
 		];
 
 		foreach ($adapters_to_load as $adapter_class) {
@@ -110,10 +111,7 @@ class Server_Event_Processor {
 						new $adapter_class();
 					} catch (\Exception $e) {
 						// Log adapter instantiation failure for debugging
-						wc_get_logger()->debug(
-							'Failed to instantiate adapter: ' . $adapter_class . ' - ' . $e->getMessage(),
-							[ 'source' => 'pmw' ]
-						);
+						Logger::debug('Failed to instantiate adapter: ' . $adapter_class . ' - ' . $e->getMessage());
 					}
 				}
 			}

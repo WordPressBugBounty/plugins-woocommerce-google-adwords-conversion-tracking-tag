@@ -190,15 +190,11 @@ class Facebook_Event_Setup_Scan {
 			'pixels'     => [],
 		];
 
-		$had_error = false;
-
 		foreach ($pixel_ids as $pixel_id) {
 
 			$body = self::fetch_signals_config($pixel_id);
 
 			if (is_wp_error($body)) {
-
-				$had_error = true;
 
 				$results['pixels'][$pixel_id] = array_merge(
 					self::empty_result(),
@@ -215,9 +211,10 @@ class Facebook_Event_Setup_Scan {
 		}
 
 		if (Environment::is_transients_enabled()) {
-			// Cache errors for a shorter period so temporary connectivity
-			// problems don't suppress the check for a whole week.
-			set_transient(self::TRANSIENT_KEY, $results, $had_error ? DAY_IN_SECONDS : WEEK_IN_SECONDS);
+			// Cached for a day (since 1.69.3, a week before), errors included,
+			// so a fixed setup clears from the opportunity cards by the next
+			// day and a temporary connectivity problem is retried just as soon.
+			set_transient(self::TRANSIENT_KEY, $results, DAY_IN_SECONDS);
 		}
 
 		return $results;

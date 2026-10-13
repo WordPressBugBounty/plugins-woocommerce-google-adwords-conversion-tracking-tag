@@ -111,6 +111,11 @@ class Facebook_CAPI_Gateway extends Opportunity {
 			'woocommerce-google-adwords-conversion-tracking-tag'
 		);
 
+		$descriptions[] = esc_html__(
+			'This check runs once a day. Meta can keep reporting a removed Gateway for a while after you disconnect it.',
+			'woocommerce-google-adwords-conversion-tracking-tag'
+		);
+
 		return [
 			'id'             => 'facebook-capi-gateway',
 			'title'          => esc_html__(

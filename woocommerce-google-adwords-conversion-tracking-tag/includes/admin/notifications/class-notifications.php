@@ -96,7 +96,6 @@ class Notifications {
         }
         $option[$opportunity_id]['dismissed'] = time();
         update_option( PMW_DB_NOTIFICATIONS_NAME, $option );
-        wp_send_json_success();
     }
 
     private static function show_notifications() {

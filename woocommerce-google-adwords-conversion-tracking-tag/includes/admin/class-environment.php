@@ -862,6 +862,16 @@ class Environment {
 		return is_plugin_active('cookiebot/cookiebot.php');
 	}
 
+	/**
+	 * CookiePro runs the OneTrust SDK, which PMW reads in the browser.
+	 *
+	 * @return bool
+	 * @since 1.69.3
+	 */
+	public static function is_cookiepro_active() {
+		return is_plugin_active('cookiepro/class-cookiepro.php');
+	}
+
 	public static function is_usercentrics_cmp_active() {
 		return is_plugin_active('usercentrics-consent-management-platform/usercentrics.php');
 	}
@@ -1023,6 +1033,452 @@ class Environment {
 	public static function is_real_cookie_banner_active() {
 		return is_plugin_active('real-cookie-banner/index.php')
 			|| is_plugin_active('real-cookie-banner-pro/index.php');
+	}
+
+	/**
+	 * The consent model of the detected CMPs, as far as the server can tell it
+	 * without knowing who the visitor is.
+	 *
+	 * Printed into pmwDataLayer.general.consent_management.cmp_hints. The
+	 * browser uses a hint as the CMP default in implicit consent mode when the
+	 * CMP's own script has not told it anything yet, which on a first page view
+	 * is the common case: most CMPs print their configuration in the footer,
+	 * while PMW reads the consent state much earlier.
+	 *
+	 * Only models that are the same for every visitor are included. A page cache
+	 * serves one copy of the page to everyone, so a model that depends on the
+	 * visitor's location (Complianz with geo IP, WP Cookie Consent with region
+	 * rules or automatic law selection, the Beautiful Cookie Consent geo addon,
+	 * the Moove geo location addon) is left out and the browser relies on the
+	 * CMP's own per-visitor signals instead.
+	 *
+	 * Real Cookie Banner and Borlabs Cookie are opt-in by design, but they get no
+	 * hint: the browser only applies their opt-in default when their own
+	 * frontend configuration is on the page, because that is also what proves
+	 * their decision events will arrive. A hint alone would deny tracking for
+	 * good on a shop where the plugin is installed but switched off.
+	 *
+	 * @return array CMP key => [ 'model' => 'optin'|'optout', ... ]
+	 * @since 1.69.3
+	 */
+	public static function get_cmp_consent_hints() {
+
+		$hints = [];
+
+		$complianz = self::get_complianz_consent_hint();
+		if ($complianz) {
+			$hints['complianz'] = $complianz;
+		}
+
+		$moove = self::get_moove_consent_hint();
+		if ($moove) {
+			$hints['moove'] = $moove;
+		}
+
+		$wp_cookie_consent = self::get_wp_cookie_consent_hint();
+		if ($wp_cookie_consent) {
+			$hints['wp_cookie_consent'] = $wp_cookie_consent;
+		}
+
+		$beautiful_cookie_consent = self::get_beautiful_cookie_consent_hint();
+		if ($beautiful_cookie_consent) {
+			$hints['beautiful_cookie_consent'] = $beautiful_cookie_consent;
+		}
+
+		$wp_consent_api = self::get_wp_consent_api_hint();
+		if ($wp_consent_api) {
+			$hints['wp_consent_api'] = $wp_consent_api;
+		}
+
+		/**
+		 * Filters the consent models PMW prints for the detected CMPs.
+		 *
+		 * A model printed here must be the same for every visitor, because a
+		 * page cache serves the same page to everyone. Return an empty array to
+		 * switch the hints off.
+		 *
+		 * @param array $hints CMP key => [ 'model' => 'optin'|'optout', ... ]
+		 *
+		 * @since 1.69.3
+		 */
+		$hints = apply_filters('pmw_cmp_consent_hints', $hints);
+
+		return is_array($hints) ? $hints : [];
+	}
+
+	/**
+	 * Map the consent type names CMPs use onto "optin" and "optout".
+	 *
+	 * @param mixed $type
+	 *
+	 * @return string|null null for a type that states no model
+	 * @since 1.69.3
+	 */
+	public static function normalize_consent_model( $type ) {
+
+		if (!is_string($type) || '' === $type) {
+			return null;
+		}
+
+		$type = strtolower(str_replace([ '-', '_', ' ' ], '', $type));
+
+		if (0 === strpos($type, 'optin')) {
+			return 'optin';
+		}
+
+		if ('optout' === $type) {
+			return 'optout';
+		}
+
+		return null;
+	}
+
+	/**
+	 * Complianz: the consent type every visitor gets, which is only the case
+	 * without geo IP. With geo IP, visitors from different regions get
+	 * different types, and visitors from a region without a banner get none.
+	 *
+	 * The type is read the way Complianz prints it into window.complianz: the
+	 * default consent type of the company region. "other" means Complianz shows
+	 * no banner and allows everything.
+	 *
+	 * @return array|null
+	 * @since 1.69.3
+	 */
+	private static function get_complianz_consent_hint() {
+
+		if (!self::is_complianz_active()) {
+			return null;
+		}
+
+		if (self::is_complianz_geo_ip_active()) {
+			return null;
+		}
+
+		$type = null;
+
+		if (
+			class_exists('COMPLIANZ')
+			&& property_exists('COMPLIANZ', 'company')
+			&& is_object(\COMPLIANZ::$company)
+			&& method_exists(\COMPLIANZ::$company, 'get_default_consenttype')
+		) {
+			$type = \COMPLIANZ::$company->get_default_consenttype();
+		} else {
+			$types = self::get_complianz_consent_types_from_options();
+			if (1 === count($types)) {
+				$type = $types[0];
+			}
+		}
+
+		if ('other' === $type) {
+			return [ 'model' => 'optout' ];
+		}
+
+		$model = self::normalize_consent_model($type);
+
+		if (!$model) {
+			return null;
+		}
+
+		return [ 'model' => $model ];
+	}
+
+	/**
+	 * Whether Complianz resolves the consent type per visitor.
+	 *
+	 * @return bool
+	 * @since 1.69.3
+	 */
+	private static function is_complianz_geo_ip_active() {
+
+		if (function_exists('cmplz_geoip_enabled') && cmplz_geoip_enabled()) {
+			return true;
+		}
+
+		$options = get_option('cmplz_options', []);
+
+		return is_array($options) && !empty($options['use_country']);
+	}
+
+	/**
+	 * The consent types of the regions configured in Complianz, for when
+	 * Complianz' own classes are not loaded. Mirrors the region map of
+	 * Complianz 7.5, and leaves out a region it does not know rather than
+	 * guessing.
+	 *
+	 * @return string[]
+	 * @since 1.69.3
+	 */
+	private static function get_complianz_consent_types_from_options() {
+
+		$options = get_option('cmplz_options', []);
+
+		if (!is_array($options) || empty($options['regions'])) {
+			return [];
+		}
+
+		$regions = is_array($options['regions']) ? $options['regions'] : [ $options['regions'] ];
+
+		$known_types = [
+			'eu' => 'optin',
+			'uk' => 'optin',
+			'za' => 'optin',
+			'br' => 'optin',
+			'us' => 'optout',
+			'ca' => 'optout',
+			'au' => 'optout',
+		];
+
+		$types = [];
+
+		foreach ($regions as $region) {
+			if (is_string($region) && isset($known_types[ $region ])) {
+				$types[] = $known_types[ $region ];
+			}
+		}
+
+		return array_values(array_unique($types));
+	}
+
+	/**
+	 * GDPR Cookie Compliance by Moove: its banner is opt-in, and the two
+	 * "enable on first visit" switches decide what runs before a decision.
+	 * Moove maps third party cookies to statistics and advanced cookies to
+	 * marketing in PMW, the same as the cookie reader.
+	 *
+	 * @return array|null
+	 * @since 1.69.3
+	 */
+	private static function get_moove_consent_hint() {
+
+		if (!self::is_moove_gdpr_active() || !class_exists('Moove_GDPR_Content')) {
+			return null;
+		}
+
+		try {
+			$content = new \Moove_GDPR_Content();
+
+			if (!method_exists($content, 'moove_gdpr_get_option_name')) {
+				return null;
+			}
+
+			$options = get_option($content->moove_gdpr_get_option_name());
+		} catch (\Exception $e) {
+			return null;
+		} catch (\Throwable $e) {
+			return null;
+		}
+
+		$options = is_array($options) ? $options : [];
+
+		/**
+		 * The geo location addon shows the banner only in some regions. PMW
+		 * reads the same switch Moove itself reads.
+		 *
+		 * @since 1.69.3
+		 */
+		$geo_location = apply_filters('gdpr_cc_geolocation_status', 'false', $options);
+
+		if (true === $geo_location || 'true' === $geo_location) {
+			return null;
+		}
+
+		return [
+			'model'    => 'optin',
+			'defaults' => [
+				'statistics' => !empty($options['moove_gdpr_third_party_cookies_enable_first_visit']),
+				'marketing'  => !empty($options['moove_gdpr_advanced_cookies_enable_first_visit']),
+			],
+		];
+	}
+
+	/**
+	 * WP Cookie Consent: the law its banner follows, when it follows the same
+	 * one for everybody.
+	 *
+	 * The settings are read straight from the option. Its own settings getter
+	 * writes the option back on every call.
+	 *
+	 * @return array|null
+	 * @since 1.69.3
+	 */
+	private static function get_wp_cookie_consent_hint() {
+
+		if (!self::is_wp_cookie_consent_active() || !defined('GDPR_COOKIE_CONSENT_SETTINGS_FIELD')) {
+			return null;
+		}
+
+		if ('auto' === get_option('gdpr_law_selection_mode', 'manual')) {
+			return null;
+		}
+
+		$settings = get_option(GDPR_COOKIE_CONSENT_SETTINGS_FIELD);
+		$settings = is_array($settings) ? $settings : [];
+
+		$law = isset($settings['cookie_usage_for']) ? (string) $settings['cookie_usage_for'] : 'gdpr';
+
+		$opt_in_laws  = [ 'gdpr', 'eprivacy', 'uk_gdpr', 'lgpd', 'both' ];
+		$opt_out_laws = [ 'ccpa', 'us_state_laws' ];
+
+		if (in_array($law, $opt_in_laws, true)) {
+			$model        = 'optin';
+			$region_rules = [ 'is_eu_on', 'is_law_region_on', 'is_selectedCountry_on' ];
+			$worldwide    = 'is_worldwide_on';
+		} elseif (in_array($law, $opt_out_laws, true)) {
+			$model        = 'optout';
+			$region_rules = [ 'is_ccpa_on', 'is_selectedCountry_on_ccpa' ];
+			$worldwide    = 'is_worldwide_on_ccpa';
+		} else {
+			return null;
+		}
+
+		// Shown only in some regions: the banner, and with it a decision, never
+		// reaches a visitor from anywhere else.
+		$is_worldwide = !isset($settings[ $worldwide ]) || self::is_truthy_setting($settings[ $worldwide ]);
+
+		if (!$is_worldwide) {
+			foreach ($region_rules as $rule) {
+				if (isset($settings[ $rule ]) && self::is_truthy_setting($settings[ $rule ])) {
+					return null;
+				}
+			}
+		}
+
+		return [ 'model' => $model ];
+	}
+
+	/**
+	 * Beautiful and Responsive Cookie Consent: the banner type, which is the
+	 * consent model. The geo addon picks a banner per visitor, so no hint then.
+	 *
+	 * @return array|null
+	 * @since 1.69.3
+	 */
+	private static function get_beautiful_cookie_consent_hint() {
+
+		if (!self::is_beautiful_cookie_consent_active() || !class_exists('nsc_bar_banner_configs')) {
+			return null;
+		}
+
+		if (class_exists('nsc_bara_banner_configs_addon')) {
+			return null;
+		}
+
+		try {
+			$configs = new \nsc_bar_banner_configs();
+
+			if (!method_exists($configs, 'nsc_bar_get_cookie_setting')) {
+				return null;
+			}
+
+			$type = $configs->nsc_bar_get_cookie_setting('type', 'info');
+		} catch (\Exception $e) {
+			return null;
+		} catch (\Throwable $e) {
+			return null;
+		}
+
+		if (!is_string($type) || '' === $type) {
+			return null;
+		}
+
+		// "info" is a notice only, "opt-out" runs everything until a visitor
+		// objects. Every other type, the detailed ones included, is opt-in.
+		// This is the mapping the plugin itself gives the WP Consent API.
+		if (in_array($type, [ 'info', 'opt-out' ], true)) {
+			return [ 'model' => 'optout' ];
+		}
+
+		return [ 'model' => 'optin' ];
+	}
+
+	/**
+	 * WP Consent API: the consent type the CMP on the page declares, for CMPs
+	 * PMW has no integration of its own for.
+	 *
+	 * The declaration comes from whatever CMP hooks wp_get_consent_type, and
+	 * PMW cannot tell whether that CMP answers per visitor. Where PMW has a
+	 * dedicated integration, that integration knows its CMP better and the
+	 * WP Consent API hint is left out.
+	 *
+	 * @return array|null
+	 * @since 1.69.3
+	 */
+	private static function get_wp_consent_api_hint() {
+
+		if (!function_exists('wp_get_consent_type') || self::is_cmp_with_own_integration_active()) {
+			return null;
+		}
+
+		$model = self::normalize_consent_model(wp_get_consent_type());
+
+		return $model ? [ 'model' => $model ] : null;
+	}
+
+	/**
+	 * Whether a CMP is active that PMW reads through an integration of its own.
+	 *
+	 * @return bool
+	 * @since 1.69.3
+	 */
+	private static function is_cmp_with_own_integration_active() {
+
+		return self::is_complianz_active()
+			|| self::is_cookiebot_active()
+			|| self::is_cookieyes_active()
+			|| self::is_cookie_notice_active()
+			|| self::is_cookie_script_active()
+			|| self::is_wp_cookie_consent_active()
+			|| self::is_iubenda_active()
+			|| self::is_moove_gdpr_active()
+			|| self::is_usercentrics_cmp_active()
+			|| self::is_cookiepro_active()
+			|| self::is_termly_active()
+			|| self::is_beautiful_cookie_consent_active()
+			|| self::is_faz_cookie_manager_active()
+			|| self::is_borlabs_cookie_active()
+			|| self::is_real_cookie_banner_active();
+	}
+
+	/**
+	 * CMP settings store their switches as booleans, "1", "true" or "on".
+	 *
+	 * @param mixed $value
+	 *
+	 * @return bool
+	 * @since 1.69.3
+	 */
+	private static function is_truthy_setting( $value ) {
+
+		if (is_bool($value)) {
+			return $value;
+		}
+
+		return in_array(strtolower((string) $value), [ '1', 'true', 'yes', 'on' ], true);
+	}
+
+	/**
+	 * Add PMW's data layer to the inline scripts Real Cookie Banner must not block.
+	 *
+	 * Real Cookie Banner reads an entry that starts with a slash as a regular
+	 * expression and matches it against the whole inline script, which also
+	 * covers the product and cart item scripts that extend the data layer.
+	 *
+	 * @param mixed $names The variable names and patterns Real Cookie Banner skips.
+	 *
+	 * @return mixed
+	 * @since 1.69.3
+	 */
+	public static function add_real_cookie_banner_data_layer_exemption( $names ) {
+
+		if (!is_array($names)) {
+			return $names;
+		}
+
+		$names[] = '/window\\.pmwDataLayer\\s*=/m';
+
+		return $names;
 	}
 
 	public static function is_termly_active() {
@@ -1630,6 +2086,22 @@ class Environment {
 					return $options;
 				});
 			}
+		}
+
+		/**
+		 * Real Cookie Banner
+		 *
+		 * Real Cookie Banner leaves inline scripts alone that only assign a
+		 * configuration variable, and it ships an entry for PMW itself, but that
+		 * entry still matches window.wpmDataLayer, the name PMW printed before
+		 * the rename. window.pmwDataLayer matched nothing, so the data layer
+		 * script was exposed to Real Cookie Banner's content blockers, and a
+		 * blocked data layer leaves PMW with no configuration at all.
+		 *
+		 * @since 1.69.3
+		 */
+		if (self::is_real_cookie_banner_active()) {
+			add_filter('RCB/Blocker/InlineScript/AvoidBlockByLocalizedVariable', [ __CLASS__, 'add_real_cookie_banner_data_layer_exemption' ]);
 		}
 
 		/**

@@ -555,7 +555,19 @@ class Google_Helpers {
     /**
      * Determine the Google tag ID
      *
-     * @return array
+     * Probes gtag.js for each configured ID from the server and picks the ID
+     * that anchors the gtag.js script tag.
+     *
+     * The probe runs on the shop's server, not in the visitor's browser, so a
+     * failed connection says nothing about whether the browser can load the
+     * tag. Until 1.69.3 a timeout, a DNS failure or a host that blocks
+     * outbound HTTP put the ID on the suppressed list for an hour, and the
+     * browser then skipped the GA4 configuration entirely. Only a definitive
+     * answer from Google (a 400, 404 or 410) suppresses an ID now. Anything
+     * else that is not a 200 leaves the ID usable and is recorded under
+     * `unverified`, so the admin can say what happened.
+     *
+     * @return array{active: string|null, suppressed: string[], unverified: array<string, string>, rejected: array<string, string>}
      *
      * @since 1.46.1
      */
@@ -563,32 +575,83 @@ class Google_Helpers {
         $tag_id_information = [
             'active'     => null,
             'suppressed' => [],
+            'rejected'   => [],
+            'unverified' => [],
         ];
-        $google_base_url = 'https://www.googletagmanager.com/gtag/js?id=';
+        $candidates = [];
         if ( Options::is_google_ads_active() ) {
-            $conversion_id = Options::get_google_ads_conversion_id();
-            $conversion_id_with_prefix = 'AW-' . $conversion_id;
-            $google_ads_tag_url = $google_base_url . $conversion_id_with_prefix;
-            if ( Helpers::is_url_accessible( $google_ads_tag_url ) ) {
-                $tag_id_information['active'] = $conversion_id_with_prefix;
-            } else {
-                $tag_id_information['suppressed'][] = $conversion_id_with_prefix;
-                Logger::debug( 'The Google Ads gtag script cannot be loaded through ' . $google_ads_tag_url . '. Please check your Google Ads settings.' );
-            }
+            $candidates[] = 'AW-' . Options::get_google_ads_conversion_id();
         }
         if ( Options::is_google_analytics_active() ) {
-            $ga4_id = Options::get_ga4_measurement_id();
-            $ga4_url = $google_base_url . $ga4_id;
-            if ( Helpers::is_url_accessible( $ga4_url ) ) {
-                if ( !isset( $tag_id_information['active'] ) ) {
-                    $tag_id_information['active'] = $ga4_id;
-                }
-            } else {
-                $tag_id_information['suppressed'][] = $ga4_id;
-                Logger::debug( 'The Google Analytics gtag script cannot be loaded through ' . $ga4_url . '. Please check your Google Analytics settings.' );
+            $candidates[] = Options::get_ga4_measurement_id();
+        }
+        foreach ( $candidates as $tag_id ) {
+            $probe = self::probe_gtag_js( $tag_id );
+            if ( 'rejected' === $probe['state'] ) {
+                $tag_id_information['suppressed'][] = $tag_id;
+                $tag_id_information['rejected'][$tag_id] = $probe['reason'];
+                Logger::debug( 'Google did not serve the gtag script for ' . $tag_id . ' (' . $probe['reason'] . '). Please check the ID in the Pixel Manager settings.' );
+                continue;
+            }
+            if ( 'unverified' === $probe['state'] ) {
+                $tag_id_information['unverified'][$tag_id] = $probe['reason'];
+                Logger::debug( 'The server could not check the Google gtag script for ' . $tag_id . ' (' . $probe['reason'] . '). The ID is used anyway, because the visitor\'s browser loads the script, not the server.' );
+            }
+            if ( !isset( $tag_id_information['active'] ) ) {
+                $tag_id_information['active'] = $tag_id;
             }
         }
         return $tag_id_information;
+    }
+
+    /**
+     * Ask Google whether it serves gtag.js for a tag ID.
+     *
+     * Returns `ok` on a 200, `rejected` only when Google itself answered that
+     * the ID is bad (400, 404 or 410), and `unverified` for everything else:
+     * connection errors, timeouts, rate limiting, server errors, and status
+     * codes an egress proxy or firewall in front of the shop might produce.
+     *
+     * @param string $tag_id
+     *
+     * @return array{state: string, reason: string}
+     *
+     * @since 1.69.3
+     */
+    private static function probe_gtag_js( $tag_id ) {
+        $response = wp_remote_get( 'https://www.googletagmanager.com/gtag/js?id=' . rawurlencode( $tag_id ) );
+        if ( is_wp_error( $response ) ) {
+            return [
+                'state'  => 'unverified',
+                'reason' => $response->get_error_message(),
+            ];
+        }
+        $response_code = (int) wp_remote_retrieve_response_code( $response );
+        if ( 200 === $response_code ) {
+            return [
+                'state'  => 'ok',
+                'reason' => '',
+            ];
+        }
+        return [
+            'state'  => ( in_array( $response_code, [400, 404, 410], true ) ? 'rejected' : 'unverified' ),
+            'reason' => 'HTTP ' . $response_code,
+        ];
+    }
+
+    /**
+     * The cached result of the last Google tag probe, without probing.
+     *
+     * For the admin, which must not make outbound requests on page load.
+     * Returns null when nothing is cached.
+     *
+     * @return array|null
+     *
+     * @since 1.69.3
+     */
+    public static function get_cached_google_tag_id_information() {
+        $google_tag_id_information = get_transient( 'pmw_google_tag_id_information' );
+        return ( is_array( $google_tag_id_information ) ? $google_tag_id_information : null );
     }
 
     /**

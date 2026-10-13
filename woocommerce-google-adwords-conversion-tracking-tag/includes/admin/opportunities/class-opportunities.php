@@ -689,8 +689,6 @@ class Opportunities {
 		update_option(self::$pmw_opportunities_option, $option);
 
 		self::flush_active_opportunities_count_cache();
-
-		wp_send_json_success();
 	}
 
 	public static function restore_opportunity( $opportunity_id ) {
@@ -703,8 +701,6 @@ class Opportunities {
 		}
 
 		self::flush_active_opportunities_count_cache();
-
-		wp_send_json_success();
 	}
 }
 

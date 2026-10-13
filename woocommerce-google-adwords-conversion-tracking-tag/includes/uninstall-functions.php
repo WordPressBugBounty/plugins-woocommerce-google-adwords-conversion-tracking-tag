@@ -91,6 +91,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 			'pmw_broker',
 			'pmw_broker_health',
 			'pmw_click_ids_capture_start',
+			'pmw_cookie_delivery',
 
 			// Tracking accuracy
 			'pmw_tracking_accuracy_db_version',

@@ -125,6 +125,12 @@ class WCPM {
         add_action( 'pmw_deactivate_log_http_requests', function () {
             Options::disable_http_request_logging();
         } );
+        // WooCommerce's daily log cleanup misses the files PMW writes while
+        // WooCommerce logging is off when the database handler is selected.
+        // @since 1.69.3
+        add_action( 'woocommerce_cleanup_logs', function () {
+            Logger::delete_expired_log_files();
+        } );
         add_action( 'pmw_tracking_accuracy_analysis', function () {
             Debug_Info::run_tracking_accuracy_analysis();
         } );

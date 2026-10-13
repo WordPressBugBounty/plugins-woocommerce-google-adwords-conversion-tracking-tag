@@ -480,20 +480,6 @@ class Product {
 		return $product->get_type() === 'variable';
 	}
 
-	public static function get_compiled_product_id( $product_id, $product_sku, $options, $channel = '' ) {
-
-		// depending on setting use product IDs or SKUs
-		if (0 == Options::get_options_obj()->google->ads->product_identifier || 'ga_ua' === $channel || 'ga_4' === $channel) {
-			return (string) $product_id;
-		} elseif (1 == Options::get_options_obj()->google->ads->product_identifier) {
-			return (string) 'woocommerce_gpf_' . $product_id;
-		} elseif ($product_sku) {
-			return (string) $product_sku;
-		} else {
-			return (string) $product_id;
-		}
-	}
-
 	public static function log_problematic_product( $product ) {
 
 		Logger::debug(
@@ -524,18 +510,20 @@ class Product {
 			}
 
 			$product_data = [
-				'id'                  => $order_item_data['product_id'],
-				'variation_id'        => $order_item_data['variation_id'],
-				'name'                => $order_item_data['name'],
-				'quantity'            => $order_item_data['quantity'],
-				'price'               => self::pmw_get_order_item_price($order_item, null, $order),
-				'price_tax_included'  => self::pmw_get_order_item_price($order_item, true, $order),
-				'price_tax_excluded'  => self::pmw_get_order_item_price($order_item, false, $order),
-				'subtotal'            => (float) Helpers::format_decimal($order_item_data['subtotal'], 2),
-				'subtotal_tax'        => (float) Helpers::format_decimal($order_item_data['subtotal_tax'], 2),
-				'total'               => (float) Helpers::format_decimal($order_item_data['total'], 2),
-				'total_tax'           => (float) Helpers::format_decimal($order_item_data['total_tax'], 2),
-				'variant_description' => (string) ( $product->get_type() === 'variation' ) ? self::get_formatted_variant_text($product) : '',
+				'id'                                 => $order_item_data['product_id'],
+				'variation_id'                       => $order_item_data['variation_id'],
+				'name'                               => $order_item_data['name'],
+				'quantity'                           => $order_item_data['quantity'],
+				'price'                              => self::pmw_get_order_item_price($order_item, null, $order),
+				'price_tax_included'                 => self::pmw_get_order_item_price($order_item, true, $order),
+				'price_tax_excluded'                 => self::pmw_get_order_item_price($order_item, false, $order),
+				// Before coupons, for Google Ads cart data only (it subtracts the order discount itself).
+				'price_before_discount_tax_excluded' => self::pmw_get_order_item_price_before_discount($order_item, false, $order),
+				'subtotal'                           => (float) Helpers::format_decimal($order_item_data['subtotal'], 2),
+				'subtotal_tax'                       => (float) Helpers::format_decimal($order_item_data['subtotal_tax'], 2),
+				'total'                              => (float) Helpers::format_decimal($order_item_data['total'], 2),
+				'total_tax'                          => (float) Helpers::format_decimal($order_item_data['total_tax'], 2),
+				'variant_description'                => (string) ( $product->get_type() === 'variation' ) ? self::get_formatted_variant_text($product) : '',
 			];
 
 			// For a bundle/composite container, roll the children's amounts into
@@ -726,13 +714,15 @@ class Product {
 			<?php
 		}
 
+		// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
 		?>
 		<script<?php echo wp_kses(Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html()); ?>>
 			(window.pmwDataLayer = window.pmwDataLayer || {}).products                = window.pmwDataLayer.products || {};
-			window.pmwDataLayer.products[<?php echo (int) $product->get_id(); ?>] = <?php echo Helpers::json_encode_for_script($data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper ?>;
+			window.pmwDataLayer.products[<?php echo (int) $product->get_id(); ?>] = <?php echo Helpers::json_encode_for_script($data); ?>;
 			<?php $set_position ? self::get_product_data_layer_script_html_part_2($product) : ''; ?>
 		</script>
 		<?php
+		// phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	public static function get_product_data_layer_script_html_part_2( $product ) {
@@ -800,10 +790,11 @@ class Product {
 
 		self::$printing_deferred = false;
 
+		// phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by Helpers::json_encode_for_script()
 		?>
 		<script<?php echo wp_kses(Helpers::get_opening_script_string(), Helpers::get_script_string_allowed_html()); ?>>
 			(function () {
-				var ids = <?php echo Helpers::json_encode_for_script($product_ids); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON for an inline script, escaped by the helper ?>;
+				var ids = <?php echo Helpers::json_encode_for_script($product_ids); ?>;
 				ids.forEach(function (id) {
 					document.querySelectorAll(".product.post-" + id).forEach(function (item) {
 						if (item.querySelector(".pmwProductId")) return;
@@ -817,6 +808,7 @@ class Product {
 			})();
 		</script>
 		<?php
+		// phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 
 	/**
@@ -898,6 +890,76 @@ class Product {
 	}
 
 	/**
+	 * The unit price of an order item before coupons, i.e. before the order-level
+	 * discount WooCommerce spreads over the lines.
+	 *
+	 * The price from pmw_get_order_item_price() is what a unit cost after the
+	 * coupons (get_item_total()), which is right wherever the item prices are the
+	 * value of the line. Google Ads cart data is the exception: its item price is the sales
+	 * price of a single item excluding any transaction-level discount, and Google
+	 * subtracts the separately sent order discount from the item sum itself.
+	 * Sending the post-coupon price next to that discount took every coupon off
+	 * twice. This is the line subtotal per unit (get_item_subtotal()), so
+	 * product-level reductions such as a sale price stay in the price and only the
+	 * coupons, which the order discount carries, stay out.
+	 *
+	 * Mirrors the special paths of pmw_get_order_item_price(): a bundle/composite
+	 * container rolls up its children's subtotals, Woo Discount Rules' own
+	 * product-level price is kept, and an order that cannot be resolved prices the
+	 * line from the item alone.
+	 *
+	 * @param object                  $order_item
+	 * @param bool|null               $include_tax
+	 * @param \WC_Abstract_Order|null $order The order the item belongs to, when the caller has it.
+	 * @return float
+	 * @since 1.69.3
+	 */
+	public static function pmw_get_order_item_price_before_discount( $order_item, $include_tax = null, $order = null ) {
+
+		// A third-party line item filtered into pmw_order_items that has no
+		// subtotal can only be priced after the discount.
+		if (!is_callable([ $order_item, 'get_subtotal' ])) {
+			return self::pmw_get_order_item_price($order_item, $include_tax, $order);
+		}
+
+		if (null === $include_tax) {
+			$include_tax = self::output_product_prices_with_tax();
+		}
+
+		$order = self::resolve_order_item_order($order_item, $order);
+
+		if ($order) {
+
+			$container_price = self::maybe_get_container_order_item_unit_price($order_item, $include_tax, $order, true);
+
+			if (null !== $container_price) {
+				return $container_price;
+			}
+		}
+
+		// Woo Discount Rules applies its product rules by repricing the cart
+		// item, before any coupon, so discounted_price is a product-level sales
+		// price and belongs in the item price. Unlike pmw_get_order_item_price()
+		// this does not fall back to initial_price: that is the price before
+		// the rule's reduction, which the order discount (coupons only) would
+		// never take back off, so it would overstate the item.
+		if (Environment::is_woo_discount_rules_active()) {
+
+			$item_value = $order_item->get_meta('_advanced_woo_discount_item_total_discount');
+
+			if (isset($item_value['discounted_price']) && 0 !== $item_value['discounted_price']) {
+				return (float) wc_format_decimal($item_value['discounted_price'], 2);
+			}
+		}
+
+		if (!$order) {
+			return (float) wc_format_decimal(self::get_order_item_unit_price($order_item, $include_tax, true), 2);
+		}
+
+		return (float) wc_format_decimal($order->get_item_subtotal($order_item, $include_tax), 2);
+	}
+
+	/**
 	 * The order an order item belongs to, or null when it cannot be resolved.
 	 *
 	 * WC_Order_Item::get_order() falls back to wc_get_order(), which returns false
@@ -955,10 +1017,11 @@ class Product {
 	 *
 	 * @param object $order_item
 	 * @param bool   $include_tax
+	 * @param bool   $before_discount Price the unit from the line subtotal (before coupons). @since 1.69.3
 	 * @return float
 	 * @since 1.67.0
 	 */
-	private static function get_order_item_unit_price( $order_item, $include_tax ) {
+	private static function get_order_item_unit_price( $order_item, $include_tax, $before_discount = false ) {
 
 		if (!is_callable([ $order_item, 'get_total' ]) || !is_callable([ $order_item, 'get_quantity' ])) {
 			return 0.0;
@@ -970,7 +1033,7 @@ class Product {
 			return 0.0;
 		}
 
-		return self::get_order_item_line_amount($order_item, $include_tax) / $quantity;
+		return self::get_order_item_line_amount($order_item, $include_tax, $before_discount) / $quantity;
 	}
 
 	/*
@@ -1066,9 +1129,10 @@ class Product {
 	 * @param object                  $order_item
 	 * @param bool|null               $include_tax
 	 * @param \WC_Abstract_Order|null $order The order the item belongs to, when the caller has it.
+	 * @param bool                    $before_discount Roll up the line subtotals (before coupons) instead of the totals. @since 1.69.3
 	 * @return float|null
 	 */
-	public static function maybe_get_container_order_item_line_amount( $order_item, $include_tax = null, $order = null ) {
+	public static function maybe_get_container_order_item_line_amount( $order_item, $include_tax = null, $order = null, $before_discount = false ) {
 
 		if (!is_callable([ $order_item, 'get_order' ]) || !self::is_container_order_item($order_item)) {
 			return null;
@@ -1084,10 +1148,10 @@ class Product {
 			$include_tax = self::output_product_prices_with_tax();
 		}
 
-		$line_total = self::get_order_item_line_amount($order_item, $include_tax);
+		$line_total = self::get_order_item_line_amount($order_item, $include_tax, $before_discount);
 
 		foreach (self::get_container_child_order_items($order_item, $order) as $child) {
-			$line_total += self::get_order_item_line_amount($child, $include_tax);
+			$line_total += self::get_order_item_line_amount($child, $include_tax, $before_discount);
 		}
 
 		return (float) Helpers::format_decimal($line_total, 2);
@@ -1101,11 +1165,12 @@ class Product {
 	 * @param object                  $order_item
 	 * @param bool|null               $include_tax
 	 * @param \WC_Abstract_Order|null $order The order the item belongs to, when the caller has it.
+	 * @param bool                    $before_discount Roll up the line subtotals (before coupons) instead of the totals. @since 1.69.3
 	 * @return float|null
 	 */
-	public static function maybe_get_container_order_item_unit_price( $order_item, $include_tax = null, $order = null ) {
+	public static function maybe_get_container_order_item_unit_price( $order_item, $include_tax = null, $order = null, $before_discount = false ) {
 
-		$line_amount = self::maybe_get_container_order_item_line_amount($order_item, $include_tax, $order);
+		$line_amount = self::maybe_get_container_order_item_line_amount($order_item, $include_tax, $order, $before_discount);
 
 		if (null === $line_amount) {
 			return null;
@@ -1153,7 +1218,20 @@ class Product {
 		return $totals;
 	}
 
-	private static function get_order_item_line_amount( $order_item, $include_tax ) {
+	private static function get_order_item_line_amount( $order_item, $include_tax, $before_discount = false ) {
+
+		// The line subtotal is the amount before coupons. A line item that has
+		// none (a third-party object) can only report its total.
+		if ($before_discount && is_callable([ $order_item, 'get_subtotal' ])) {
+
+			$amount = (float) $order_item->get_subtotal();
+
+			if ($include_tax && is_callable([ $order_item, 'get_subtotal_tax' ])) {
+				$amount += (float) $order_item->get_subtotal_tax();
+			}
+
+			return $amount;
+		}
 
 		$amount = (float) $order_item->get_total();
 

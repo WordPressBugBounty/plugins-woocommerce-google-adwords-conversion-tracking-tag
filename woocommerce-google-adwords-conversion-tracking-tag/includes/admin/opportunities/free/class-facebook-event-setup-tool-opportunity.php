@@ -87,6 +87,11 @@ class Facebook_Event_Setup_Tool extends Opportunity {
 		);
 
 		$descriptions[] = esc_html__(
+			'This check runs once a day. Meta can keep reporting removed rules for a while after you delete them.',
+			'woocommerce-google-adwords-conversion-tracking-tag'
+		);
+
+		$descriptions[] = esc_html__(
 			'Meta sometimes keeps delivering rules that were already deleted. If a rule listed here no longer appears in the Events Manager, only Meta support can remove it. Send them the IDs above and tell them the rules are still delivered as active in the public pixel configuration.',
 			'woocommerce-google-adwords-conversion-tracking-tag'
 		);
