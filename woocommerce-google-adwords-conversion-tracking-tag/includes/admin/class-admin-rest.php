@@ -638,17 +638,20 @@ class Admin_REST {
 			], $check['status']);
 		}
 
-		// Use the preprocessed value (trimmed, prefix-stripped, etc.)
-		$value = $check['value'];
-
+		// Write each validated leaf (trimmed, prefix-stripped, etc.). A branch
+		// path expands into its leaves, so siblings it does not name keep their
+		// stored values.
 		$options = Options::get_options();
-		$options = self::set_nested_value($options, $path, $value);
 
-		$this->persist_option_changes($options, [ $path ]);
+		foreach ($check['leaves'] as $leaf_path => $leaf_value) {
+			$options = self::set_nested_value($options, $leaf_path, $leaf_value);
+		}
+
+		$this->persist_option_changes($options, array_keys($check['leaves']));
 
 		return new \WP_REST_Response([
 			'success' => true,
-			'value'   => $value,
+			'value'   => $check['value'],
 		], 200);
 	}
 
@@ -697,8 +700,10 @@ class Admin_REST {
 				continue;
 			}
 
-			$options         = self::set_nested_value($options, $path, $check['value']);
-			$applied_paths[] = $path;
+			foreach ($check['leaves'] as $leaf_path => $leaf_value) {
+				$options         = self::set_nested_value($options, $leaf_path, $leaf_value);
+				$applied_paths[] = $leaf_path;
+			}
 
 			$results[] = [
 				'path'    => $path,
@@ -766,12 +771,19 @@ class Admin_REST {
 	 *    tree) so callers cannot inject arbitrary keys into the options record;
 	 *  - premium-only paths are rejected on the free tier (the UI renders them
 	 *    disabled, and the legacy save discarded them via preserve_premium_only_options);
-	 *  - the value must pass the field's format validator.
+	 *  - the value must have the type of the setting's default and pass the
+	 *    field's format validator.
+	 *
+	 * A path that names a branch (a keyed group of settings such as
+	 * "pixels.applovin") is expanded into its leaves, and every leaf goes
+	 * through the same gates. Until 1.70.1 a branch was stored whole, so its
+	 * leaves skipped both the validators and the Pro check. One failing leaf
+	 * fails the whole patch.
 	 *
 	 * @param string $path  Dot-notation option path.
 	 * @param mixed  $value Sanitized value.
 	 *
-	 * @return array ['ok' => bool, 'value' => mixed, 'message' => string, 'status' => int]
+	 * @return array ['ok' => bool, 'value' => mixed, 'leaves' => array<string, mixed>, 'message' => string, 'status' => int]
 	 *
 	 * @since 1.59.0
 	 */
@@ -787,9 +799,13 @@ class Admin_REST {
 			];
 		}
 
+		if (Validations::is_option_branch(Validations::get_option_default($path))) {
+			return self::authorize_and_validate_option_branch_patch($path, $value);
+		}
+
 		// Reject premium-only paths on the free tier, mirroring the disabled UI
 		// fields and the legacy preserve_premium_only_options() behavior.
-		if (in_array($path, Validations::premium_only_option_paths(), true)
+		if (self::is_premium_only_path($path)
 			&& !Helpers::is_pmw_pro_version_active()
 			&& !Options::is_pro_version_demo_active()) {
 			return [
@@ -799,7 +815,7 @@ class Admin_REST {
 			];
 		}
 
-		// Run field-specific validation (trim, preprocess, regex).
+		// Run field-specific validation (type, trim, preprocess, regex).
 		$validation = Validations::validate_single_option($path, $value);
 
 		if (!$validation['valid']) {
@@ -811,9 +827,74 @@ class Admin_REST {
 		}
 
 		return [
-			'ok'    => true,
-			'value' => $validation['value'],
+			'ok'     => true,
+			'value'  => $validation['value'],
+			'leaves' => [ $path => $validation['value'] ],
 		];
+	}
+
+	/**
+	 * Expand a branch patch into its leaves and run each through the leaf gates.
+	 *
+	 * @param string $path  Dot-notation path of the branch.
+	 * @param mixed  $value The submitted branch, a keyed array.
+	 *
+	 * @return array Same shape as authorize_and_validate_option_patch().
+	 *
+	 * @since 1.70.1
+	 */
+	private static function authorize_and_validate_option_branch_patch( $path, $value ) {
+
+		if (!is_array($value) || empty($value)) {
+			return [
+				'ok'      => false,
+				'status'  => 400,
+				'message' => __('The value has the wrong type for this setting.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			];
+		}
+
+		$leaves = [];
+		$clean  = [];
+
+		foreach ($value as $key => $child_value) {
+
+			$child_path = $path . '.' . $key;
+			$check      = self::authorize_and_validate_option_patch($child_path, $child_value);
+
+			if (!$check['ok']) {
+				$check['message'] = $child_path . ': ' . $check['message'];
+				return $check;
+			}
+
+			$leaves        += $check['leaves'];
+			$clean[ $key ] = $check['value'];
+		}
+
+		return [
+			'ok'     => true,
+			'value'  => $clean,
+			'leaves' => $leaves,
+		];
+	}
+
+	/**
+	 * Whether a path is a premium-only setting or lies inside one.
+	 *
+	 * @param string $path Dot-notation option path.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.70.1
+	 */
+	private static function is_premium_only_path( $path ) {
+
+		foreach (Validations::premium_only_option_paths() as $premium_path) {
+			if ($path === $premium_path || 0 === strpos($path, $premium_path . '.')) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

@@ -270,6 +270,27 @@ function pmw_gtg_find_config_file( $config_dir ) {
 		}
 	}
 
+	// Last resort: the only entry on this host. WordPress keys the site map on
+	// the site URL, which carries the core directory when core lives in a
+	// subdirectory (Bedrock: example.com/wp), while this file is reached under
+	// the content directory (example.com/app/plugins/...), so neither lookup
+	// above can match (Help Scout 7092). With several entries on one host the
+	// request cannot tell them apart, so it falls back to WordPress instead of
+	// guessing. @since 1.70.1
+	$host_entries = [];
+	foreach ( $site_map as $key => $filename ) {
+		if ( strtolower( (string) strtok( (string) $key, '/' ) ) === $host_only ) {
+			$host_entries[] = $filename;
+		}
+	}
+
+	if ( 1 === count( $host_entries ) && is_string( $host_entries[0] ) ) {
+		$config_file = $config_dir . '/' . basename( $host_entries[0] );
+		if ( file_exists( $config_file ) ) {
+			return $config_file;
+		}
+	}
+
 	return false;
 }
 
@@ -327,13 +348,8 @@ if ( isset( $_GET['healthCheck'] ) ) {
 		$configured_priority = isset( $level_priority[ $log_level ] ) ? $level_priority[ $log_level ] : 3;
 
 		if ( 6 <= $configured_priority ) { // info level = 6
-			// Use wp_content_dir from config (multisite-safe), fallback to log_directory derivation
-			$debug_log = null;
-			if ( ! empty( $config['wp_content_dir'] ) && self::is_trusted_log_root( $config['wp_content_dir'] ) ) {
-				$debug_log = $config['wp_content_dir'] . '/debug.log';
-			} elseif ( ! empty( $config['log_directory'] ) && self::is_trusted_log_root( dirname( dirname( $config['log_directory'] ) ) ) ) {
-				$debug_log = dirname( dirname( $config['log_directory'] ) ) . '/debug.log';
-			}
+			$content_dir = self::get_content_directory( $config );
+			$debug_log   = $content_dir ? $content_dir . '/debug.log' : null;
 			if ( $debug_log ) {
 				$timestamp = gmdate( 'd-M-Y H:i:s \U\T\C' );
 				$log_entry = "[{$timestamp}] pmw [info] [GTG-Proxy-Standalone] Health check request received - proxy functional\n";
@@ -534,7 +550,14 @@ final class PMW_GTG_Proxy_Standalone {
 			// 1. Direct access: Request to this PHP file directly (e.g., /wp-content/plugins/.../pmw-gtg-proxy.php?id=TAG&s=/path)
 			// 2. Measurement path access: Request via WordPress rewrite (e.g., /metrics2/?id=TAG&s=/path)
 			$is_direct_access = strpos( $request_uri, 'pmw-gtg-proxy.php' ) !== false;
-			
+
+			// The service worker arrives as a path below this file, see
+			// handle_service_worker_request(). @since 1.70.1
+			if ( $is_direct_access && self::is_service_worker_request( $request_uri ) ) {
+				self::handle_service_worker_request( $request_uri, $method );
+				return;
+			}
+
 			if ( $is_direct_access ) {
 				// Direct PHP file access - process query parameters directly
 				self::log( 'Direct proxy access detected', [], 'debug' );
@@ -849,6 +872,92 @@ final class PMW_GTG_Proxy_Standalone {
 	}
 
 	/**
+	 * Check whether a direct access request asks for the Tag Gateway service worker
+	 *
+	 * @param string $request_uri The raw request URI.
+	 * @return bool
+	 *
+	 * @since 1.70.1
+	 */
+	private static function is_service_worker_request( $request_uri ) {
+		$path = (string) parse_url( $request_uri, PHP_URL_PATH );
+
+		return (bool) preg_match( '#/pmw-gtg-proxy\.php/_/service_worker/[A-Za-z0-9]+/[A-Za-z0-9_.-]+$#', $path );
+	}
+
+	/**
+	 * Serve the Google Tag Gateway service worker in direct access mode
+	 *
+	 * In direct access mode gtag's measurement path is this file plus a query
+	 * string (pmw-gtg-proxy.php?id=TAG&s=). gtag builds the worker URL from the
+	 * path segments only, so the browser requests
+	 * pmw-gtg-proxy.php/_/service_worker/<version>/sw.js?path=<this file>. That
+	 * request carries no tag ID and was answered with "400 Missing tag ID", which
+	 * Lighthouse reports on every run (Help Scout 7095).
+	 *
+	 * The scope gtag registers with also only keeps this file's path, which lies
+	 * above the Service-Worker-Allowed value FPS sends (<path>/_/service_worker).
+	 * The header is therefore set to this file's own path. That covers no page
+	 * of the shop, only URLs that start with this script's path.
+	 *
+	 * @param string $request_uri The raw request URI.
+	 * @param string $method      HTTP method.
+	 * @return void
+	 *
+	 * @since 1.70.1
+	 */
+	private static function handle_service_worker_request( $request_uri, $method ) {
+		$config = self::get_proxy_config();
+		$tag_id = isset( $config['tag_id'] ) ? self::sanitize_tag_id( $config['tag_id'] ) : '';
+
+		// Config files written before 1.70.1 carry no tag ID. The next daily
+		// refresh adds it, until then answer cheaply.
+		if ( '' === $tag_id || ! self::is_valid_google_tag_id( $tag_id ) ) {
+			self::log( 'Service worker request without a configured tag ID', [], 'debug' );
+			http_response_code( 404 );
+			header( 'Cache-Control: no-store' );
+			exit;
+		}
+
+		$path        = (string) parse_url( $request_uri, PHP_URL_PATH );
+		$file_offset = strpos( $path, '/pmw-gtg-proxy.php/' ) + strlen( '/pmw-gtg-proxy.php' );
+		$proxy_path  = substr( $path, 0, $file_offset );
+		$sw_path     = substr( $path, $file_offset );
+
+		// Forward the query (origin, path) as gtag sent it
+		$params = $_GET;
+		unset( $params['id'], $params['geo'], $params['mpath'] );
+
+		$destination_path = $sw_path;
+		if ( ! empty( $params ) ) {
+			$destination_path .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
+		}
+
+		$fps_url = self::build_fps_url( $tag_id, $destination_path, self::FPS_PATH_PLACEHOLDER );
+
+		if ( ! self::is_valid_fps_url( $fps_url ) ) {
+			http_response_code( 400 );
+			exit;
+		}
+
+		self::log( 'Proxying service worker to FPS', [ 'url' => $fps_url ], 'debug' );
+
+		$response = self::send_request( $method, $fps_url, self::get_forwarded_headers(), '' );
+
+		if ( false === $response ) {
+			self::log( 'Failed to proxy service worker request to FPS', [ 'url' => $fps_url ], 'error' );
+			http_response_code( 502 );
+			exit;
+		}
+
+		if ( isset( $response['headers']['service-worker-allowed'] ) ) {
+			$response['headers']['service-worker-allowed'] = $proxy_path;
+		}
+
+		self::output_response( $response, $method );
+	}
+
+	/**
 	 * Get proxy configuration from cache file
 	 *
 	 * This standalone proxy requires the config file to be written by WordPress.
@@ -865,11 +974,10 @@ final class PMW_GTG_Proxy_Standalone {
 			return self::$config;
 		}
 
-		// Step 1: Find wp-content directory
-		$wp_content = pmw_gtg_get_wp_content_path();
-		if ( ! $wp_content ) {
-			pmw_gtg_send_fallback_response( 'wp-content-not-found' );
-		}
+		// Step 1 (requiring a directory named wp-content) was removed in 1.70.1.
+		// Nothing below used it, and pmw_gtg_get_config_directory() already
+		// finds the config on layouts without one, such as Bedrock's app/
+		// (Help Scout 7092).
 
 		// Step 2: Check if config directory exists
 		$config_dir = pmw_gtg_get_config_directory();
@@ -1042,23 +1150,11 @@ final class PMW_GTG_Proxy_Standalone {
 		// Format like WordPress proxy: [timestamp] pmw [level] [GTG-Proxy-Standalone] message | Context: {...}
 		$log_entry = "[{$timestamp}] pmw [{$level_str}] [GTG-Proxy-Standalone] {$message}{$context_str}" . PHP_EOL;
 
-		// Try to find WordPress debug.log
-		// Use wp_content_dir from config (most reliable, especially for multisite)
-		// Fallback to deriving from log_directory for backwards compatibility
-		$log_file = null;
-		if ( ! empty( $config['wp_content_dir'] ) && self::is_trusted_log_root( $config['wp_content_dir'] ) ) {
-			$debug_log = $config['wp_content_dir'] . '/debug.log';
-			if ( is_writable( dirname( $debug_log ) ) ) {
-				$log_file = $debug_log;
-			}
-		} elseif ( ! empty( $config['log_directory'] ) && self::is_trusted_log_root( dirname( dirname( $config['log_directory'] ) ) ) ) {
-			// Legacy fallback: navigate from pmw-logs to wp-content/debug.log
-			// /path/wp-content/uploads/pmw-logs/ -> /path/wp-content/debug.log
-			$wp_content = dirname( dirname( $config['log_directory'] ) );
-			$debug_log  = $wp_content . '/debug.log';
-			if ( is_writable( dirname( $debug_log ) ) ) {
-				$log_file = $debug_log;
-			}
+		// Try to find WordPress debug.log in the content directory
+		$log_file    = null;
+		$content_dir = self::get_content_directory( $config );
+		if ( $content_dir && is_writable( $content_dir ) ) {
+			$log_file = $content_dir . '/debug.log';
 		}
 
 		// Fallback: try to find wp-content from current file location
@@ -1413,6 +1509,74 @@ final class PMW_GTG_Proxy_Standalone {
 	}
 
 	/**
+	 * The content directory (WP_CONTENT_DIR), where debug.log lives.
+	 *
+	 * WordPress used to write this path into the config file, but on nginx the
+	 * .htaccess guard has no effect and the config files are publicly readable
+	 * (Help Scout 7092), so it is derived here instead. WordPress writes the
+	 * config to WP_CONTENT_DIR/uploads/pmw-gtg, so the nearest ancestor of this
+	 * file that holds that folder is WP_CONTENT_DIR. That works on multisite
+	 * (one shared folder) and with a renamed content folder (Bedrock's app/).
+	 * The old value only passed is_trusted_log_root() when it was an ancestor
+	 * of this file too, so the walk finds it wherever the old value worked.
+	 *
+	 * WordPress writes the fallback copy next to this file only after the
+	 * uploads copy succeeded, so whenever a config exists, the pmw-gtg folder
+	 * does too. Then the config directory lookup, which also covers a
+	 * symlinked plugin, then the paths in config files written before 1.70.1
+	 * (until the daily refresh rewrites them), and last the parent of a
+	 * directory named plugins, in case the pmw-gtg folder was removed by hand.
+	 *
+	 * @param array $config The proxy config.
+	 * @return string|false The content directory, or false if none was found.
+	 *
+	 * @since 1.70.1
+	 */
+	private static function get_content_directory( $config ) {
+
+		$here = realpath( __DIR__ );
+
+		if ( false !== $here ) {
+			$dir = $here;
+			for ( $i = 0; $i < 10; $i++ ) {
+				$parent = dirname( $dir );
+				if ( $parent === $dir ) {
+					break;
+				}
+				$dir = $parent;
+				if ( is_dir( $dir . '/uploads/pmw-gtg' ) ) {
+					return $dir;
+				}
+			}
+		}
+
+		// A symlinked plugin resolves outside the content directory, so the walk
+		// misses it. The config directory lookup also probes DOCUMENT_ROOT.
+		$config_dir = pmw_gtg_get_config_directory();
+		if ( $config_dir && 'pmw-gtg' === basename( $config_dir ) && 'uploads' === basename( dirname( $config_dir ) ) ) {
+			return dirname( dirname( $config_dir ) );
+		}
+
+		if ( ! empty( $config['wp_content_dir'] ) && self::is_trusted_log_root( $config['wp_content_dir'] ) ) {
+			return $config['wp_content_dir'];
+		}
+
+		if ( ! empty( $config['log_directory'] ) && self::is_trusted_log_root( dirname( dirname( $config['log_directory'] ) ) ) ) {
+			return dirname( dirname( $config['log_directory'] ) );
+		}
+
+		// includes/pixels/google -> plugin root -> plugins directory -> content directory
+		if ( false !== $here ) {
+			$plugins_dir = dirname( dirname( dirname( dirname( $here ) ) ) );
+			if ( 'plugins' === basename( $plugins_dir ) ) {
+				return dirname( $plugins_dir );
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Get client IP address
 	 *
 	 * @return string Client IP or empty string
@@ -1487,9 +1651,9 @@ final class PMW_GTG_Proxy_Standalone {
 
 		if ( 'POST' === $method ) {
 			curl_setopt( $ch, CURLOPT_POST, true );
-			if ( ! empty( $body ) ) {
-				curl_setopt( $ch, CURLOPT_POSTFIELDS, $body );
-			}
+			// Always set the body, even an empty one. CURLOPT_POST alone makes libcurl send a chunked
+			// request with no Content-Length, which Google answers with 411 Length Required. @since 1.70.1
+			curl_setopt( $ch, CURLOPT_POSTFIELDS, (string) $body );
 		}
 
 		$response    = curl_exec( $ch );
@@ -1553,8 +1717,13 @@ final class PMW_GTG_Proxy_Standalone {
 			],
 		];
 
-		if ( 'POST' === $method && ! empty( $body ) ) {
-			$context_options['http']['content'] = $body;
+		if ( 'POST' === $method ) {
+			if ( '' !== (string) $body ) {
+				$context_options['http']['content'] = $body;
+			} elseif ( false === stripos( $header_string, 'Content-Length:' ) ) {
+				// The http wrapper adds Content-Length only for a non-empty body, and Google answers a length-less POST with 411. @since 1.70.1
+				$context_options['http']['header'] = ( '' === $header_string ? '' : $header_string . "\r\n" ) . 'Content-Length: 0';
+			}
 		}
 
 		$context  = stream_context_create( $context_options );

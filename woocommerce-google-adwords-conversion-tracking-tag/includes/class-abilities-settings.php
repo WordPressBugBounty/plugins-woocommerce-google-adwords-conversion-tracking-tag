@@ -1076,6 +1076,14 @@ class Abilities_Settings {
 						'description' => 'Which order value is reported to marketing pixels. "0" = order subtotal (default: excludes shipping and taxes, subtracts discounts, fees and refunds), "1" = order total (includes shipping and taxes, subtracts refunds), "2" = order profit margin.',
 						'enum'        => [ '0', '1', '2' ],
 					],
+					'send_profit_separately'        => [
+						'path'        => 'shop.send_profit_separately',
+						'type'        => 'boolean',
+						'label'       => 'Send profit as a separate field',
+						'description' => 'Sends the order profit next to the marketing value where the platform has a field for it, today Meta net_revenue. Only for orders where every line item has a cost of goods. Always on when order_total_logic is "2" (profit margin), because the profit already leaves the server then. Shares the shop margins with the platform and shows them on the order confirmation page.',
+						'advanced'    => true,
+						'benefit'     => 'Lets Meta report Profit and optimize campaigns for it, while the conversion value stays revenue.',
+					],
 					'order_deduplication'           => [
 						'path'        => 'shop.order_deduplication',
 						'type'        => 'boolean',

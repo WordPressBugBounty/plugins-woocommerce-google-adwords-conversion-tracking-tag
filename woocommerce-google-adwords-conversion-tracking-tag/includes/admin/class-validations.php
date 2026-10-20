@@ -1572,6 +1572,7 @@ class Validations {
 			// Shop
 			'shop.disable_tracking_for',
 			'shop.ltv.order_calculation.is_active',
+			'shop.send_profit_separately',
 			'shop.subscription_value_multiplier',
 
 			// Snapchat. The pixel ID is free, the Conversions API is Pro.
@@ -2381,7 +2382,18 @@ class Validations {
 	 */
 	public static function validate_single_option( $path, $value ) {
 
-		// Only validate string values — booleans, integers, arrays pass through
+		// The value must have the shape of the setting's default. Without this
+		// an array sent for a string setting skipped the validator below and
+		// was stored as is. @since 1.70.1
+		$type_check = self::check_value_type_against_default($path, $value);
+
+		if (!$type_check['valid']) {
+			return $type_check;
+		}
+
+		$value = $type_check['value'];
+
+		// Only validate string values. Booleans, integers and arrays pass through.
 		if (!is_string($value)) {
 			return [ 'valid' => true, 'value' => $value ];
 		}
@@ -2411,6 +2423,99 @@ class Validations {
 		}
 
 		return [ 'valid' => true, 'value' => $value ];
+	}
+
+	/**
+	 * Check a value against the type of the setting's default.
+	 *
+	 * A string setting takes a string, and an integer or float is turned into
+	 * its string form so the field validator still runs on it. A boolean or
+	 * number setting takes a scalar. A list or empty array setting takes an
+	 * array. A branch (a keyed group of settings) is never a single value, so
+	 * a caller that writes one must validate it leaf by leaf instead. Paths the
+	 * defaults tree does not know are left to the caller.
+	 *
+	 * @param string $path  Dot-notation path.
+	 * @param mixed  $value The value to check.
+	 *
+	 * @return array { valid: bool, value: mixed, message?: string }
+	 *
+	 * @since 1.70.1
+	 */
+	private static function check_value_type_against_default( $path, $value ) {
+
+		$default = self::get_option_default($path, $found);
+
+		if (!$found || null === $default) {
+			return [ 'valid' => true, 'value' => $value ];
+		}
+
+		$invalid = [
+			'valid'   => false,
+			'value'   => $value,
+			'message' => __('The value has the wrong type for this setting.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+		];
+
+		if (self::is_option_branch($default)) {
+			return $invalid;
+		}
+
+		if (is_array($default)) {
+			return is_array($value) ? [ 'valid' => true, 'value' => $value ] : $invalid;
+		}
+
+		if (is_string($default)) {
+
+			if (is_int($value) || is_float($value)) {
+				$value = (string) $value;
+			}
+
+			return is_string($value) ? [ 'valid' => true, 'value' => $value ] : $invalid;
+		}
+
+		// Booleans and numbers.
+		return is_scalar($value) ? [ 'valid' => true, 'value' => $value ] : $invalid;
+	}
+
+	/**
+	 * Look up the default of a setting by dot-notation path.
+	 *
+	 * @param string $path  Dot-notation path.
+	 * @param bool   $found Set to whether the path exists in the defaults tree.
+	 *
+	 * @return mixed The default, or null when the path is unknown.
+	 *
+	 * @since 1.70.1
+	 */
+	public static function get_option_default( $path, &$found = null ) {
+
+		$found = false;
+		$node  = Options::get_default_options();
+
+		foreach (explode('.', (string) $path) as $key) {
+			if (!is_array($node) || !array_key_exists($key, $node)) {
+				return null;
+			}
+			$node = $node[ $key ];
+		}
+
+		$found = true;
+
+		return $node;
+	}
+
+	/**
+	 * Whether a default is a branch: a keyed group of settings rather than a
+	 * single value. Lists and empty arrays are values.
+	 *
+	 * @param mixed $default The default from the defaults tree.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.70.1
+	 */
+	public static function is_option_branch( $default ) {
+		return is_array($default) && !empty($default) && !self::is_list($default);
 	}
 
 	/**

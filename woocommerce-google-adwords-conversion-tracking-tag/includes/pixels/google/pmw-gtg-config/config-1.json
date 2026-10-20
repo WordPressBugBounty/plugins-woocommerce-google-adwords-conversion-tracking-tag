@@ -5,7 +5,6 @@
     "site_url": "https:\/\/wordpress.test",
     "logging_enabled": false,
     "log_level": "warning",
-    "log_directory": "\/Users\/aleksandarvucenovic\/dev\/apps\/wordpress\/wp-content\/uploads\/pmw-logs",
-    "wp_content_dir": "\/Users\/aleksandarvucenovic\/dev\/apps\/wordpress\/wp-content",
-    "updated": 1791904416
+    "tag_id": "AW-965183221",
+    "updated": 1792487476
 }

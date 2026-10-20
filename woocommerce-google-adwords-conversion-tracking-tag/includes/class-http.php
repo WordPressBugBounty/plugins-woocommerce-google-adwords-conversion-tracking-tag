@@ -29,10 +29,33 @@ class HTTP {
 			'blocking'    => Helpers::should_all_s2s_requests_be_sent_blocking(),
 			'headers'     => [],
 			'cookies'     => [],
-			'sslverify'   => !Geolocation::is_localhost(),
+			'sslverify'   => self::should_verify_ssl(),
 		], $request_args_override);
 
 		$this->request_args = array_merge($this->request_args, $this->filter_options());
+	}
+
+	/**
+	 * Whether outbound requests verify the remote TLS certificate.
+	 *
+	 * Decided from the server environment only. It used to follow
+	 * Geolocation::is_localhost(), which reads the visitor's IP from
+	 * client-settable headers such as CF-Connecting-IP, so any storefront
+	 * request could switch verification off for the S2S calls that carry
+	 * access tokens and hashed customer data. Only a site that declares
+	 * itself a local install (WP_ENVIRONMENT_TYPE 'local') skips the
+	 * check, for self-signed development certificates. See DD-058.
+	 *
+	 * @return bool
+	 * @since 1.70.1
+	 */
+	public static function should_verify_ssl() {
+
+		if (function_exists('wp_get_environment_type') && 'local' === wp_get_environment_type()) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**

@@ -910,6 +910,14 @@ class Admin {
             'wpm_plugin_options_page',
             $section_ids['settings_name']
         );
+        // add field for sending the profit as a separate field next to the marketing value
+        add_settings_field(
+            'pmw_plugin_send_profit_separately',
+            esc_html__( 'Send Profit as a Separate Field', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            [__CLASS__, 'html_send_profit_separately'],
+            'wpm_plugin_options_page',
+            $section_ids['settings_name']
+        );
         // Add info about dynamic remarketing
         add_settings_field(
             'wpm_plugin_option_dynamic_remarketing',
@@ -5778,6 +5786,50 @@ class Admin {
         }
         ?>
 		<?php 
+    }
+
+    /**
+     * Toggle for sending the order profit as a separate field next to the marketing value.
+     *
+     * Implied, and shown as locked, when the marketing value logic is the profit margin.
+     *
+     * @since 1.70.1
+     */
+    public static function html_send_profit_separately() {
+        $implied = in_array( (string) Options::get_marketing_value_logic(), ['2', 'order_profit_margin'], true );
+        // adding the hidden input is a hack to make WordPress save the option with the value zero,
+        // instead of not saving it and remove that array key entirely
+        // https://stackoverflow.com/a/1992745/4688612
+        ?>
+		<label>
+			<input type="hidden" value="0"
+					name="wgact_plugin_options[shop][send_profit_separately]">
+			<input type="checkbox"
+					id="pmw_plugin_send_profit_separately"
+					name="wgact_plugin_options[shop][send_profit_separately]"
+					value="1"
+				<?php 
+        checked( Options::is_profit_sent_separately() );
+        ?>
+				<?php 
+        disabled( $implied );
+        ?>
+				<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+			/>
+			<?php 
+        esc_html_e( 'Send the order profit next to the marketing value where the platform has a field for it (Meta net_revenue), for orders where every product has a cost of goods.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+        ?>
+		</label>
+		<?php 
+        self::get_documentation_html_by_key( 'profit_field' );
+        self::html_pro_feature();
+        if ( $implied ) {
+            echo '<p><span class="dashicons dashicons-info"></span>';
+            esc_html_e( 'On, because the marketing value logic is Profit Margin, so the profit already leaves your server.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+            echo '</p>';
+        }
     }
 
     public static function html_marketing_value_logic() {

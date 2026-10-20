@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.70.0
+Stable tag: 1.71.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -338,6 +338,21 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.71.0  =
+*Release date - 20.10.2026*
+
+* Tweak: The tracking library loaded on every shop page is about 40% smaller, with IP and location lookups loading only on shops that use the IP exclusion list or region-based consent. Pixel code now downloads while the cookie banner check runs, so pixels start sooner
+* Tweak: The Meta Purchase now carries the order number as order_id, which Events Manager listed as unavailable
+* Tweak: Cookies the Pixel Manager writes in the browser now carry the Secure attribute on HTTPS pages, which PCI compliance scans check for
+* Fix: The standalone Google Tag Gateway proxy no longer stops working a week after the last settings change, when it answered every request with a 503 and the Google tag loaded directly from Google instead
+* Fix: The Google Tag Gateway service worker now registers with every gateway handler. The WordPress handler still logged a service worker scope error on every page after the 1.70.0 fix, and the standalone proxy answered the worker with a 400 error
+* Fix: The standalone Google Tag Gateway proxy now works when WordPress core sits in its own subdirectory or the content folder is not named wp-content, as on Bedrock, instead of sending every request through the slower WordPress handler
+* Fix: The standalone Google Tag Gateway proxy now sends empty POST requests with a length. Google refused them with a 411 error
+* Fix: IP ranges in CIDR notation from the `pmw_ip_exclusion_list` filter now exclude the visitor in the browser too. A range broke the browser check, so only exact IPs stopped the browser pixels
+* Fix: Pinterest checkout starts now carry each product's category and brand, and over the Conversions API also its price, quantity and name, which Pinterest reported as missing
+* Fix: Settings saved through the admin REST API are now checked against each setting's type, and a save that names a whole group of settings validates every field inside it, Pro licensing included. A malformed save could store a list as the Google Tag Gateway path, which broke every shop page on PHP 8
+* Fix: Server-side requests to ad platforms and the debug report's connection checks now always verify the TLS certificate. A crafted request header or a private server IP could switch the check off, and only sites set to the local environment type skip it
 
 = 1.70.0  =
 *Release date - 13.10.2026*

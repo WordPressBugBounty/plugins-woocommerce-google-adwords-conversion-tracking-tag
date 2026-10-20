@@ -379,6 +379,7 @@ class Options {
 			],
 			'shop'       => [
 				'order_total_logic'             => 0,
+				'send_profit_separately'        => false,
 				// TODO: Move to the general section
 				'cookie_consent_mgmt'           => [
 					'explicit_consent' => false,
@@ -966,8 +967,30 @@ class Options {
 		return (bool) self::get_options_obj()->google->user_id;
 	}
 
+	/**
+	 * The Google tag gateway measurement path, such as "/metrics".
+	 *
+	 * The stored value is checked again here because every request reads it:
+	 * the proxy matches it against the request URI and the data layer hands it
+	 * to the browser, which builds the gtag.js URL from it. A value that is not
+	 * a string or not a same-origin path ("//host" would point the browser at
+	 * another host) disables the gateway instead. The pattern is the one the
+	 * validator used before 1.48 (dashes, underscores and inner slashes), so a
+	 * path saved back then keeps working.
+	 *
+	 * @return string The path, or '' when none or invalid.
+	 *
+	 * @since 1.70.1 Returns '' for an invalid stored value.
+	 */
 	public static function get_google_tag_gateway_measurement_path() {
-		return self::get_options_obj()->google->tag_gateway->measurement_path;
+
+		$path = self::get_options_obj()->google->tag_gateway->measurement_path;
+
+		if (!is_string($path) || !preg_match('/^\/[a-zA-Z0-9_-][a-zA-Z0-9_\/-]{0,99}$/', $path)) {
+			return '';
+		}
+
+		return $path;
 	}
 
 	public static function is_google_link_attribution_active() {
@@ -1970,6 +1993,26 @@ class Options {
 
 	public static function get_marketing_value_logic() {
 		return self::get_options_obj()->shop->order_total_logic;
+	}
+
+	/**
+	 * Whether the order profit is sent as a separate field next to the marketing value.
+	 *
+	 * Opt-in, because it shares the shop's margins with the platform and shows
+	 * them on the order confirmation page. Implied when the marketing value logic
+	 * is the profit margin, because the profit already leaves the server then.
+	 * Platforms with a profit field use it; today that is Meta's net_revenue.
+	 *
+	 * @return bool
+	 * @since 1.70.1
+	 */
+	public static function is_profit_sent_separately() {
+
+		if (in_array((string) self::get_marketing_value_logic(), [ '2', 'order_profit_margin' ], true)) {
+			return true;
+		}
+
+		return (bool) self::get_options_obj()->shop->send_profit_separately;
 	}
 
 	public static function get_marketing_value_logic_input_field_name() {

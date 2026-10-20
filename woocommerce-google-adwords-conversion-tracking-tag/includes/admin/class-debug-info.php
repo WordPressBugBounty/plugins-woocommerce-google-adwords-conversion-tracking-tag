@@ -3,7 +3,7 @@
 namespace SweetCode\Pixel_Manager\Admin;
 
 use Exception;
-use SweetCode\Pixel_Manager\Geolocation;
+use SweetCode\Pixel_Manager\HTTP;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
@@ -869,7 +869,7 @@ class Debug_Info {
     private static function pmw_remote_get_response( $url ) {
         $response = wp_remote_get( $url, [
             'timeout'             => 4,
-            'sslverify'           => !Geolocation::is_localhost(),
+            'sslverify'           => HTTP::should_verify_ssl(),
             'limit_response_size' => 5000,
             'blocking'            => true,
             'redirection'         => 0,
@@ -895,7 +895,7 @@ class Debug_Info {
     private static function pmw_remote_post_response( $url ) {
         $response = wp_remote_post( $url, [
             'timeout'             => 4,
-            'sslverify'           => !Geolocation::is_localhost(),
+            'sslverify'           => HTTP::should_verify_ssl(),
             'limit_response_size' => 5000,
             'blocking'            => true,
             'redirection'         => 0,
@@ -937,7 +937,7 @@ class Debug_Info {
         for ($hop = 0; $hop <= $max_hops; $hop++) {
             $response = wp_remote_get( $current_url, [
                 'timeout'             => 4,
-                'sslverify'           => !Geolocation::is_localhost(),
+                'sslverify'           => HTTP::should_verify_ssl(),
                 'limit_response_size' => 5000,
                 'blocking'            => true,
                 'redirection'         => 0,
@@ -1033,7 +1033,7 @@ class Debug_Info {
     private static function try_connect_to_server( $server ) {
         $response = wp_remote_get( $server, [
             'timeout'             => 4,
-            'sslverify'           => !Geolocation::is_localhost(),
+            'sslverify'           => HTTP::should_verify_ssl(),
             'limit_response_size' => 5000,
             'blocking'            => true,
             'redirection'         => 0,

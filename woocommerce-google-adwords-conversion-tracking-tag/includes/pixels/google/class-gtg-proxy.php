@@ -510,8 +510,49 @@ class GTG_Proxy {
 
 		$response = self::process_and_return_proxy_response( $tag_id, $destination_path, $geo, $method, '' );
 
+		$response = self::set_service_worker_allowed_scope( $response, Options::get_google_tag_gateway_measurement_path() );
+
 		// Output response and terminate
 		self::output_proxy_response( $response, true );
+	}
+
+	/**
+	 * Widen Service-Worker-Allowed to the measurement path
+	 *
+	 * The sw_iframe.html of gtag registers sw.js with the scope it gets in its
+	 * `path` parameter, which is the measurement path itself. FPS answers
+	 * with `<path>/_/service_worker`, one level below that scope, so relaying
+	 * Google's value made every registration fail with "The path of the
+	 * provided scope ... is not under the max scope allowed" on every page
+	 * (betonkonzept.com, Help Scout 7005, still on 1.70.0).
+	 *
+	 * The value comes from the saved setting, never from the request. The
+	 * setting only allows `/` plus letters and digits, so the worker can never
+	 * claim the shop's root. The header is only replaced when FPS sent one, so
+	 * a 404 from Google's staged rollout stays untouched.
+	 *
+	 * @param \WP_REST_Response|\WP_Error $response         The proxied service worker response.
+	 * @param string                      $measurement_path The configured measurement path.
+	 * @return \WP_REST_Response|\WP_Error
+	 *
+	 * @since 1.70.1
+	 */
+	private static function set_service_worker_allowed_scope( $response, $measurement_path ) {
+
+		if ( is_wp_error( $response ) || ! $measurement_path ) {
+			return $response;
+		}
+
+		$data = $response->get_data();
+
+		if ( ! isset( $data['headers']['service-worker-allowed'] ) ) {
+			return $response;
+		}
+
+		$data['headers']['service-worker-allowed'] = $measurement_path;
+		$response->set_data( $data );
+
+		return $response;
 	}
 
 	/**
@@ -1463,10 +1504,9 @@ class GTG_Proxy {
 		'content-disposition',
 		'date',
 		'age',
-		// Lets the Tag Gateway service worker take the scope gtag asks for
-		// (<measurement_path>/_/service_worker). Without it every registration
-		// fails with a console error. FPS always ends the value in
-		// /_/service_worker, so it cannot widen a worker beyond that subtree.
+		// Lets the Tag Gateway service worker register. For the worker itself
+		// the value is replaced with the measurement path, see
+		// set_service_worker_allowed_scope().
 		// @since 1.69.3
 		'service-worker-allowed',
 	];
@@ -2016,8 +2056,12 @@ class GTG_Proxy {
 			'site_url'         => $site_url,
 			'logging_enabled'  => $logging_enabled,
 			'log_level'        => $log_level,
-			'log_directory'    => $log_directory,
-			'wp_content_dir'   => defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : '',
+			// No server paths: on nginx this file is publicly readable. The
+			// standalone proxy derives the content directory itself (Help
+			// Scout 7092). @since 1.70.1
+			// The Tag Gateway service worker request carries no tag ID, so the
+			// standalone proxy needs one to build the FPS URL. @since 1.70.1
+			'tag_id'           => (string) Google_Helpers::get_google_tag_id_information()['active'],
 			'updated'          => time(),
 		];
 
@@ -2033,6 +2077,16 @@ class GTG_Proxy {
 					// Compare all fields except 'updated' timestamp
 					unset( $existing_config['updated'], $config['updated'] );
 					if ( $existing_config === $config ) {
+						// The standalone proxy judges freshness by the file's mtime and
+						// rejects a file older than 7 days with config-expired. Skipping
+						// the write left the mtime at the last real settings change, so
+						// every standalone install fell back to googletagmanager.com a
+						// week after its last settings save, and the daily cron could
+						// not prevent it (Help Scout 7095). @since 1.70.1
+						// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_touch -- Same direct file access as the write below; a failed touch must not break the settings save
+						@touch( $config_file );
+						clearstatcache( true, $config_file );
+
 						// Config unchanged, but still update site map in case it's missing
 						self::update_site_map( $site_identifier, $config_filename );
 						return true;

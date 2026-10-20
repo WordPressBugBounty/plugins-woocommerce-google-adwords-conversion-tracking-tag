@@ -49,6 +49,30 @@ class Broker_Client {
 	const CHALLENGE_TRANSIENT = 'pmw_broker_challenge';
 
 	/**
+	 * The shape of a broker-issued site token: 64 hex characters. The broker
+	 * has never issued anything else and rejects anything else, so a stored
+	 * value failing this pattern is not a credential, whatever it is.
+	 */
+	const TOKEN_PATTERN = '/^[0-9a-f]{64}\\z/';
+
+	/**
+	 * How many rejections in a row (HTTP 401) write the stored token off.
+	 *
+	 * A credential the broker refuses does not become valid by being sent
+	 * again, so the answer to the second refusal cannot be a third attempt.
+	 * More than one is required because a single 401 does not prove the token
+	 * is at fault: a proxy or security layer that strips the Authorization
+	 * header for one request produces the same status, and that must not cost
+	 * the site its enrollment.
+	 *
+	 * Deliberately below the broker's own per-address allowance (5 rejected
+	 * credentials a day, after which it stops answering each one individually):
+	 * a plugin that stops on its own never reaches the point where the broker
+	 * has to stop it.
+	 */
+	const AUTH_REJECTION_LIMIT = 3;
+
+	/**
 	 * Option holding VERIFIED reconnect incidents per provider:
 	 * [ 'google' => [ 'flagged_at' => int, 'notified' => bool, 'dismissed' => bool ], 'meta' => ... ]
 	 * An entry only exists while the broker reports needs_reconnect, which it
@@ -278,9 +302,101 @@ class Broker_Client {
 		update_option(self::OPTION_KEY, $state, false);
 	}
 
+	/**
+	 * Whether this site holds a credential the broker can be expected to
+	 * accept, not merely whether some string is stored. Every caller either
+	 * proxies a request to the broker or tells the UI the site is set up, and
+	 * both are wrong for a credential that is already dead.
+	 *
+	 * Two states are written off:
+	 *
+	 *  - A token that is not the broker's 64-hex shape. It can never
+	 *    authenticate, so sending it is pure noise. Seen live: an install
+	 *    holding a 17-character token called /v1/status and /v1/meta/status on
+	 *    every settings-page render for days, collecting a 401 each time,
+	 *    until the broker throttled the address, while showing a connection
+	 *    error where the Connect button belonged.
+	 *  - A well-formed token the broker has rejected AUTH_REJECTION_LIMIT
+	 *    times in a row, which is what a rotated-out token or a site removed
+	 *    broker-side looks like from here.
+	 *
+	 * Both resolve the same way, and resolve themselves: the site counts as
+	 * not enrolled, the status routes answer locally instead of calling out,
+	 * the UI offers Connect, and that button re-enrolls. Re-enrollment
+	 * re-proves control of the domain and replaces the token, so the Google or
+	 * Meta connection the broker still holds for this site URL survives it.
+	 *
+	 * @return bool
+	 */
 	public static function is_enrolled() {
+		return self::has_usable_token(self::get_state());
+	}
+
+	/**
+	 * Whether the stored state carries a credential worth presenting.
+	 *
+	 * @param array $state
+	 * @return bool
+	 */
+	private static function has_usable_token( $state ) {
+
+		if (empty($state['site_token']) || !is_string($state['site_token'])) {
+			return false;
+		}
+
+		if (!preg_match(self::TOKEN_PATTERN, $state['site_token'])) {
+			return false;
+		}
+
+		return self::rejection_count($state) < self::AUTH_REJECTION_LIMIT;
+	}
+
+	/**
+	 * How many times in a row the broker has refused the stored token.
+	 *
+	 * @param array $state
+	 * @return int
+	 */
+	private static function rejection_count( $state ) {
+		return isset($state['auth_rejections']) ? (int) $state['auth_rejections'] : 0;
+	}
+
+	/**
+	 * Count a rejection of the stored token. Only the broker's verdict on the
+	 * credential itself counts (HTTP 401); a 429, a 5xx or an unreachable
+	 * broker says nothing about it. The count is consecutive (any accepted
+	 * response clears it), so only a token that is genuinely finished reaches
+	 * the limit.
+	 */
+	private static function record_auth_rejection() {
+
 		$state = self::get_state();
-		return !empty($state['site_token']);
+
+		if (empty($state['site_token'])) {
+			return;
+		}
+
+		$count = self::rejection_count($state);
+
+		if ($count >= self::AUTH_REJECTION_LIMIT) {
+			return;
+		}
+
+		$state['auth_rejections'] = $count + 1;
+		self::save_state($state);
+	}
+
+	/** Forget the rejections: the broker accepted this token after all. */
+	private static function clear_auth_rejections() {
+
+		$state = self::get_state();
+
+		if (0 === self::rejection_count($state)) {
+			return;
+		}
+
+		unset($state['auth_rejections']);
+		self::save_state($state);
 	}
 
 	/**
@@ -295,10 +411,17 @@ class Broker_Client {
 	 */
 	public static function is_google_connected() {
 
+		// A credential the broker will not accept cannot carry an upload
+		// either: the Data Manager calls gated on this answer travel with the
+		// very token that was refused.
+		if (!self::is_enrolled()) {
+			return false;
+		}
+
 		$state = self::get_state();
 
 		if (!array_key_exists('google_connected', $state)) {
-			return self::is_enrolled();
+			return true;
 		}
 
 		return !empty($state['google_connected']);
@@ -1245,7 +1368,11 @@ class Broker_Client {
 		if ($with_auth) {
 			$state = self::get_state();
 
-			if (empty($state['site_token'])) {
+			// Not "is a token stored" but "is it one the broker can accept":
+			// an unusable credential is answered here, so a site that cannot
+			// authenticate stops calling instead of polling out a 401 per
+			// settings-page render. @see is_enrolled()
+			if (!self::has_usable_token($state)) {
 				return [
 					'ok'        => false,
 					'status'    => 409,
@@ -1327,6 +1454,20 @@ class Broker_Client {
 		}
 
 		$ok = $status >= 200 && $status < 300 && ( !isset($decoded['ok']) || false !== $decoded['ok'] );
+
+		// Only a request that actually presented the stored token says anything
+		// about it, and only a 401 is the broker's verdict on the credential
+		// itself; everything else is about the request, the route or the
+		// network. Enough of them in a row and the token is written off, which
+		// turns the next settings-page render into a Connect button instead of
+		// another rejected call. @see AUTH_REJECTION_LIMIT
+		if ($with_auth) {
+			if (401 === $status) {
+				self::record_auth_rejection();
+			} elseif ($ok) {
+				self::clear_auth_rejections();
+			}
+		}
 
 		// Inline incident detection: the broker returns NEEDS_RECONNECT only on
 		// VERIFIED dead credentials (Google invalid_grant, Meta OAuthException),

@@ -2,7 +2,7 @@
 
 namespace SweetCode\Pixel_Manager\Admin;
 
-use SweetCode\Pixel_Manager\Geolocation;
+use SweetCode\Pixel_Manager\HTTP;
 use SweetCode\Pixel_Manager\Pixels\Facebook\Facebook;
 use WP_Error;
 
@@ -231,7 +231,7 @@ class Facebook_Event_Setup_Scan {
 
 		$response = wp_remote_get('https://connect.facebook.net/signals/config/' . rawurlencode($pixel_id), [
 			'timeout'             => 5,
-			'sslverify'           => !Geolocation::is_localhost(),
+			'sslverify'           => HTTP::should_verify_ssl(),
 			'limit_response_size' => 4 * MB_IN_BYTES,
 			'redirection'         => 2,
 		]);
