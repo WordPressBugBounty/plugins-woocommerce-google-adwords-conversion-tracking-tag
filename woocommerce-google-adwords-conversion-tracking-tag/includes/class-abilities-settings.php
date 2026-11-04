@@ -265,9 +265,9 @@ class Abilities_Settings {
 						'path'        => 'facebook.capi.user_transparency.send_additional_client_identifiers',
 						'type'        => 'boolean',
 						'label'       => 'Send additional client identifiers',
-						'description' => 'Sends the client IP address and user agent with Conversions API events.',
+						'description' => 'Meta Advanced Matching. Sends additional visitor identifiers, such as email and phone number, if available: hashed email, phone, first and last name, city, state, postcode and country, the hashed user ID (external_id) and, when enabled separately, the Facebook Login ID, with Conversions API events and the browser pixel. The fbp and fbc cookies, client IP address and user agent are always sent with Conversions API events, independent of this setting.',
 						'advanced'    => true,
-						'benefit'     => 'Improves Meta event match quality at the cost of sending more client data.',
+						'benefit'     => 'Improves Meta event match quality at the cost of sending more customer data.',
 					],
 					'capi.send_fb_login_id'  => [
 						'path'        => 'facebook.capi.send_fb_login_id',
@@ -1168,7 +1168,7 @@ class Abilities_Settings {
 						'path'        => 'general.pageview_events_s2s',
 						'type'        => 'boolean',
 						'label'       => 'Send PageView events server-to-server',
-						'description' => 'Sends PageView events to Meta and Snapchat from the server, which makes them more reliable when browser tracking is blocked. It runs on every page load, so it adds server load.',
+						'description' => 'Sends PageView events to Meta and Snapchat from the server, which makes them more reliable when browser tracking is blocked. It runs on every page load, so it adds server load. Always on while the SweetCode Cloud server-side proxy is active (pmw/get-ssp-status is_active), whatever the stored value, because the proxy carries the load then.',
 					],
 					'always_send_s2s'     => [
 						'path'        => 'general.always_send_s2s',
@@ -1205,6 +1205,22 @@ class Abilities_Settings {
 				],
 			],
 		];
+
+		// Every pixel can be paused without losing its settings, the same
+		// switch the Tracking Pixels tab shows on each configured pixel.
+		foreach ($catalog as $group_key => $group) {
+
+			if (empty($group['is_pixel']) || !in_array($group_key, Options::PAUSABLE_PIXELS, true)) {
+				continue;
+			}
+
+			$catalog[ $group_key ]['settings']['paused'] = [
+				'path'        => 'paused_pixels.' . $group_key,
+				'type'        => 'integer',
+				'label'       => 'Paused',
+				'description' => 'Pauses this pixel without touching its other settings: while paused it sends nothing, neither from the browser nor server-side. Send 1 to pause (the plugin stores the time of the pause as a Unix timestamp) and 0 to resume. Only pause when the shop manager asks for it, because a paused pixel stops reporting conversions.',
+			];
+		}
 
 		return $catalog;
 	}
@@ -1610,6 +1626,12 @@ class Abilities_Settings {
 			$active = (bool) $descriptors[$group_key]->is_active();
 		}
 
+		$paused = Options::is_pixel_paused($group_key);
+
+		if ($paused) {
+			$active = false;
+		}
+
 		return [
 			'pixel'                 => $group_key,
 			'label'                 => $group['label'],
@@ -1619,6 +1641,7 @@ class Abilities_Settings {
 			'configured'            => $configured,
 			'partially_configured'  => $required_set > 0 && !$configured,
 			'active'                => $active,
+			'paused'                => $paused,
 			'missing_required'      => $missing_required,
 			'advanced_available'    => $advanced_available,
 			'advanced_enabled'      => $advanced_enabled,
@@ -1669,6 +1692,18 @@ class Abilities_Settings {
 					'%s is only partially configured. Missing: %s.',
 					$pixel['label'],
 					implode(', ', $labels)
+				);
+			}
+		}
+
+		// Paused pixels keep their settings, so resuming them is one switch.
+		// Mention them without pushing, the shop manager paused them on purpose.
+		foreach ($pixels as $pixel) {
+			if (!empty($pixel['paused'])) {
+				$recommendations[] = sprintf(
+					'%s is paused and sends no data. Its settings are kept, so it can be resumed at any time (set %s to 0).',
+					$pixel['label'],
+					'paused_pixels.' . $pixel['pixel']
 				);
 			}
 		}

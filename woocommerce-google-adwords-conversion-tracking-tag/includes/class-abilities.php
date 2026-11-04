@@ -236,6 +236,27 @@ class Abilities {
 							],
 						],
 					],
+					'paused_pixels' => [
+						'type'        => 'array',
+						'description' => 'Pixels the shop manager paused. They keep their settings but send nothing, browser or server-side, until resumed by setting paused_pixels.<name> to 0.',
+						'items'       => [
+							'type'       => 'object',
+							'properties' => [
+								'name'         => [
+									'type'        => 'string',
+									'description' => 'Pixel identifier',
+								],
+								'label'        => [
+									'type'        => 'string',
+									'description' => 'Human-readable pixel name',
+								],
+								'paused_since' => [
+									'type'        => 'integer',
+									'description' => 'Unix timestamp of the pause',
+								],
+							],
+						],
+					],
 					'all_pixels'    => [
 						'type'        => 'array',
 						'description' => 'List of all registered tracking pixels with their status',
@@ -406,6 +427,15 @@ class Abilities {
 						'type'        => 'array',
 						'description' => 'Other active analytics, tag manager and ad pixel plugins that may send duplicate events, as "Name (plugin file)"',
 						'items'       => [ 'type' => 'string' ],
+					],
+					'missing_script_dependencies' => [
+						'type'        => [ 'object', 'null' ],
+						'description' => 'Set when WordPress dropped the Pixel Manager front-end script in the last week because a dependency (jquery, wp-hooks or one of theirs) was not registered, so no pixel loaded: missing (handles), last_seen (Unix time) and path (request path). Null when not detected.',
+						'properties'  => [
+							'missing'   => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+							'last_seen' => [ 'type' => 'integer' ],
+							'path'      => [ 'type' => 'string' ],
+						],
 					],
 					'gateway_accuracy'       => [
 						'type'        => 'array',
@@ -604,6 +634,7 @@ class Abilities {
 								'configured'           => [ 'type' => 'boolean', 'description' => 'All required settings are set' ],
 								'partially_configured' => [ 'type' => 'boolean', 'description' => 'Some but not all required settings are set' ],
 								'active'               => [ 'type' => 'boolean', 'description' => 'The pixel is currently tracking' ],
+								'paused'               => [ 'type' => 'boolean', 'description' => 'The shop manager paused the pixel. Its settings are kept, but it sends nothing until resumed.' ],
 								'missing_required'     => [ 'type' => 'array', 'description' => 'Required settings that are not set yet, with descriptions of where to find the values' ],
 								'advanced_available'   => [ 'type' => 'array', 'description' => 'Advanced features that are not enabled yet, with their benefits' ],
 								'advanced_enabled'     => [ 'type' => 'array', 'description' => 'Advanced features that are already enabled' ],
@@ -815,8 +846,36 @@ class Abilities {
 			}
 		}
 
+		$paused_pixels = [];
+
+		// Server-side pixels register their descriptor with the Pro adapter
+		// only, so a free install falls back to these labels.
+		$fallback_labels = [
+			'facebook' => 'Meta (Facebook)',
+			'applovin' => 'AppLovin',
+		];
+
+		foreach (Options::get_paused_pixels() as $name => $since) {
+			$descriptor = Pixel_Registry::get_descriptor($name);
+
+			if ($descriptor) {
+				$label = $descriptor->get_label();
+			} elseif (isset($fallback_labels[ $name ])) {
+				$label = $fallback_labels[ $name ];
+			} else {
+				$label = ucwords(str_replace('_', ' ', $name));
+			}
+
+			$paused_pixels[] = [
+				'name'         => $name,
+				'label'        => $label,
+				'paused_since' => $since,
+			];
+		}
+
 		return [
 			'active_pixels' => $active_pixels,
+			'paused_pixels' => $paused_pixels,
 			'all_pixels'    => $all_pixels,
 			'summary'       => [
 				'total_registered'         => count($descriptors),
@@ -879,6 +938,7 @@ class Abilities {
 			'active_pixels'          => self::execute_get_tracking_status()['active_pixels'],
 			'other_tracking_plugins' => array_values(Debug_Info::get_other_tracking_plugins()),
 			'gateway_accuracy'       => is_array($gateway_accuracy) ? array_values($gateway_accuracy) : [],
+			'missing_script_dependencies' => Script_Dependencies::get_detection(),
 		];
 	}
 }

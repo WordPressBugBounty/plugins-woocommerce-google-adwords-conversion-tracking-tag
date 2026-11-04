@@ -35,6 +35,7 @@ use SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_API;
 use SweetCode\Pixel_Manager\Pixels\Klaviyo\Klaviyo_Takeover;
 use SweetCode\Pixel_Manager\Pixels\VWO\VWO;
 use SweetCode\Pixel_Manager\Failed_Order_Retractions;
+use SweetCode\Pixel_Manager\Refund_Deletions;
 use SweetCode\Pixel_Manager\First_Event_Confirmation;
 use SweetCode\Pixel_Manager\Geolocation;
 use SweetCode\Pixel_Manager\Helpers;
@@ -65,6 +66,13 @@ class Pixel_Manager {
     private $printed_cart_item_keys = [];
 
     private static $instance;
+
+    /**
+     * Seconds a tracking accuracy count waits for a concurrent count of the same order.
+     *
+     * @since 1.71.1
+     */
+    const TRACKING_ACCURACY_LOCK_TIMEOUT = 10;
 
     public static function get_instance() {
         if ( is_null( self::$instance ) ) {
@@ -191,6 +199,8 @@ class Pixel_Manager {
          */
         if ( Shop::track_user() ) {
             add_action( 'wp_enqueue_scripts', [$this, 'front_end_scripts'] );
+            // Report when WordPress drops the bundle for a missing dependency such as jquery.
+            \SweetCode\Pixel_Manager\Script_Dependencies::init();
         }
         /**
          * Enqueue CSS for Elementor Pro
@@ -1271,6 +1281,19 @@ class Pixel_Manager {
         if ( !$order ) {
             return;
         }
+        self::with_tracking_accuracy_lock( $order, [__CLASS__, 'count_order_total'] );
+    }
+
+    /**
+     * The body of pmw_count_order_total_on_payment_finalized(). Callers must
+     * hold the tracking accuracy lock for this order.
+     *
+     * @param \WC_Order $order
+     *
+     * @return void
+     * @since 1.71.1
+     */
+    private static function count_order_total( $order ) {
         // Only count orders that PMW was responsible for tracking when they were placed.
         if ( !$order->meta_exists( '_wpm_process_through_wpm' ) ) {
             return;
@@ -1329,7 +1352,56 @@ class Pixel_Manager {
         }
         Tracking_Accuracy_DB::increment_orders_total( gmdate( 'Y-m-d', $date_created->getTimestamp() ), $payment_method );
         $order->update_meta_data( '_wpm_orders_total_counted', true );
+        // Remember the bucket, so the total can follow the order if its payment
+        // method changes before the confirmation page reports. @since 1.71.1
+        $order->update_meta_data( '_pmw_orders_total_gateway', $payment_method );
         $order->save();
+    }
+
+    /**
+     * Run a tracking accuracy count while holding a lock for this order.
+     *
+     * Both counters check an order meta latch, count, then write the latch.
+     * Two requests for the same order at the same moment (the confirmation page
+     * loading twice, or a webhook alongside the confirmation beacon) both passed
+     * the check before either saved, and the order was counted twice. A MySQL
+     * named lock serializes them. Once it holds the lock, a request re-reads the
+     * order's meta from the database, because the order object was loaded
+     * before the other request saved. That drops meta changes the caller has
+     * not saved yet, which no caller has.
+     *
+     * The lock belongs to the database connection, so a request that dies
+     * while holding it cannot leave it behind. Where it cannot be taken at all
+     * (a database without GET_LOCK, such as SQLite), the count runs unlocked,
+     * as it did before.
+     *
+     * @param \WC_Order $order    The order.
+     * @param callable  $callback Does the count; receives the order.
+     *
+     * @return void
+     * @since 1.71.1
+     */
+    private static function with_tracking_accuracy_lock( $order, $callback ) {
+        global $wpdb;
+        // MySQL caps lock names at 64 characters, so the name is hashed.
+        $lock_name = 'pmw_' . md5( $wpdb->prefix . 'tracking_accuracy:' . $order->get_id() );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- a named lock is not data; no WordPress API offers one.
+        $acquired = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $lock_name, self::TRACKING_ACCURACY_LOCK_TIMEOUT ) );
+        if ( '0' === (string) $acquired ) {
+            Logger::warning( 'Tracking accuracy: order ' . $order->get_id() . ' was still being counted by another request after ' . self::TRACKING_ACCURACY_LOCK_TIMEOUT . ' seconds, skipping so it cannot be counted twice' );
+            return;
+        }
+        try {
+            if ( '1' === (string) $acquired && method_exists( $order, 'read_meta_data' ) ) {
+                $order->read_meta_data( true );
+            }
+            call_user_func( $callback, $order );
+        } finally {
+            if ( '1' === (string) $acquired ) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+                $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+            }
+        }
     }
 
     // Thanks to: https://gist.github.com/mishterk/6b7a4d6e5a91086a5a9b05ace304b5ce#file-mark-wordpress-scripts-as-async-or-defer-php
@@ -1614,11 +1686,68 @@ class Pixel_Manager {
 			window.pmwDataLayer = Object.assign(window.pmwDataLayer, <?php 
         echo Helpers::json_encode_for_script( $this->get_data_for_data_layer() );
         ?>);
+			<?php 
+        echo self::get_library_sentinel_js();
+        ?>
 
 		</script>
 
 		<?php 
         // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+
+    /**
+     * A tiny inline check, printed with the data layer, that warns in the
+     * console when the Pixel Manager library never started on the page.
+     *
+     * A shop served the bundle as raw Brotli bytes without a Content-Encoding
+     * header. The browser threw "Invalid or unexpected token", window.pmw held
+     * only the configuration keys, and nothing tracked, with no hint pointing
+     * at the Pixel Manager. The library itself cannot report a file that never
+     * ran, so the data layer script, which did run, checks after the window
+     * load event, when every script present in the page source has executed.
+     *
+     * It stays quiet when the library script was deliberately held back: its
+     * tag still carries a type that does not execute, which is how lazy
+     * loading, consent tools (text/plain) and "delay JavaScript" optimizers
+     * defer it. It also stays quiet when no tag of the bundle is found, for
+     * example when an optimizer merged it into another file, because a missing
+     * tag cannot tell a failure from a tool that adds the script later.
+     *
+     * Plain ES5, it runs untranspiled. See DD-078 for why this is an inline
+     * check rather than a self-fetch of the bundle in the debug info.
+     *
+     * @return string
+     *
+     * @since 1.71.1
+     */
+    public static function get_library_sentinel_js() {
+        return <<<'PMW_SENTINEL_JS'
+(function () {
+	if (window.pmwLibrarySentinel) return;
+	window.pmwLibrarySentinel = true;
+	var check = function () {
+		if (window.pmw && window.pmw.bus) return;
+		var runnable = false;
+		var scripts = document.getElementsByTagName("script");
+		for (var i = 0; i < scripts.length; i++) {
+			var script = scripts[i];
+			var source = script.getAttribute("src") || "";
+			for (var a = 0; a < script.attributes.length; a++) {
+				if (/src$/i.test(script.attributes[a].name)) source += " " + script.attributes[a].value;
+			}
+			if (source.indexOf("pmw-public") === -1) continue;
+			var type = (script.getAttribute("type") || "").toLowerCase();
+			if (type && !/^(text|application)\/(javascript|ecmascript)$|^module$/.test(type)) return;
+			if (script.getAttribute("src") && script.getAttribute("src").indexOf("pmw-public") !== -1) runnable = true;
+		}
+		if (!runnable) return;
+		console.warn("Pixel Manager: the data layer is on this page, but the Pixel Manager library did not start, so nothing is tracked. Its script (pmw-public) failed to load or threw an error: check the console and the network tab. An \"Invalid or unexpected token\" error usually means the server sends the file compressed (Brotli or gzip) without a Content-Encoding header. An ad blocker or a JavaScript optimizer can also stop it.");
+	};
+	var schedule = function () { setTimeout(check, 0); };
+	if (document.readyState === "complete") schedule(); else window.addEventListener("load", schedule);
+})();
+PMW_SENTINEL_JS;
     }
 
     /**
@@ -2220,6 +2349,12 @@ class Pixel_Manager {
             return array_merge( $data, [] );
         }
         if ( !Shop::can_order_confirmation_be_processed( $order ) ) {
+            // Tell the library why no order data follows when the only reason is
+            // the order duplication prevention, so it can log that the purchase was
+            // already reported and how to test it again (nodedupe). @since 1.71.1
+            if ( Shop::is_order_confirmation_suppressed_as_already_fired( $order ) ) {
+                $data['order_suppressed'] = 'already_fired';
+            }
             return array_merge( $data, [] );
         }
         return array_merge( $data, $this->get_order_data( $order ) );
@@ -2576,6 +2711,24 @@ class Pixel_Manager {
     }
 
     public static function save_conversion_pixels_fired_status( $order, $source = 'thankyou_page' ) {
+        // Serialized per order, so two confirmations arriving together cannot
+        // both pass the latch below and count the order twice. @since 1.71.1
+        self::with_tracking_accuracy_lock( $order, function ( $order ) use($source) {
+            self::record_conversion_pixels_fired( $order, $source );
+        } );
+    }
+
+    /**
+     * The body of save_conversion_pixels_fired_status(). Callers must hold the
+     * tracking accuracy lock for this order.
+     *
+     * @param \WC_Order $order
+     * @param string    $source
+     *
+     * @return void
+     * @since 1.71.1
+     */
+    private static function record_conversion_pixels_fired( $order, $source ) {
         // Guard against double pixel-fire incrementing
         $already_fired = $order->meta_exists( '_wpm_conversion_pixel_fired' );
         $order->update_meta_data( '_wpm_conversion_pixel_trigger', $source );
@@ -2609,19 +2762,23 @@ class Pixel_Manager {
         // Orders excluded from the accuracy denominator must also stay out of the
         // numerator, otherwise measured could exceed total for a bucket (e.g. a
         // pay-for-order link on an admin-created order reaching the confirmation page).
-        if ( !$already_fired && Shop::should_count_order_for_tracking_accuracy( $order ) ) {
+        // That includes orders without _wpm_process_through_wpm, which the total
+        // counter refuses. @since 1.71.1
+        if ( !$already_fired && $order->meta_exists( '_wpm_process_through_wpm' ) && Shop::should_count_order_for_tracking_accuracy( $order ) ) {
             $payment_method = $order->get_payment_method();
             if ( !empty( $payment_method ) ) {
                 $date_created = $order->get_date_created();
                 if ( $date_created ) {
+                    $date = gmdate( 'Y-m-d', $date_created->getTimestamp() );
                     // Ensure orders_total is bucketed against the same final gateway before
                     // recording orders_measured. Idempotent — counts at most once per order.
                     // Covers gateways whose status-transition hook may not have fired yet
                     // (e.g. delayed webhook/IPN), guaranteeing measured ≤ total per bucket.
                     // @since 1.58.10
-                    self::pmw_count_order_total_on_payment_finalized( $order );
+                    self::count_order_total( $order );
+                    self::move_order_total_to_gateway( $order, $date, $payment_method );
                     Tracking_Accuracy_DB::increment_orders_measured(
-                        gmdate( 'Y-m-d', $date_created->getTimestamp() ),
+                        $date,
                         $payment_method,
                         $source,
                         $time_diff
@@ -2629,6 +2786,37 @@ class Pixel_Manager {
                 }
             }
         }
+    }
+
+    /**
+     * Move the order's counted total to the gateway the order has now.
+     *
+     * The total is counted under the gateway the order has when payment is
+     * finalized, the tracked count under the one it has when the confirmation
+     * page reports. A gateway that changes payment_method in between (one
+     * payment plugin offering card, wallet and bank payments, for example)
+     * left the total in one row and the tracked count in another, so one
+     * gateway read above 100% and the other read low.
+     *
+     * Orders counted before 1.71.1 carry no stored gateway and stay where
+     * they are.
+     *
+     * @param \WC_Order $order          The order, its total already counted.
+     * @param string    $date           Order creation date in Y-m-d format.
+     * @param string    $payment_method The order's current payment method.
+     *
+     * @return void
+     * @since 1.71.1
+     */
+    private static function move_order_total_to_gateway( $order, $date, $payment_method ) {
+        $counted_gateway = (string) $order->get_meta( '_pmw_orders_total_gateway' );
+        if ( '' === $counted_gateway || $counted_gateway === $payment_method ) {
+            return;
+        }
+        Tracking_Accuracy_DB::move_orders_total( $date, $counted_gateway, $payment_method );
+        Logger::debug( 'Tracking accuracy: order ' . $order->get_id() . ' changed payment method from ' . $counted_gateway . ' to ' . $payment_method . ' after its total was counted, moved the total' );
+        $order->update_meta_data( '_pmw_orders_total_gateway', $payment_method );
+        $order->save();
     }
 
     public function front_end_scripts() {

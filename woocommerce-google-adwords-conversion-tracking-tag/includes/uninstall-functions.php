@@ -92,6 +92,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 			'pmw_broker_health',
 			'pmw_click_ids_capture_start',
 			'pmw_cookie_delivery',
+			'pmw_script_dependencies_missing',
 
 			// Tracking accuracy
 			'pmw_tracking_accuracy_db_version',
@@ -116,6 +117,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 		// Most recent Google Ads Data Manager upload outcome + backfill state (experimental feature)
 		delete_option('pmw_google_dma_last_upload');
 		delete_option('pmw_google_dma_backfill');
+		delete_option('pmw_google_dma_backfill_handled');
 
 		// Universal click ID snapshot on orders (premium feature)
 		delete_metadata('post', 0, '_pmw_click_ids', '', true);

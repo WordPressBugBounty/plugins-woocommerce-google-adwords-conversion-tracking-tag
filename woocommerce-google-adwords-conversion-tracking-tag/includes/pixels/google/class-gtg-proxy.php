@@ -737,7 +737,7 @@ class GTG_Proxy {
 
 		// Validate tag ID
 		if (!self::validate_tag_id($tag_id)) {
-			self::log_proxy_event( 'Invalid tag ID format', [ 'tag_id' => $tag_id ], 'warning' );
+			self::log_proxy_event( 'Invalid tag ID format', [ 'tag_id' => $tag_id ], 'debug' );
 			return new \WP_Error('invalid_tag_id', 'Invalid Google Tag ID format', [ 'status' => 400 ]);
 		}
 

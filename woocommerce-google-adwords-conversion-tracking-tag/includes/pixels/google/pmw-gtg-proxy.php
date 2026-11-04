@@ -348,7 +348,10 @@ if ( isset( $_GET['healthCheck'] ) ) {
 		$configured_priority = isset( $level_priority[ $log_level ] ) ? $level_priority[ $log_level ] : 3;
 
 		if ( 6 <= $configured_priority ) { // info level = 6
-			$content_dir = self::get_content_directory( $config );
+			// Top-level code has no class scope, so self:: was a fatal error that
+			// failed every health check with info logging on. The class below is
+			// declared at compile time, so it is callable here. @since 1.71.1
+			$content_dir = PMW_GTG_Proxy_Standalone::get_content_directory( $config );
 			$debug_log   = $content_dir ? $content_dir . '/debug.log' : null;
 			if ( $debug_log ) {
 				$timestamp = gmdate( 'd-M-Y H:i:s \U\T\C' );
@@ -608,13 +611,13 @@ final class PMW_GTG_Proxy_Standalone {
 			$destination_path = self::build_destination_path( $s_path, $_GET, $tag_id, $path );
 
 			if ( empty( $tag_id ) ) {
-				self::log( 'Missing tag ID', [], 'warning' );
+				self::log( 'Missing tag ID', [], 'debug' );
 				http_response_code( 400 );
 				exit( 'Missing tag ID' );
 			}
 
 			if ( ! self::validate_tag_id( $tag_id ) ) {
-				self::log( 'Invalid tag ID format', [ 'tag_id' => $tag_id ], 'warning' );
+				self::log( 'Invalid tag ID format', [ 'tag_id' => $tag_id ], 'debug' );
 				http_response_code( 400 );
 				exit( 'Invalid tag ID' );
 			}
@@ -778,13 +781,13 @@ final class PMW_GTG_Proxy_Standalone {
 
 		// Validate tag ID
 		if ( empty( $tag_id ) ) {
-			self::log( 'Missing tag ID in direct access', [], 'warning' );
+			self::log( 'Missing tag ID in direct access', [], 'debug' );
 			http_response_code( 400 );
 			exit( 'Missing tag ID' );
 		}
 
 		if ( ! self::validate_tag_id( $tag_id ) ) {
-			self::log( 'Invalid tag ID format in direct access', [ 'tag_id' => $tag_id ], 'warning' );
+			self::log( 'Invalid tag ID format in direct access', [ 'tag_id' => $tag_id ], 'debug' );
 			http_response_code( 400 );
 			exit( 'Invalid tag ID' );
 		}
@@ -1530,9 +1533,11 @@ final class PMW_GTG_Proxy_Standalone {
 	 * @param array $config The proxy config.
 	 * @return string|false The content directory, or false if none was found.
 	 *
+	 * Public because the health check, which runs outside the class, uses it too.
+	 *
 	 * @since 1.70.1
 	 */
-	private static function get_content_directory( $config ) {
+	public static function get_content_directory( $config ) {
 
 		$here = realpath( __DIR__ );
 

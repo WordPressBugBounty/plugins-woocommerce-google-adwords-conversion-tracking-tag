@@ -37,8 +37,8 @@ class Admin {
         add_action( 'admin_menu', [__CLASS__, 'plugin_admin_add_page'], 99 );
         // add the WordPress dashboard overview widget
         Dashboard_Widget::init();
-        // Sync the dev theme switcher query param to a cookie (before output).
-        add_action( 'admin_init', [__CLASS__, 'persist_theme_choice'] );
+        // Clear the retired per-user interface choice (before output).
+        add_action( 'admin_init', [__CLASS__, 'clean_up_legacy_theme_choice'] );
         // install a settings page in the admin console
         add_action( 'admin_init', [__CLASS__, 'plugin_admin_init'] );
         add_action( 'admin_init', [__CLASS__, 'add_order_extra_details'] );
@@ -2211,52 +2211,25 @@ class Admin {
 			</div>
 		</div>
 
-		<?php 
-        if ( self::nova_build_available() ) {
-            ?>
-			<style>
-				.pmw-nova-switch { margin: 14px 0 4px; font-size: 13px; color: #50575e; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-				.pmw-nova-switch a { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; font-weight: 600;
-					background: linear-gradient(135deg, #2271b1 0%, #5b3fd9 100%); color: #fff; padding: 6px 14px; border-radius: 7px; }
-				.pmw-nova-switch a:hover { color: #fff; }
-			</style>
-			<div class="pmw-nova-switch">
-				<span><?php 
-            esc_html_e( "You're using the Classic interface.", 'woocommerce-google-adwords-conversion-tracking-tag' );
-            ?></span>
-				<a href="<?php 
-            echo esc_url( add_query_arg( 'pmw_theme', 'wp' ) );
-            ?>">
-					<?php 
-            esc_html_e( 'Switch to the new Nova interface', 'woocommerce-google-adwords-conversion-tracking-tag' );
-            ?> &rarr;
-				</a>
-			</div>
-		<?php 
-        }
-        ?>
 
 		<?php 
     }
 
     // ─── Admin UI theme helpers ───────────
     /**
-     * Persist the ?pmw_theme query parameter (set by the theme switcher) as
-     * per-user meta so the choice survives across sessions, browsers and
-     * devices.
+     * Clear the retired per-user interface choice.
      *
-     * Runs on admin_init (before output) so headers can still be sent for the
-     * legacy cookie cleanup below.
+     * Up to 1.71.0 a user could switch back to the Classic interface, kept in
+     * pmw_admin_theme user meta (and before 1.62.0 in a session cookie). Since
+     * 1.71.1 every user is on Nova and the only way back to Classic is the
+     * pmw_use_classic_admin_interface filter, so neither is read any more. Both
+     * are removed here when the user opens the settings page.
      *
-     * Up to 1.61.x the choice was kept in a session cookie, which evaporated
-     * whenever the browser closed. Now that Nova is the default for every
-     * install, a switch back to Classic has to stick, so the choice lives in
-     * user meta. The old cookie is no longer read; if one is still around we
-     * expire it here.
+     * Runs on admin_init (before output) so the cookie can still be expired.
      *
-     * @since 1.62.0
+     * @since 1.71.1
      */
-    public static function persist_theme_choice() {
+    public static function clean_up_legacy_theme_choice() {
         // Only relevant on the PMW settings page.
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if ( !isset( $_GET['page'] ) || 'pmw' !== sanitize_text_field( wp_unslash( $_GET['page'] ) ) ) {
@@ -2274,43 +2247,36 @@ class Admin {
                 $cookie_path
             );
         }
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if ( !isset( $_GET['pmw_theme'] ) ) {
-            return;
-        }
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $theme = sanitize_text_field( wp_unslash( $_GET['pmw_theme'] ) );
-        if ( in_array( $theme, ['classic', 'wp'], true ) ) {
-            update_user_meta( get_current_user_id(), 'pmw_admin_theme', $theme );
+        $user_id = get_current_user_id();
+        if ( $user_id && '' !== get_user_meta( $user_id, 'pmw_admin_theme', true ) ) {
+            delete_user_meta( $user_id, 'pmw_admin_theme' );
         }
     }
 
     /**
      * Resolve which admin design system is active: 'wp' (Nova) | 'classic'.
      *
-     * Resolution order:
-     *  1. ?pmw_theme query param (set by the theme switcher)
-     *  2. pmw_admin_theme user meta (persisted choice, see persist_theme_choice())
-     *  3. the default (Nova)
-     * Nova falls back to classic if its build output is missing.
+     * Nova for everyone. The pmw_use_classic_admin_interface filter is the
+     * escape hatch for a shop that hits a problem in Nova; there is no UI
+     * switch any more. Nova falls back to Classic if the WordPress version is
+     * too old or its build output is missing.
      *
      * @return string
      *
      * @since 1.59.0
      */
     private static function get_active_admin_theme() {
-        $valid = ['classic', 'wp'];
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if ( isset( $_GET['pmw_theme'] ) ) {
-            // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $requested = sanitize_text_field( wp_unslash( $_GET['pmw_theme'] ) );
-            if ( in_array( $requested, $valid, true ) ) {
-                return self::theme_with_build_fallback( $requested );
-            }
-        }
-        $user_choice = get_user_meta( get_current_user_id(), 'pmw_admin_theme', true );
-        if ( in_array( $user_choice, $valid, true ) ) {
-            return self::theme_with_build_fallback( $user_choice );
+        /**
+         * Render the legacy Classic settings interface instead of Nova.
+         *
+         * Usage: add_filter('pmw_use_classic_admin_interface', '__return_true');
+         *
+         * @param bool $use_classic Whether to render the Classic interface. Default false.
+         *
+         * @since 1.71.1
+         */
+        if ( apply_filters( 'pmw_use_classic_admin_interface', false ) ) {
+            return 'classic';
         }
         return self::theme_with_build_fallback( self::get_default_admin_theme() );
     }
@@ -2319,8 +2285,8 @@ class Admin {
      * The default admin design system: Nova, for every install.
      *
      * Since 1.62.0 Nova is the default everywhere, including installs that
-     * predate it. An explicit choice is persisted per user (see
-     * persist_theme_choice()).
+     * predate it. Since 1.71.1 it is the only choice in the UI; see
+     * get_active_admin_theme() for the filter override.
      *
      * @return string 'wp' | 'classic'
      *
@@ -2357,22 +2323,6 @@ class Admin {
     }
 
     /**
-     * Whether switching to Nova will actually land on Nova.
-     *
-     * True only when the WordPress version is supported AND the Nova build
-     * output is present. Used to gate the "Switch to Nova" entry points so a
-     * click can never dead-end back on Classic (which theme_with_build_fallback
-     * would silently do when the build is missing).
-     *
-     * @return bool
-     *
-     * @since 1.59.0
-     */
-    public static function nova_build_available() {
-        return self::nova_wp_version_supported() && file_exists( plugin_dir_path( PMW_PLUGIN_FILE ) . 'js/admin/wp/pmw-admin-wp.js' );
-    }
-
-    /**
      * Fall back to the classic UI if the requested theme's build output is absent.
      *
      * @param string $theme
@@ -2382,8 +2332,7 @@ class Admin {
      * @since 1.59.0
      */
     private static function theme_with_build_fallback( $theme ) {
-        // Every resolution path (query param, cookie, install default) runs
-        // through here, so old WordPress cores always land on Classic.
+        // Old WordPress cores always land on Classic.
         if ( 'wp' === $theme && !self::nova_wp_version_supported() ) {
             return 'classic';
         }
@@ -2488,6 +2437,9 @@ class Admin {
             'sspFailedDestinations'            => ( Options::is_ssp_active() ? Options::get_ssp_failed_destinations() : [] ),
             'sspQuotaExceeded'                 => Options::is_ssp_active() && Options::is_ssp_quota_exceeded(),
             'sspProxyFailureBehavior'          => Options::get_ssp_proxy_failure_behavior(),
+            'serverFlags'                      => [
+                'pageviewEventsS2sForced' => Options::is_pageview_events_s2s_active_override(),
+            ],
             'trialPromotion'                   => Trial_Promotion_Notification::get_data_for_nova(),
             'askForRating'                     => Ask_For_Rating::get_data_for_nova(),
             'onboarding'                       => Onboarding::get_data_for_nova(),
@@ -2550,16 +2502,17 @@ class Admin {
      */
     public static function get_diagnostics_for_wp_admin() {
         return [
-            'pmwVersion'      => ( defined( 'PMW_CURRENT_VERSION' ) ? PMW_CURRENT_VERSION : '' ),
-            'wpVersion'       => get_bloginfo( 'version' ),
-            'wcVersion'       => ( defined( 'WC_VERSION' ) ? WC_VERSION : (( Environment::is_woocommerce_active() ? 'active' : 'not active' )) ),
-            'phpVersion'      => PHP_VERSION,
-            'memoryLimit'     => (string) WP_MEMORY_LIMIT,
-            'multisite'       => is_multisite(),
-            'wpDebug'         => defined( 'WP_DEBUG' ) && WP_DEBUG,
-            'curl'            => function_exists( 'curl_version' ),
-            'externalCache'   => wp_using_ext_object_cache(),
-            'gatewayAccuracy' => self::get_gateway_accuracy_for_wp_admin(),
+            'pmwVersion'              => ( defined( 'PMW_CURRENT_VERSION' ) ? PMW_CURRENT_VERSION : '' ),
+            'wpVersion'               => get_bloginfo( 'version' ),
+            'wcVersion'               => ( defined( 'WC_VERSION' ) ? WC_VERSION : (( Environment::is_woocommerce_active() ? 'active' : 'not active' )) ),
+            'phpVersion'              => PHP_VERSION,
+            'memoryLimit'             => Environment::get_wp_memory_limit(),
+            'multisite'               => is_multisite(),
+            'wpDebug'                 => defined( 'WP_DEBUG' ) && WP_DEBUG,
+            'curl'                    => function_exists( 'curl_version' ),
+            'externalCache'           => wp_using_ext_object_cache(),
+            'scriptDependencyWarning' => \SweetCode\Pixel_Manager\Script_Dependencies::get_warning_message(),
+            'gatewayAccuracy'         => self::get_gateway_accuracy_for_wp_admin(),
         ];
     }
 
@@ -2580,14 +2533,15 @@ class Admin {
     private static function get_gateway_accuracy_for_wp_admin() {
         $transients_enabled = Environment::is_transients_enabled();
         $data = [
-            'transientsEnabled' => $transients_enabled,
-            'canUseAcr'         => Helpers::is_pmw_pro_version_active(),
-            'loadingMessage'    => Debug_Info::tracking_accuracy_loading_message(),
-            'date'              => null,
-            'dataBounds'        => Tracking_Accuracy_DB::get_data_date_bounds(),
-            'gateways'          => [],
-            'perGateway'        => null,
-            'weighted'          => null,
+            'transientsEnabled'    => $transients_enabled,
+            'canUseAcr'            => Helpers::is_pmw_pro_version_active(),
+            'loadingMessage'       => Debug_Info::tracking_accuracy_loading_message(),
+            'date'                 => null,
+            'dataBounds'           => Tracking_Accuracy_DB::get_data_date_bounds(),
+            'gateways'             => [],
+            'perGateway'           => null,
+            'weighted'             => null,
+            'blockedBeaconWarning' => null,
         ];
         if ( !$transients_enabled ) {
             return $data;
@@ -2609,6 +2563,12 @@ class Admin {
         $weighted = Debug_Info::get_gateway_analysis_weighted_array();
         if ( is_array( $weighted ) ) {
             $data['weighted'] = array_map( [__CLASS__, 'map_gateway_accuracy_row'], $weighted );
+        }
+        // On-site gateways at 0% while nothing is measured: the beacon is blocked
+        // or the main script does not run on the order received page.
+        $blocked_beacon_message = Debug_Info::get_blocked_beacon_message( Debug_Info::detect_blocked_beacon( $weighted ) );
+        if ( $blocked_beacon_message ) {
+            $data['blockedBeaconWarning'] = $blocked_beacon_message;
         }
         return $data;
     }

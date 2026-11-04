@@ -538,11 +538,10 @@ class Admin_REST {
 			$titles[(string) $gateway->id] = (string) $gateway->method_title;
 		}
 
-		// Currently-enabled gateways, so the UI can scope the trend to active ones.
-		$enabled_ids = [];
-		foreach (Debug_Info::get_enabled_payment_gateways() as $gateway) {
-			$enabled_ids[(string) $gateway->id] = true;
-		}
+		// Active gateways (enabled, or with orders in the last 30 days), so the UI
+		// can scope the trend to active ones. Legacy IDs that still receive new
+		// orders count as active (Verdict #89).
+		$enabled_ids = array_fill_keys(Debug_Info::get_active_payment_gateway_ids(), true);
 
 		$seen     = [];
 		$gateways = [];

@@ -17,6 +17,13 @@ use WC_Payment_Gateways;
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
 class Debug_Info {
+    /**
+     * Minimum orders an on-site gateway needs before the blocked beacon check fires.
+     *
+     * @since 1.71.1
+     */
+    const BLOCKED_BEACON_MINIMUM_ORDERS = 10;
+
     public static function get_debug_info() {
         try {
             if ( Environment::is_woocommerce_active() ) {
@@ -30,6 +37,10 @@ class Debug_Info {
             $html .= 'Tier:    ' . $tier . PHP_EOL;
             $html .= 'Distro:  ' . PMW_DISTRO . PHP_EOL;
             $html .= 'Plugin basename: ' . PMW_PLUGIN_BASENAME . PHP_EOL;
+            $script_dependency_warning = \SweetCode\Pixel_Manager\Script_Dependencies::get_warning_message();
+            if ( $script_dependency_warning ) {
+                $html .= self::show_warning( true ) . 'Front-end script not output: ' . $script_dependency_warning . PHP_EOL;
+            }
             // if Freemius is active, show the debug info
             $html = self::add_freemius_account_details( $html );
             $html .= PHP_EOL . '## System Environment ##' . PHP_EOL . PHP_EOL;
@@ -122,6 +133,7 @@ class Debug_Info {
                             $html .= 'Purchase confirmation page redirect:            200 (OK)' . PHP_EOL;
                         } else {
                             $html .= self::show_warning( true ) . 'Purchase confirmation page HTTP status:         ' . $redirect_report['final_code'] . ' (ERROR)' . PHP_EOL;
+                            $html .= 'Note: Tested server side. Firewalls and bot protection (for example Cloudflare) often block server requests, so verify in a private browser window before concluding that customers get this status.' . PHP_EOL;
                         }
                     } elseif ( 200 === $redirect_report['final_code'] && self::is_order_confirmation_url( $redirect_report['final_url'], Environment::get_last_order() ) ) {
                         $html .= 'Purchase confirmation page redirect:            ' . implode( ' -> ', $redirect_hops ) . ' -> ' . $redirect_report['final_code'] . ' (OK, ends on the order confirmation page)' . PHP_EOL;
@@ -172,6 +184,11 @@ class Debug_Info {
                 $html .= self::get_gateway_analysis_for_debug_info();
                 $html .= PHP_EOL . 'Purchase confirmation page reached per gateway only active and weighted by frequency:' . PHP_EOL;
                 $html .= self::get_gateway_analysis_weighted_for_debug_info();
+                $blocked_beacon_message = self::get_blocked_beacon_message( self::get_blocked_beacon_gateways() );
+                if ( $blocked_beacon_message ) {
+                    $html .= PHP_EOL . self::show_warning( true ) . 'Purchase confirmation beacon likely blocked:' . PHP_EOL;
+                    $html .= wordwrap( $blocked_beacon_message, 100, PHP_EOL ) . PHP_EOL;
+                }
                 if ( Environment::is_transients_enabled() ) {
                     // Time it took to run the payment gateway analysis
                     if ( get_transient( 'pmw_tracking_accuracy_analysis_date' ) ) {
@@ -588,7 +605,7 @@ class Debug_Info {
         $maximum_orders_to_analyze = self::get_maximum_orders_to_analyze();
         // We want to at least analyze the count of active gateways * 100, or at least all orders in the past 30 days, whichever is larger.
         // And we don't want to exceed the maximum orders to analyze (default 6000).
-        $amount_of_orders_to_analyze = min( $maximum_orders_to_analyze, max( count( self::get_enabled_payment_gateways() ) * 100, self::get_count_of_pmw_tracked_orders_for_one_month() ) );
+        $amount_of_orders_to_analyze = min( $maximum_orders_to_analyze, max( count( self::get_active_payment_gateway_ids() ) * 100, self::get_count_of_pmw_tracked_orders_for_one_month() ) );
         $analysis_stored = self::generate_gateway_analysis( $amount_of_orders_to_analyze );
         // set transient with date
         set_transient( 'pmw_tracking_accuracy_analysis_date', gmdate( 'Y-m-d H:i:s' ), MONTH_IN_SECONDS );
@@ -726,10 +743,7 @@ class Debug_Info {
     public static function get_gateway_analysis_weighted_array() {
         // Prefer the custom DB table when it has data
         if ( Tracking_Accuracy_DB::has_data() ) {
-            $enabled_gateways = self::get_enabled_payment_gateways();
-            $enabled_ids = array_map( function ( $gateway ) {
-                return $gateway->id;
-            }, $enabled_gateways );
+            $enabled_ids = self::get_active_payment_gateway_ids();
             if ( !empty( $enabled_ids ) ) {
                 $rows = Tracking_Accuracy_DB::get_accuracy_data( 30, $enabled_ids );
                 if ( !empty( $rows ) ) {
@@ -755,6 +769,124 @@ class Debug_Info {
     }
 
     /**
+     * IDs of payment gateways that take the payment on the shop's own checkout.
+     *
+     * The customer never leaves the shop, so a missing return redirect cannot
+     * explain an order that never reached the purchase confirmation page.
+     * Cards and wallets only: the redirect methods of the same plugins
+     * (stripe_ideal, woocommerce_payments_bancontact, ...) are left out.
+     *
+     * @return string[]
+     * @since 1.71.1
+     */
+    public static function get_onsite_payment_gateway_ids() {
+        $ids = [
+            'bacs',
+            'cheque',
+            'cod',
+            'stripe',
+            'stripe_cc',
+            'stripe_applepay',
+            'stripe_googlepay',
+            'woocommerce_payments',
+            'ppcp-credit-card-gateway',
+            'square_credit_card',
+            'braintree_credit_card',
+            'authorize_net_cim_credit_card'
+        ];
+        /**
+         * Filters the payment gateway IDs that are treated as on-site gateways
+         * by the blocked confirmation beacon check in the tracking accuracy report.
+         *
+         * @param string[] $ids Gateway IDs.
+         * @since 1.71.1
+         */
+        return (array) apply_filters( 'pmw_onsite_payment_gateway_ids', $ids );
+    }
+
+    /**
+     * Detect a blocked purchase confirmation beacon from the accuracy rows.
+     *
+     * Fires when at least one on-site gateway has BLOCKED_BEACON_MINIMUM_ORDERS
+     * or more orders and none of them was measured, while no active gateway
+     * measured a single order. A redirect cannot explain that, because the
+     * customer of an on-site gateway never leaves the shop. What remains is the
+     * beacon request being blocked, or the main script never running on the
+     * order received page. One gateway at 0% while others measure points at a
+     * gateway specific problem instead, so that case does not fire.
+     *
+     * Uses the beacon-only count (order_count_measured), not the count including
+     * conversions recovered by ACR, because ACR succeeds without the beacon.
+     *
+     * @param array $rows Weighted gateway analysis rows (see get_gateway_analysis_weighted_array()).
+     * @return array List of affected rows ([ 'gateway_id', 'order_count_total' ]), empty when the check does not fire.
+     * @since 1.71.1
+     */
+    public static function detect_blocked_beacon( $rows ) {
+        if ( !is_array( $rows ) || empty( $rows ) ) {
+            return [];
+        }
+        $onsite_ids = self::get_onsite_payment_gateway_ids();
+        $affected = [];
+        foreach ( $rows as $row ) {
+            if ( !isset( $row['gateway_id'], $row['order_count_total'], $row['order_count_measured'] ) ) {
+                continue;
+            }
+            // The beacon worked at least once in the window, so it is not blocked.
+            if ( (int) $row['order_count_measured'] > 0 ) {
+                return [];
+            }
+            if ( in_array( $row['gateway_id'], $onsite_ids, true ) && (int) $row['order_count_total'] >= self::BLOCKED_BEACON_MINIMUM_ORDERS ) {
+                $affected[] = [
+                    'gateway_id'        => (string) $row['gateway_id'],
+                    'order_count_total' => (int) $row['order_count_total'],
+                ];
+            }
+        }
+        return $affected;
+    }
+
+    /**
+     * Affected on-site gateways when the confirmation beacon looks blocked.
+     *
+     * @return array See detect_blocked_beacon().
+     * @since 1.71.1
+     */
+    public static function get_blocked_beacon_gateways() {
+        if ( !Environment::is_transients_enabled() ) {
+            return [];
+        }
+        return self::detect_blocked_beacon( self::get_gateway_analysis_weighted_array() );
+    }
+
+    /**
+     * Plain text explanation of a blocked confirmation beacon.
+     *
+     * Shared by the debug info, the Diagnostics tab and the accuracy opportunity
+     * card so that all three say the same thing.
+     *
+     * @param array $affected Rows returned by detect_blocked_beacon().
+     * @return string Empty when nothing is affected.
+     * @since 1.71.1
+     */
+    public static function get_blocked_beacon_message( $affected ) {
+        if ( empty( $affected ) ) {
+            return '';
+        }
+        $gateways = [];
+        foreach ( $affected as $row ) {
+            $gateways[] = $row['gateway_id'] . ' (0 of ' . $row['order_count_total'] . ')';
+        }
+        return sprintf(
+            /* translators: 1: list of payment gateways with their order counts, 2: REST route of the beacon, 3: admin-ajax action of the fallback */
+            __( 'Not a single order was measured on the purchase confirmation page, including orders paid with on-site payment gateways: %1$s. With these gateways the customer never leaves the shop, so a payment redirect cannot explain the gap. The likely cause is that the order confirmation beacon (%2$s, with the admin-ajax fallback %3$s) is blocked by a firewall (WAF), bot protection or cache rule, or that the main Pixel Manager script does not execute on the order received page, for example because it is served with a wrong content type or encoding, or an optimization plugin breaks it. Place a test order and check in the browser developer tools on the order received page that the Pixel Manager scripts load without errors and that the beacon request returns HTTP 200.', 'woocommerce-google-adwords-conversion-tracking-tag' ),
+            implode( ', ', $gateways ),
+            '/wp-json/pmw/v1/pixels-fired/',
+            'pmw_purchase_pixels_fired'
+        );
+    }
+
+    /**
      * Generate both unweighted and weighted gateway analysis in a single pass.
      *
      * Fetches order IDs (not full objects) and bulk-loads only the meta fields
@@ -767,11 +899,8 @@ class Debug_Info {
      * @since 1.58.5
      */
     public static function generate_gateway_analysis( $limit ) {
-        $enabled_gateways = self::get_enabled_payment_gateways();
-        $enabled_ids = array_map( function ( $gateway ) {
-            return $gateway->id;
-        }, $enabled_gateways );
-        // Initialize weighted analysis for enabled gateways
+        $enabled_ids = self::get_active_payment_gateway_ids();
+        // Initialize weighted analysis for active gateways (enabled, or with recent orders)
         $weighted = [];
         foreach ( $enabled_ids as $gateway_id ) {
             $weighted[$gateway_id] = [
@@ -1045,7 +1174,101 @@ class Debug_Info {
         }
     }
 
+    /**
+     * Look-back window for get_recent_order_payment_method_ids(), matching the
+     * 30 day window of the accuracy report.
+     */
+    const ACTIVE_GATEWAY_ORDER_DAYS = 30;
+
+    /**
+     * Upper bound of orders read when the accuracy table has no data yet.
+     */
+    const ACTIVE_GATEWAY_FALLBACK_ORDER_LIMIT = 500;
+
+    /**
+     * Per-request cache for get_recent_order_payment_method_ids().
+     *
+     * @var string[]|null
+     */
+    private static $recent_order_payment_method_ids = null;
+
+    /**
+     * IDs of the payment gateways the tracking accuracy report treats as active:
+     * the enabled, available gateways plus every gateway ID that received orders
+     * in the last 30 days.
+     *
+     * The second part covers gateway IDs that a plugin still writes to new orders
+     * although no gateway object with that ID is enabled, for example legacy
+     * Stripe IDs such as stripe_cc while the official Stripe gateway processes
+     * the payment. Without it their orders dropped out of the active view and the
+     * weighted report (Verdict #89).
+     *
+     * @return string[]
+     * @since 1.71.1
+     */
+    public static function get_active_payment_gateway_ids() {
+        $ids = [];
+        foreach ( self::get_enabled_payment_gateways() as $gateway ) {
+            $ids[] = (string) $gateway->id;
+        }
+        $ids = array_merge( $ids, self::get_recent_order_payment_method_ids() );
+        return array_values( array_unique( array_filter( $ids, 'strlen' ) ) );
+    }
+
+    /**
+     * Payment method IDs of orders created in the last ACTIVE_GATEWAY_ORDER_DAYS days.
+     *
+     * Reads the aggregate accuracy table when it has data (bounded by days times
+     * gateways). Before the table is filled it reads the payment method of at most
+     * ACTIVE_GATEWAY_FALLBACK_ORDER_LIMIT recent orders through wc_get_orders()
+     * and one bulk meta query, which works with HPOS and the posts table alike.
+     *
+     * @return string[]
+     * @since 1.71.1
+     */
+    public static function get_recent_order_payment_method_ids() {
+        if ( null !== self::$recent_order_payment_method_ids ) {
+            return self::$recent_order_payment_method_ids;
+        }
+        if ( Tracking_Accuracy_DB::has_data() ) {
+            self::$recent_order_payment_method_ids = Tracking_Accuracy_DB::get_gateway_ids_with_orders( self::ACTIVE_GATEWAY_ORDER_DAYS );
+            return self::$recent_order_payment_method_ids;
+        }
+        $ids = [];
+        if ( function_exists( 'wc_get_orders' ) ) {
+            $order_ids = wc_get_orders( [
+                'limit'        => self::ACTIVE_GATEWAY_FALLBACK_ORDER_LIMIT,
+                'type'         => 'shop_order',
+                'orderby'      => 'ID',
+                'order'        => 'DESC',
+                'status'       => ['completed', 'processing', 'on-hold'],
+                'date_created' => '>' . (time() - self::ACTIVE_GATEWAY_ORDER_DAYS * DAY_IN_SECONDS),
+                'return'       => 'ids',
+            ] );
+            foreach ( self::get_bulk_order_meta( ( is_array( $order_ids ) ? $order_ids : [] ) ) as $meta ) {
+                if ( '' !== (string) $meta['payment_method'] ) {
+                    $ids[(string) $meta['payment_method']] = true;
+                }
+            }
+        }
+        self::$recent_order_payment_method_ids = array_keys( $ids );
+        return self::$recent_order_payment_method_ids;
+    }
+
+    /**
+     * Reset the per-request cache of get_recent_order_payment_method_ids(), for tests.
+     *
+     * @return void
+     * @since 1.71.1
+     */
+    public static function reset_recent_order_payment_method_ids_cache() {
+        self::$recent_order_payment_method_ids = null;
+    }
+
     public static function get_enabled_payment_gateways() {
+        if ( !function_exists( 'WC' ) || !WC() || empty( WC()->payment_gateways ) ) {
+            return [];
+        }
         $gateways = WC()->payment_gateways->get_available_payment_gateways();
         $enabled_gateways = [];
         if ( $gateways ) {

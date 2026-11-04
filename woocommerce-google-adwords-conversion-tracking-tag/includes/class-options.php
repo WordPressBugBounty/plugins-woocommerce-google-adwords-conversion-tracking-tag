@@ -32,6 +32,46 @@ class Options {
 
 	private static $did_init = false;
 
+	/**
+	 * Pixels a shop manager can pause, keyed by the pixel ID the admin
+	 * interface uses. A paused pixel keeps all of its settings but sends
+	 * nothing, neither from the browser nor server-side.
+	 *
+	 * @since 1.71.1
+	 */
+	const PAUSABLE_PIXELS = [
+		'google_ads',
+		'ga4',
+		'facebook',
+		'bing',
+		'tiktok',
+		'pinterest',
+		'snapchat',
+		'reddit',
+		'openai',
+		'twitter',
+		'linkedin',
+		'adroll',
+		'outbrain',
+		'taboola',
+		'groundtruth',
+		'criteo',
+		'nextdoor',
+		'spotify',
+		'applovin',
+		'hotjar',
+		'crazyegg',
+		'contentsquare',
+		'clarity',
+		'triple_whale',
+		'hyros',
+		'mixpanel',
+		'klaviyo',
+		'ab_tasty',
+		'optimizely',
+		'vwo',
+	];
+
 	private static function init() {
 
 		// If already initialized, do nothing
@@ -443,8 +483,10 @@ class Options {
 				'destination_results'         => [], // Per-destination credential-validation results from the last sync
 				'destination_results_checked' => 0, // Unix timestamp of the last destination health check
 			],
-			'db_version' => PMW_DB_VERSION,
-			'timestamp'  => null, // This will be set when the options are saved
+			// Unix timestamp from when each pixel was paused, 0 while it tracks.
+			'paused_pixels' => array_fill_keys(self::PAUSABLE_PIXELS, 0),
+			'db_version'    => PMW_DB_VERSION,
+			'timestamp'     => null, // This will be set when the options are saved
 		];
 	}
 
@@ -540,6 +582,67 @@ class Options {
 	}
 
 	/**
+	 * Paused pixels
+	 */
+
+	/**
+	 * When a pixel was paused.
+	 *
+	 * @param string $pixel Pixel ID from Options::PAUSABLE_PIXELS.
+	 *
+	 * @return int Unix timestamp, 0 when the pixel is not paused.
+	 *
+	 * @since 1.71.1
+	 */
+	public static function get_pixel_paused_since( $pixel ) {
+
+		$options = self::get_options();
+
+		if (!isset($options['paused_pixels'][ $pixel ])) {
+			return 0;
+		}
+
+		return max(0, (int) $options['paused_pixels'][ $pixel ]);
+	}
+
+	/**
+	 * Whether the shop manager paused a pixel. A paused pixel keeps its
+	 * settings, but every active check reports it as inactive, so it sends
+	 * nothing from the browser or the server.
+	 *
+	 * @param string $pixel Pixel ID from Options::PAUSABLE_PIXELS.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.71.1
+	 */
+	public static function is_pixel_paused( $pixel ) {
+		return self::get_pixel_paused_since($pixel) > 0;
+	}
+
+	/**
+	 * All paused pixels.
+	 *
+	 * @return array<string, int> Pixel ID => Unix timestamp of the pause.
+	 *
+	 * @since 1.71.1
+	 */
+	public static function get_paused_pixels() {
+
+		$paused = [];
+
+		foreach (self::PAUSABLE_PIXELS as $pixel) {
+			$since = self::get_pixel_paused_since($pixel);
+
+			if ($since > 0) {
+				$paused[ $pixel ] = $since;
+			}
+		}
+
+		return $paused;
+	}
+
+	/**
 	 * Facebook (Meta)
 	 */
 
@@ -548,7 +651,8 @@ class Options {
 	}
 
 	public static function is_facebook_active() {
-		return (bool) self::get_facebook_pixel_id();
+		return (bool) self::get_facebook_pixel_id()
+			&& !self::is_pixel_paused('facebook');
 	}
 
 	public static function get_facebook_capi_token() {
@@ -600,7 +704,8 @@ class Options {
 	}
 
 	public static function is_tiktok_active() {
-		return (bool) self::get_tiktok_pixel_id();
+		return (bool) self::get_tiktok_pixel_id()
+			&& !self::is_pixel_paused('tiktok');
 	}
 
 	public static function is_tiktok_eapi_test_event_code_set() {
@@ -624,7 +729,8 @@ class Options {
 	}
 
 	public static function is_hotjar_enabled() {
-		return (bool) self::get_hotjar_site_id();
+		return (bool) self::get_hotjar_site_id()
+			&& !self::is_pixel_paused('hotjar');
 	}
 
 	/**
@@ -636,7 +742,8 @@ class Options {
 	}
 
 	public static function is_crazyegg_enabled() {
-		return (bool) self::get_crazyegg_account_number();
+		return (bool) self::get_crazyegg_account_number()
+			&& !self::is_pixel_paused('crazyegg');
 	}
 
 	/**
@@ -648,7 +755,8 @@ class Options {
 	}
 
 	public static function is_bing_active() {
-		return (bool) self::get_bing_uet_tag_id();
+		return (bool) self::get_bing_uet_tag_id()
+			&& !self::is_pixel_paused('bing');
 	}
 
 	public static function is_bing_enhanced_conversions_enabled() {
@@ -683,7 +791,8 @@ class Options {
 	}
 
 	public static function is_snapchat_active() {
-		return (bool) self::get_snapchat_pixel_id();
+		return (bool) self::get_snapchat_pixel_id()
+			&& !self::is_pixel_paused('snapchat');
 	}
 
 	public static function is_snapchat_advanced_matching_enabled() {
@@ -707,7 +816,8 @@ class Options {
 	}
 
 	public static function is_pinterest_active() {
-		return (bool) self::get_pinterest_pixel_id();
+		return (bool) self::get_pinterest_pixel_id()
+			&& !self::is_pixel_paused('pinterest');
 	}
 
 	public static function get_pinterest_ad_account_id() {
@@ -724,7 +834,9 @@ class Options {
 	}
 
 	public static function is_pinterest_apic_active() {
-		return self::get_pinterest_ad_account_id() && self::get_pinterest_apic_token();
+		return self::get_pinterest_ad_account_id()
+			&& self::get_pinterest_apic_token()
+			&& !self::is_pixel_paused('pinterest');
 	}
 
 	public static function is_pinterest_advanced_matching_active() {
@@ -740,7 +852,8 @@ class Options {
 	}
 
 	public static function is_twitter_active() {
-		return (bool) self::get_twitter_pixel_id();
+		return (bool) self::get_twitter_pixel_id()
+			&& !self::is_pixel_paused('twitter');
 	}
 
 	public static function get_twitter_event_ids() {
@@ -760,7 +873,8 @@ class Options {
 	}
 
 	public static function is_google_ads_active() {
-		return (bool) self::get_google_ads_conversion_id();
+		return (bool) self::get_google_ads_conversion_id()
+			&& !self::is_pixel_paused('google_ads');
 	}
 
 	/**
@@ -775,7 +889,8 @@ class Options {
 	 * @since 1.65.2
 	 */
 	public static function is_google_ads_active_early() {
-		return (bool) self::get_stored_option_value([ 'google', 'ads', 'conversion_id' ]);
+		return (bool) self::get_stored_option_value([ 'google', 'ads', 'conversion_id' ])
+			&& !self::get_stored_option_value([ 'paused_pixels', 'google_ads' ]);
 	}
 
 	public static function get_google_ads_conversion_label() {
@@ -787,7 +902,7 @@ class Options {
 	}
 
 	public static function is_google_ads_conversion_active() {
-		return self::get_google_ads_conversion_id() && self::get_google_ads_conversion_label();
+		return self::is_google_ads_active() && self::get_google_ads_conversion_label();
 	}
 
 	public static function is_google_enhanced_conversions_active() {
@@ -863,7 +978,8 @@ class Options {
 	}
 
 	public static function is_ga4_enabled() {
-		return (bool) self::get_ga4_measurement_id();
+		return (bool) self::get_ga4_measurement_id()
+			&& !self::is_pixel_paused('ga4');
 	}
 
 	public static function get_ga4_data_api_property_id() {
@@ -903,7 +1019,8 @@ class Options {
 	 * @since 1.65.2
 	 */
 	public static function is_google_analytics_active_early() {
-		return (bool) self::get_stored_option_value([ 'google', 'analytics', 'ga4', 'measurement_id' ]);
+		return (bool) self::get_stored_option_value([ 'google', 'analytics', 'ga4', 'measurement_id' ])
+			&& !self::get_stored_option_value([ 'paused_pixels', 'ga4' ]);
 	}
 
 	public static function get_ga4_mp_api_secret() {
@@ -1034,7 +1151,8 @@ class Options {
 	}
 
 	public static function is_adroll_active() {
-		return self::is_adroll_advertiser_id_set() && self::is_adroll_pixel_id_set();
+		return self::is_adroll_advertiser_id_set() && self::is_adroll_pixel_id_set()
+			&& !self::is_pixel_paused('adroll');
 	}
 
 	/**
@@ -1046,7 +1164,8 @@ class Options {
 	}
 
 	public static function is_linkedin_active() {
-		return (bool) self::get_linkedin_partner_id();
+		return (bool) self::get_linkedin_partner_id()
+			&& !self::is_pixel_paused('linkedin');
 	}
 
 	public static function get_linkedin_conversion_id( $event ) {
@@ -1066,7 +1185,8 @@ class Options {
 	}
 
 	public static function is_outbrain_active() {
-		return (bool) self::get_outbrain_advertiser_id();
+		return (bool) self::get_outbrain_advertiser_id()
+			&& !self::is_pixel_paused('outbrain');
 	}
 
 	/**
@@ -1078,7 +1198,8 @@ class Options {
 	}
 
 	public static function is_reddit_active() {
-		return (bool) self::get_reddit_advertiser_id();
+		return (bool) self::get_reddit_advertiser_id()
+			&& !self::is_pixel_paused('reddit');
 	}
 
 	public static function is_reddit_advanced_matching_enabled() {
@@ -1110,7 +1231,8 @@ class Options {
 	}
 
 	public static function is_openai_active() {
-		return (bool) self::get_openai_pixel_id();
+		return (bool) self::get_openai_pixel_id()
+			&& !self::is_pixel_paused('openai');
 	}
 
 	public static function is_openai_advanced_matching_enabled() {
@@ -1134,7 +1256,8 @@ class Options {
 	}
 
 	public static function is_taboola_active() {
-		return (bool) self::get_taboola_account_id();
+		return (bool) self::get_taboola_account_id()
+			&& !self::is_pixel_paused('taboola');
 	}
 
 	/**
@@ -1146,7 +1269,8 @@ class Options {
 	}
 
 	public static function is_vwo_active() {
-		return (bool) self::get_vwo_account_id();
+		return (bool) self::get_vwo_account_id()
+			&& !self::is_pixel_paused('vwo');
 	}
 
 	/**
@@ -1158,7 +1282,8 @@ class Options {
 	}
 
 	public static function is_optimizely_active() {
-		return (bool) self::get_optimizely_project_id();
+		return (bool) self::get_optimizely_project_id()
+			&& !self::is_pixel_paused('optimizely');
 	}
 
 	/**
@@ -1170,7 +1295,8 @@ class Options {
 	}
 
 	public static function is_ab_tasty_active() {
-		return (bool) self::get_ab_tasty_account_id();
+		return (bool) self::get_ab_tasty_account_id()
+			&& !self::is_pixel_paused('ab_tasty');
 	}
 
 	/**
@@ -1182,7 +1308,8 @@ class Options {
 	}
 
 	public static function is_contentsquare_active() {
-		return (bool) self::get_contentsquare_tag_id();
+		return (bool) self::get_contentsquare_tag_id()
+			&& !self::is_pixel_paused('contentsquare');
 	}
 
 	/**
@@ -1194,7 +1321,8 @@ class Options {
 	}
 
 	public static function is_clarity_active() {
-		return (bool) self::get_clarity_project_id();
+		return (bool) self::get_clarity_project_id()
+			&& !self::is_pixel_paused('clarity');
 	}
 
 	/**
@@ -1206,7 +1334,8 @@ class Options {
 	}
 
 	public static function is_groundtruth_active() {
-		return (bool) self::get_groundtruth_gtid();
+		return (bool) self::get_groundtruth_gtid()
+			&& !self::is_pixel_paused('groundtruth');
 	}
 
 	/**
@@ -1218,7 +1347,8 @@ class Options {
 	}
 
 	public static function is_criteo_active() {
-		return (bool) self::get_criteo_account_id();
+		return (bool) self::get_criteo_account_id()
+			&& !self::is_pixel_paused('criteo');
 	}
 
 	public static function is_criteo_advanced_matching_enabled() {
@@ -1234,7 +1364,8 @@ class Options {
 	}
 
 	public static function is_nextdoor_active() {
-		return (bool) self::get_nextdoor_pixel_id();
+		return (bool) self::get_nextdoor_pixel_id()
+			&& !self::is_pixel_paused('nextdoor');
 	}
 
 	public static function is_nextdoor_advanced_matching_enabled() {
@@ -1268,7 +1399,8 @@ class Options {
 	}
 
 	public static function is_spotify_active() {
-		return (bool) self::get_spotify_pixel_id();
+		return (bool) self::get_spotify_pixel_id()
+			&& !self::is_pixel_paused('spotify');
 	}
 
 	public static function is_spotify_advanced_matching_enabled() {
@@ -1300,7 +1432,8 @@ class Options {
 	}
 
 	public static function is_applovin_active() {
-		return (bool) self::get_applovin_event_key();
+		return (bool) self::get_applovin_event_key()
+			&& !self::is_pixel_paused('applovin');
 	}
 
 	public static function is_applovin_advanced_matching_enabled() {
@@ -1320,7 +1453,8 @@ class Options {
 	 */
 
 	public static function is_triple_whale_active() {
-		return (bool) self::get_options_obj()->pixels->triple_whale->enabled;
+		return (bool) self::get_options_obj()->pixels->triple_whale->enabled
+			&& !self::is_pixel_paused('triple_whale');
 	}
 
 	/**
@@ -1334,7 +1468,8 @@ class Options {
 	}
 
 	public static function is_hyros_active() {
-		return (bool) self::get_hyros_product_hash();
+		return (bool) self::get_hyros_product_hash()
+			&& !self::is_pixel_paused('hyros');
 	}
 
 	/**
@@ -1374,7 +1509,8 @@ class Options {
 	}
 
 	public static function is_mixpanel_active() {
-		return (bool) self::get_mixpanel_project_token();
+		return (bool) self::get_mixpanel_project_token()
+			&& !self::is_pixel_paused('mixpanel');
 	}
 
 	/**
@@ -1455,7 +1591,8 @@ class Options {
 	}
 
 	public static function is_klaviyo_active() {
-		return (bool) self::get_klaviyo_public_api_key();
+		return (bool) self::get_klaviyo_public_api_key()
+			&& !self::is_pixel_paused('klaviyo');
 	}
 
 	public static function get_klaviyo_events_api_token() {

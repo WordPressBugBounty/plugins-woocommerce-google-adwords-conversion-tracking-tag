@@ -108,6 +108,13 @@ class Payment_Gateway_Accuracy extends Opportunity {
 			),
 		];
 
+		// On-site gateways at 0% while nothing at all is measured cannot be a
+		// redirect problem. Say what it most likely is instead.
+		$blocked_beacon_message = Debug_Info::get_blocked_beacon_message(Debug_Info::get_blocked_beacon_gateways());
+		if ($blocked_beacon_message) {
+			$descriptions[1] = esc_html($blocked_beacon_message);
+		}
+
 		// Build the gateway list for the description
 		if (!empty($gateways_below_threshold)) {
 			$gateway_details = [];

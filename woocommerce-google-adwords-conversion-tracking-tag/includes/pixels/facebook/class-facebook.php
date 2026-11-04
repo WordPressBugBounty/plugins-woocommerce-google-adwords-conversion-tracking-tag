@@ -25,6 +25,11 @@ class Facebook {
 	 */
 	public static function get_pixel_identifiers() {
 
+		// A paused Meta pixel pauses the additional pixels from the filter too.
+		if (Options::is_pixel_paused('facebook')) {
+			return [];
+		}
+
 		$identifiers = [];
 
 		if (Options::get_facebook_pixel_id()) {

@@ -2364,7 +2364,12 @@ class Environment {
 		}
 
 		/**
-		 * Reddit for WooCommerce
+		 * Reddit for WooCommerce and Snapchat for WooCommerce
+		 *
+		 * Both come from the same codebase. The tracking data filter only
+		 * switches off their browser script; the base pixel in wp_head, the
+		 * purchase event in wp_footer and the Conversions API calls are sent
+		 * from PHP hooks, so those callbacks are unhooked too.
 		 */
 
 		if (Options::is_reddit_active()) {
@@ -2374,6 +2379,19 @@ class Environment {
 				$data['is_conversion_enabled'] = false;
 				return $data;
 			});
+
+			self::disable_ad_partner_plugin_tracking('RedditForWooCommerce', 'reddit_for_woocommerce');
+		}
+
+		if (Options::is_snapchat_active()) {
+
+			add_filter('snapchat_for_woocommerce_filter_tracking_data', function ( $data ) {
+				$data['is_pixel_enabled']      = false;
+				$data['is_conversion_enabled'] = false;
+				return $data;
+			});
+
+			self::disable_ad_partner_plugin_tracking('SnapchatForWooCommerce', 'snapchat_for_woocommerce');
 		}
 
 		/**
@@ -2528,9 +2546,12 @@ class Environment {
 	 * something really did slip through the removals, which is exactly when we
 	 * want to hear about it.
 	 *
-	 * tt4b_pixel_code is read nowhere outside the plugin's pixel class, so
-	 * filtering it cannot affect the catalog sync, the order sync or the
-	 * settings screen.
+	 * The filter answers false on storefront requests only. Other plugins read
+	 * tt4b_pixel_code too: WooAds checks it from its admin REST routes and
+	 * scheduled jobs, and a false there showed every store a high "TikTok
+	 * pixel missing" finding that pointed the merchant into the TikTok
+	 * plugin's setup. The back office never sends events, so it keeps the
+	 * real value.
 	 *
 	 * @return void
 	 *
@@ -2549,7 +2570,138 @@ class Environment {
 		remove_action('woocommerce_payment_complete', [ $pixel_class, 'inject_purchase_event' ]);
 		remove_action('woocommerce_thankyou', [ $pixel_class, 'inject_purchase_event' ]);
 
-		add_filter('option_tt4b_pixel_code', '__return_false');
+		add_filter('option_tt4b_pixel_code', function ( $value ) {
+			return self::is_storefront_request() ? false : $value;
+		});
+	}
+
+	/**
+	 * Unhooks the event senders of Reddit for WooCommerce or Snapchat for WooCommerce.
+	 *
+	 * Neither plugin offers a filter that stops its PHP side. Their tracking
+	 * services register on woocommerce_loaded, which WooCommerce fires on
+	 * plugins_loaded priority -1, before any PMW code runs, so their own
+	 * "enabled" options cannot be filtered in time. The services are in the
+	 * container, out of reach, and some callbacks are closures, so the
+	 * callbacks are found by owner instead: every callback whose object, or
+	 * whose closure's $this, is a class in the plugin's Tracking namespace.
+	 *
+	 * Only the hooks the two services use are searched, plus the plugin's own
+	 * admin AJAX actions and its queued conversion send. Settings, catalog sync
+	 * and the account connection keep working. Verified against Reddit for
+	 * WooCommerce 1.0.7 and Snapchat for WooCommerce 1.0.7.
+	 *
+	 * Runs on init priority 0. The earliest of these hooks is
+	 * woocommerce_add_to_cart on a wc-ajax request, from template_redirect
+	 * priority 0.
+	 *
+	 * @param string $plugin_namespace The plugin's root PHP namespace.
+	 * @param string $plugin_slug      The plugin's hook prefix.
+	 *
+	 * @return void
+	 *
+	 * @since 1.71.1
+	 */
+	private static function disable_ad_partner_plugin_tracking( $plugin_namespace, $plugin_slug ) {
+
+		global $wp_filter;
+
+		$hooks = [
+			'wp_head',
+			'wp_footer',
+			'woocommerce_loop_add_to_cart_link',
+			'woocommerce_after_add_to_cart_button',
+			'woocommerce_after_add_to_cart_quantity',
+			'woocommerce_thankyou',
+			'woocommerce_add_to_cart',
+			$plugin_slug . '_send_conversion_event',
+			$plugin_slug . '_conversion_sent',
+		];
+
+		foreach (array_keys((array) $wp_filter) as $hook_name) {
+			if (
+				0 === strpos($hook_name, 'wp_ajax_' . $plugin_slug . '_')
+				|| 0 === strpos($hook_name, 'wp_ajax_nopriv_' . $plugin_slug . '_')
+			) {
+				$hooks[] = $hook_name;
+			}
+		}
+
+		$tracking_namespace = $plugin_namespace . '\\Tracking\\';
+
+		foreach ($hooks as $hook_name) {
+
+			if (!isset($wp_filter[ $hook_name ])) {
+				continue;
+			}
+
+			foreach ($wp_filter[ $hook_name ]->callbacks as $priority => $callbacks) {
+				foreach ($callbacks as $callback) {
+					$owner = self::get_callback_owner($callback['function']);
+
+					if ($owner && 0 === strpos(get_class($owner), $tracking_namespace)) {
+						remove_filter($hook_name, $callback['function'], $priority);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * The object a hook callback runs on: the object of an [object, method]
+	 * pair, or the $this a closure is bound to.
+	 *
+	 * @param mixed $callback A hook callback.
+	 *
+	 * @return object|null
+	 *
+	 * @since 1.71.1
+	 */
+	private static function get_callback_owner( $callback ) {
+
+		if (is_array($callback) && isset($callback[0]) && is_object($callback[0])) {
+			return $callback[0];
+		}
+
+		if ($callback instanceof \Closure) {
+			$reflection = new \ReflectionFunction($callback);
+
+			return $reflection->getClosureThis();
+		}
+
+		return null;
+	}
+
+	/**
+	 * Whether the current request can send storefront tracking events.
+	 *
+	 * Decided when it is asked rather than when the hooks are added, because
+	 * REST_REQUEST is only defined once WordPress parses the request, long
+	 * after init. A REST request counts only on the Store API (wc/store),
+	 * which the block cart and checkout use. Admin AJAX counts, because
+	 * storefront scripts post to it too.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.71.1
+	 */
+	private static function is_storefront_request() {
+
+		if (wp_doing_cron() || ( defined('WP_CLI') && WP_CLI )) {
+			return false;
+		}
+
+		if (is_admin() && !wp_doing_ajax()) {
+			return false;
+		}
+
+		if (defined('REST_REQUEST') && REST_REQUEST) {
+			$route = isset($GLOBALS['wp']->query_vars['rest_route']) ? (string) $GLOBALS['wp']->query_vars['rest_route'] : '';
+
+			return 0 === strpos(ltrim($route, '/'), 'wc/store');
+		}
+
+		return true;
 	}
 
 	/**

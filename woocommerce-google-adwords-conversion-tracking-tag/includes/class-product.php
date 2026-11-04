@@ -710,7 +710,7 @@ class Product {
 			// The marker is skipped for deferred output. It gets re-injected
 			// into the loop items by print_deferred_product_data_layer_scripts.
 			?>
-			<input type="hidden" class="pmwProductId" data-id="<?php echo (int) $product->get_id(); ?>">
+			<input type="hidden" class="pmwProductId" data-id="<?php echo (int) $product->get_id(); ?>"<?php self::print_loop_list_attribute(); ?>>
 			<?php
 		}
 
@@ -723,6 +723,59 @@ class Product {
 		</script>
 		<?php
 		// phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	/**
+	 * Print the data-list attribute that names the product list a loop item belongs to.
+	 *
+	 * The browser groups view_item_list and select_item by product list. It
+	 * finds the list container in the page itself, this attribute only adds
+	 * what the markup cannot tell: "main" for the main loop of a shop,
+	 * category, tag or search page, which keeps the page-level list ID and
+	 * name, or the WooCommerce loop name (related, up-sells, cross-sells, or
+	 * the type of a products shortcode) for secondary lists.
+	 *
+	 * @since 1.71.1
+	 */
+	private static function print_loop_list_attribute() {
+
+		$list = self::get_loop_list_key();
+
+		if ('' !== $list) {
+			echo ' data-list="' . esc_attr($list) . '"';
+		}
+	}
+
+	/**
+	 * The list key of the loop currently being rendered, or an empty string.
+	 *
+	 * @return string
+	 * @since 1.71.1
+	 */
+	public static function get_loop_list_key() {
+
+		if (!function_exists('wc_get_loop_prop')) {
+			return '';
+		}
+
+		$name = (string) wc_get_loop_prop('name');
+
+		if ('' !== $name) {
+			return sanitize_key($name);
+		}
+
+		$is_archive = is_shop() || is_product_taxonomy() || is_search();
+
+		if (
+			$is_archive
+			&& !wc_get_loop_prop('is_shortcode')
+			&& in_the_loop()
+			&& is_main_query()
+		) {
+			return 'main';
+		}
+
+		return '';
 	}
 
 	public static function get_product_data_layer_script_html_part_2( $product ) {

@@ -2393,6 +2393,10 @@ class Validations {
 
 		$value = $type_check['value'];
 
+		if (0 === strpos($path, 'paused_pixels.')) {
+			return [ 'valid' => true, 'value' => self::normalize_pixel_pause_value($value) ];
+		}
+
 		// Only validate string values. Booleans, integers and arrays pass through.
 		if (!is_string($value)) {
 			return [ 'valid' => true, 'value' => $value ];
@@ -2423,6 +2427,44 @@ class Validations {
 		}
 
 		return [ 'valid' => true, 'value' => $value ];
+	}
+
+	/**
+	 * Turn a submitted pause value into the stored Unix timestamp.
+	 *
+	 * The admin interface sends the time of the pause. An agent or a snippet
+	 * may send true or 1 instead, which stamps the current time, and anything
+	 * empty or false resumes the pixel. A timestamp in the future is clamped
+	 * to now, so the "paused since" reminder can never count backwards.
+	 *
+	 * @param mixed $value Submitted value.
+	 *
+	 * @return int Unix timestamp, 0 to resume.
+	 *
+	 * @since 1.71.1
+	 */
+	private static function normalize_pixel_pause_value( $value ) {
+
+		if (true === $value) {
+			return time();
+		}
+
+		if (!is_numeric($value)) {
+			return 0;
+		}
+
+		$value = (int) $value;
+
+		if ($value <= 0) {
+			return 0;
+		}
+
+		// 1 and other small numbers mean "pause now", not a date in 1970.
+		if ($value < 1000000000) {
+			return time();
+		}
+
+		return min($value, time());
 	}
 
 	/**

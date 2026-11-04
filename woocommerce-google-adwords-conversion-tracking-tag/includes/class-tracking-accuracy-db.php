@@ -226,6 +226,56 @@ class Tracking_Accuracy_DB {
 	}
 
 	/**
+	 * Move one order's orders_total from one gateway to another on the same date.
+	 *
+	 * Some gateways change an order's payment method after payment is finalized,
+	 * when its total has already been counted. The tracked count is filed under
+	 * the final gateway, so the total follows it there. Otherwise the final
+	 * gateway reads above 100% and the first one reads low by the same amount.
+	 *
+	 * @param string $date         Order creation date in Y-m-d format.
+	 * @param string $from_gateway The gateway the total was counted under.
+	 * @param string $to_gateway   The gateway the order has now.
+	 *
+	 * @return void
+	 * @since 1.71.1
+	 */
+	public static function move_orders_total( $date, $from_gateway, $to_gateway ) {
+
+		if (empty($date) || empty($from_gateway) || empty($to_gateway) || $from_gateway === $to_gateway) {
+			return;
+		}
+
+		if (!self::table_exists()) {
+			return;
+		}
+
+		global $wpdb;
+
+		try {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query(
+				$wpdb->prepare(
+					// The column is unsigned, so never subtract below zero.
+					'UPDATE ' . esc_sql( self::get_table_name() ) . ' SET orders_total = orders_total - 1 WHERE `date` = %s AND gateway_id = %s AND orders_total > 0',
+					$date,
+					$from_gateway
+				)
+			);
+
+			if ($wpdb->last_error) {
+				Logger::debug('Tracking accuracy DB: move_orders_total error: ' . $wpdb->last_error);
+				return;
+			}
+		} catch (\Exception $e) {
+			Logger::debug('Tracking accuracy DB: move_orders_total exception: ' . $e->getMessage());
+			return;
+		}
+
+		self::increment_orders_total($date, $to_gateway);
+	}
+
+	/**
 	 * Increment orders_measured (or orders_acr) for a date+gateway when a pixel fire is confirmed.
 	 *
 	 * @param string $date       Order creation date in Y-m-d format.
@@ -396,6 +446,41 @@ class Tracking_Accuracy_DB {
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Payment gateway IDs that received at least one order in the last $days days.
+	 *
+	 * Reads the aggregate table (one row per day and gateway), so the cost is
+	 * bounded by days times gateways, not by the number of orders.
+	 *
+	 * @param int $days Look-back window in days.
+	 *
+	 * @return string[]
+	 * @since 1.71.1
+	 */
+	public static function get_gateway_ids_with_orders( $days = 30 ) {
+
+		if (!self::table_exists()) {
+			return [];
+		}
+
+		global $wpdb;
+
+		$date_cutoff = gmdate('Y-m-d', strtotime('-' . absint($days) . ' days'));
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				'SELECT DISTINCT gateway_id
+				FROM ' . esc_sql( self::get_table_name() ) . "
+				WHERE `date` >= %s AND orders_total > 0 AND gateway_id <> ''",
+				$date_cutoff
+			)
+		);
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+		return array_values(array_map('strval', (array) $ids));
 	}
 
 	/**

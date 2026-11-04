@@ -335,6 +335,37 @@ class Shop {
     }
 
     public static function can_order_confirmation_be_processed( $order ) {
+        return null === self::get_order_confirmation_block_reason( $order );
+    }
+
+    /**
+     * Whether the order confirmation is held back only because the conversion
+     * pixels already fired for this order, which the order duplication
+     * prevention does to avoid double counting.
+     *
+     * The library logs this on the order confirmation page, together with the
+     * nodedupe parameter that lets a merchant test the purchase again. Without
+     * it, a merchant reloading a confirmation page saw a page view and nothing
+     * else and took the purchase tracking for broken.
+     *
+     * @param \WC_Order|object $order The order.
+     * @return bool
+     *
+     * @since 1.71.1
+     */
+    public static function is_order_confirmation_suppressed_as_already_fired( $order ) {
+        return 'already_fired' === self::get_order_confirmation_block_reason( $order );
+    }
+
+    /**
+     * Why the order confirmation may not be processed, or null when it may.
+     *
+     * @param \WC_Order|object $order The order.
+     * @return string|null One of 'status', 'renewal', 'user', 'filter', 'already_fired', or null.
+     *
+     * @since 1.71.1
+     */
+    private static function get_order_confirmation_block_reason( $order ) {
         $filter_order = Order_Data::unwrap( $order );
         $conversion_prevention = apply_filters_deprecated(
             'wgact_conversion_prevention',
@@ -362,15 +393,15 @@ class Shop {
         $conversion_prevention = apply_filters( 'pmw_conversion_prevention', $conversion_prevention, $filter_order );
         // If order is in failed, cancelled or refunded status, skip the order confirmation
         if ( self::is_order_confirmation_not_allowed_status( $order ) ) {
-            return false;
+            return 'status';
         }
         // If this user role is not allowed to be tracked, skip the order confirmation
         if ( self::do_not_track_user() ) {
-            return false;
+            return 'user';
         }
         // If the conversion prevention filter is set to true, skip the order confirmation
         if ( $conversion_prevention ) {
-            return false;
+            return 'filter';
         }
         // A manual renewal is paid through the checkout, so unlike an automatic one it
         // does reach the purchase confirmation page and fires the browser pixels. The
@@ -378,7 +409,7 @@ class Shop {
         // Recovery, which would otherwise recover exactly the conversions the shop
         // asked us not to report. @since 1.67.1
         if ( self::do_not_track_subscription_renewal() && self::is_wcs_renewal_order( $order ) ) {
-            return false;
+            return 'renewal';
         }
         // If the order deduplication is deactivated, either through the setting or through
         // the &nodedupe URL parameter, the order confirmation may be processed again.
@@ -391,13 +422,13 @@ class Shop {
         //
         // @since 1.64.1
         if ( self::is_order_duplication_prevention_disabled() ) {
-            return true;
+            return null;
         }
         // if the conversion pixels have not been fired yet, we can process the order confirmation
         if ( self::has_conversion_pixel_already_fired( $order ) !== true ) {
-            return true;
+            return null;
         }
-        return false;
+        return 'already_fired';
     }
 
     public static function is_order_duplication_prevention_disabled() {
@@ -1279,12 +1310,16 @@ class Shop {
 
     public static function view_item_list_trigger_settings() {
         $settings = [
-            'test_mode'        => false,
-            'background_color' => 'green',
-            'opacity'          => 0.5,
-            'repeat'           => true,
-            'timeout'          => 1000,
-            'threshold'        => 0.8,
+            'test_mode'          => false,
+            'background_color'   => 'green',
+            'opacity'            => 0.5,
+            'repeat'             => true,
+            'timeout'            => 1000,
+            'threshold'          => 0.8,
+            'batching'           => true,
+            'batch_idle_timeout' => 1500,
+            'batch_max_wait'     => 10000,
+            'batch_max_items'    => 25,
         ];
         $settings = apply_filters_deprecated(
             'wooptpm_view_item_list_trigger_settings',
@@ -1384,6 +1419,12 @@ class Shop {
      * object cache entry is dropped first, because a request that loaded the
      * session at its start holds the old value there.
      *
+     * Skipped where WooCommerce saves only the keys a request changed
+     * (WooCommerce 11.4+, woocommerce/woocommerce#46483). There our write no
+     * longer touches the cart, and refreshing it would make the cart one of
+     * our changes, so a product added between the refresh and our save would
+     * be dropped again.
+     *
      * @return void
      *
      * @since 1.69.0
@@ -1393,6 +1434,9 @@ class Shop {
             return;
         }
         $session = WC()->session;
+        if ( self::session_saves_only_changed_keys( $session ) ) {
+            return;
+        }
         if ( !method_exists( $session, 'get_session' ) || !method_exists( $session, 'get_customer_id' ) ) {
             return;
         }
@@ -1416,6 +1460,26 @@ class Shop {
             }
             $session->set( $key, maybe_unserialize( $stored[$key] ) );
         }
+    }
+
+    /**
+     * Whether the session handler merges a request's changed keys into the
+     * stored session instead of overwriting it with the whole snapshot.
+     *
+     * Both WooCommerce handlers do since 11.4. A third-party handler that does
+     * not extend them keeps the full overwrite, so it is treated as not merging.
+     *
+     * @param object $session The WooCommerce session.
+     *
+     * @return bool
+     *
+     * @since 1.71.1
+     */
+    private static function session_saves_only_changed_keys( $session ) {
+        if ( !class_exists( 'Automattic\\WooCommerce\\Internal\\Session\\SessionDataWriter' ) ) {
+            return false;
+        }
+        return $session instanceof \WC_Session_Handler || $session instanceof \Automattic\WooCommerce\StoreApi\SessionHandler;
     }
 
     public static function get_value_from_woocommerce_session( $key, $default = null ) {

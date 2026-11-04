@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, google analytics, facebook pixel, woocomm
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.71.0
+Stable tag: 1.72.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -338,6 +338,33 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.72.0  =
+*Release date - 04.11.2026*
+
+* New: Each configured pixel now has an on/off switch that pauses it without losing its settings, stopping both browser and server-side tracking until it is resumed. Paused pixels are marked clearly on the Tracking Pixels tab, the Dashboard and the WordPress dashboard widget
+* New: view_item_list now sends one event per product list with every item and its position, instead of one event per product, to GA4, Google Ads, Klaviyo, Mixpanel and Criteo. Related products and theme or page builder widgets such as WoodMart's count as their own lists, and grouped events still go out when the visitor leaves the page
+* Tweak: The payment gateway tracking accuracy report now warns when on-site gateways such as Stripe and WooPayments measure no orders at all. That points at a firewall or cache rule blocking the order confirmation beacon, or the Pixel Manager script not running on the order received page, not at a payment redirect
+* Tweak: The Google Tag Gateway proxy now logs requests without a valid tag ID, which crawlers send to the gateway URL, at debug level instead of as warnings, so they no longer flood the debug log
+* Tweak: When a theme or plugin deregisters jQuery or wp-hooks, WordPress silently drops the Pixel Manager script and no pixel loads; the debug info and the Diagnostics tab now report it and name the missing script
+* Tweak: The debug info now notes that a failing purchase confirmation page HTTP status was tested server side, since firewalls and bot protection often block such requests while buyers load the page fine
+* Tweak: The tracking pixel search now also finds pixels by the names people know them under, so searching for ChatGPT shows the OpenAI pixel
+* Tweak: Every user now gets the Nova settings interface, and the switch back to the Classic interface is gone from the Support page. If Nova runs into a problem on a site, the `pmw_use_classic_admin_interface` filter brings back the Classic interface
+* Tweak: With the logger on (pmwloggeron), the order confirmation page now says when the order duplication prevention held back an already reported purchase, and names the nodedupe parameter that tests it again
+* Tweak: The browser console now warns when the data layer is on a page but the Pixel Manager library did not start, for example because the server sends its script compressed without a Content-Encoding header
+* Fix: WooAds no longer reports a missing TikTok pixel on shops where the Pixel Manager runs TikTok. The TikTok for WooCommerce pixel code is now hidden only on storefront requests, where its tracking stays off
+* Fix: Reddit for WooCommerce no longer sends its base pixel, purchase and Conversions API events next to the Pixel Manager's Reddit pixel, and Snapchat for WooCommerce is now switched off the same way when the Pixel Manager runs Snapchat
+* Fix: When another plugin or a script optimizer keeps a WordPress core script such as wp-components from loading, the settings page now names the missing script and how to fix it, instead of crashing with a generic interface error
+* Fix: The standalone Google Tag Gateway proxy now passes its health check when logging is set to info or debug. The check crashed, so the Google tag went through the slower WordPress handler instead
+* Fix: When the standalone Google Tag Gateway proxy fails to serve the Google tag, it now loads through the WordPress handler before falling back to Google directly, and the visitor's next pages skip the failed proxy instead of failing the same way
+* Fix: The payment gateway tracking accuracy report now counts a gateway as active when it received orders in the last 30 days, so orders that a disabled legacy plugin still files under its ID, such as stripe_cc, no longer drop out of the active view and the weighted accuracy
+* Fix: The payment gateway tracking accuracy report no longer shows a gateway above 100%. An order whose payment method changed after payment now moves its total to the new gateway, and two confirmations arriving at once, or an order placed before the Pixel Manager was active, no longer count as an extra tracked order
+* Fix: The Environment card on the Diagnostics page now shows the same WordPress memory limit as the debug info, the higher of WP_MEMORY_LIMIT and the PHP memory_limit, instead of the WP_MEMORY_LIMIT constant alone
+* Fix: Usercentrics Accept, Deny and Save choices now reach the Pixel Manager. With current Usercentrics versions, Meta and other marketing pixels stayed off on the page where the visitor accepted, and from the next page on they loaded even for visitors who had denied
+* Fix: One rate-limited or failed request no longer moves the visitor's whole session from the REST API to admin-ajax.php. Only a network error or a missing or blocked REST route does that now; anything else falls back for that request alone
+* Fix: On shops that ask for consent first, pixels such as Meta that load when the visitor accepts the banner now receive the landing page view and product view of that page, once and with the original event IDs, so ad landing pages are tracked
+* Fix: GA4 view_item_list and select_item events now send each product's list position as the item index, which a field name mismatch had dropped. The index counts from 0, as GA4 expects, also on search results
+* Fix: Pinterest product views are sent as PageVisit again instead of ViewContent, on the tag and the Conversions API. Pinterest requires PageVisit with a product ID for the Verified Merchant Program and catalog sales campaigns, and has flagged such tags as needing attention since 1.67.0
 
 = 1.71.0  =
 *Release date - 20.10.2026*

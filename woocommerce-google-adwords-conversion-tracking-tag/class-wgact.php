@@ -28,6 +28,7 @@ use SweetCode\Pixel_Manager\Options;
 use SweetCode\Pixel_Manager\Pixels\Google\GTG_Monitor;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Product;
+use SweetCode\Pixel_Manager\S2S;
 use SweetCode\Pixel_Manager\SSP_Purchase_Proxy;
 use SweetCode\Pixel_Manager\SSP_Sync;
 use SweetCode\Pixel_Manager\Shop;

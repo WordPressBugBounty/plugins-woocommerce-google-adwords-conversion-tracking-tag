@@ -523,6 +523,21 @@ class Broker_Client {
 			} else {
 				self::clear_reconnect_incident('google');
 			}
+
+			/**
+			 * Fires after the daily status sync with the connection service.
+			 *
+			 * The status carries more than connection health: it is also where
+			 * the service asks this shop to do work only the shop can do, such
+			 * as re-sending uploads that failed. An action rather than a direct
+			 * call, because the listeners live in premium-only classes this
+			 * file must not name.
+			 *
+			 * @since 1.71.1
+			 *
+			 * @param array $status The decoded /v1/status response body.
+			 */
+			do_action('pmw_broker_status_synced', $google['body']);
 		}
 
 		$meta = self::broker_request('GET', '/v1/meta/status');
@@ -925,15 +940,22 @@ class Broker_Client {
 	 * and relays the request to Google. Used by the experimental Google Ads
 	 * Data Manager upload when the auth method is set to broker.
 	 *
-	 * @param array $payload The full events:ingest request body.
+	 * @param array $payload     The full events:ingest request body.
+	 * @param bool  $is_backfill Whether this recovers an upload that failed
+	 *                           earlier, rather than carrying a live purchase.
 	 *
 	 * @return array { success: bool, code: int, request_id: string, error_message: string, field_warnings: array[] }
 	 *
 	 * @since 1.66.0
 	 */
-	public static function datamanager_ingest( $payload ) {
+	public static function datamanager_ingest( $payload, $is_backfill = false ) {
 
-		$result = self::broker_request('POST', '/v1/ads/datamanager/ingest', $payload, true);
+		// The broker holds a daily allowance per site with a reserve for live
+		// conversions. A backfill says so, so recovering an old order can
+		// never be the reason a new purchase fails to upload. @since 1.71.1
+		$headers = $is_backfill ? [ 'X-PMW-DMA-Backfill' => '1' ] : [];
+
+		$result = self::broker_request('POST', '/v1/ads/datamanager/ingest', $payload, true, $headers);
 
 		$error_message = '';
 

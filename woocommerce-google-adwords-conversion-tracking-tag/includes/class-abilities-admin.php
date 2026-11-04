@@ -224,7 +224,7 @@ class Abilities_Admin {
 						'end'           => [ 'type' => [ 'string', 'null' ] ],
 						'canUseAcr'     => [ 'type' => 'boolean', 'description' => 'Automatic Conversion Recovery is available (Pro)' ],
 						'alwaysSendS2s' => [ 'type' => 'boolean' ],
-						'gateways'      => [ 'type' => 'array', 'description' => 'Gateways with id, methodTitle and enabled' ],
+						'gateways'      => [ 'type' => 'array', 'description' => 'Gateways with id, methodTitle and enabled (active: enabled in WooCommerce, or received orders in the last 30 days, which covers legacy gateway IDs still written to new orders)' ],
 						'rows'          => [ 'type' => 'array', 'description' => 'One row per day and gateway: date, gatewayId, total, measured, acr, delaySum, consentExcluded' ],
 					],
 				],
@@ -712,6 +712,34 @@ class Abilities_Admin {
 
 	private static function data_manager_definitions() {
 
+		// Read only. A backfill is started by the connection service, which is
+		// the side that can see an outage across shops, not from inside the
+		// shop that was its victim - so there is no run or stop ability here,
+		// deliberately.
+		$backfill_output = [
+			'type'       => 'object',
+			'properties' => [
+				'state'   => [
+					'type'       => 'object',
+					'properties' => [
+						'status'      => [ 'type' => 'string', 'description' => 'idle, running, stopped or done' ],
+						'scanned'     => [ 'type' => 'integer', 'description' => 'Orders examined so far' ],
+						'candidates'  => [ 'type' => 'integer', 'description' => 'Orders found with a failed upload' ],
+						'uploaded'    => [ 'type' => 'integer', 'description' => 'Of those, the ones now uploaded' ],
+						'failed'      => [ 'type' => 'integer', 'description' => 'Of those, the ones that failed again' ],
+						'skipped'     => [ 'type' => 'integer', 'description' => 'Of those, the ones a gate or a concurrent send stopped before Google' ],
+						'batches'     => [ 'type' => 'integer' ],
+						'page'        => [ 'type' => 'integer' ],
+						'started_at'  => [ 'type' => 'integer', 'description' => 'Unix timestamp, 0 when never run' ],
+						'finished_at' => [ 'type' => 'integer', 'description' => 'Unix timestamp, 0 while running' ],
+						'newer_than'  => [ 'type' => 'integer', 'description' => 'Oldest order date the run considers, as a Unix timestamp' ],
+						'older_than'  => [ 'type' => 'integer', 'description' => 'Newest order date the run considers, pinned when it started' ],
+						'last_error'  => [ 'type' => 'string', 'description' => 'The most recent failure or pause reason, empty when there is none' ],
+					],
+				],
+			],
+		];
+
 		return [
 			[
 				'name'        => 'pmw/get-google-data-manager-status',
@@ -772,6 +800,16 @@ class Abilities_Admin {
 				'annotations' => [ 'readonly' => true, 'idempotent' => true ],
 				'execute'     => function () {
 					return self::dispatch('POST', '/google/data-manager/test-upload/');
+				},
+			],
+			[
+				'name'        => 'pmw/get-google-data-manager-backfill-status',
+				'label'       => __('Get Google Data Manager Backfill Status', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				'description' => __('Returns the progress of the backfill that re-uploads orders whose Google Ads Data Manager upload failed: whether it is running, how many orders it scanned, how many failed uploads it found and recovered, and the last error it saw.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+				'output'      => $backfill_output,
+				'annotations' => [ 'readonly' => true, 'idempotent' => true ],
+				'execute'     => function () {
+					return self::dispatch('POST', '/google/data-manager/backfill/', [ 'action' => 'status' ]);
 				},
 			],
 		];

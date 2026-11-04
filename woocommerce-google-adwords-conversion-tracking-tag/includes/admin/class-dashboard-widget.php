@@ -65,6 +65,7 @@ class Dashboard_Widget {
 		$plugin_info  = Abilities::execute_get_plugin_info();
 		$summary      = isset($tracking['summary']) ? $tracking['summary'] : [];
 		$active       = isset($tracking['active_pixels']) ? $tracking['active_pixels'] : [];
+		$paused       = isset($tracking['paused_pixels']) ? $tracking['paused_pixels'] : [];
 		$accuracy     = self::get_overall_accuracy(30);
 		$settings_url = admin_url('admin.php?page=pmw');
 
@@ -100,12 +101,12 @@ class Dashboard_Widget {
 				</div>
 			</div>
 
-			<?php if (empty($active)) : ?>
+			<?php if (empty($active) && empty($paused)) : ?>
 				<div class="pmw-dw-empty">
 					<p><?php esc_html_e('No tracking integrations are active yet.', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></p>
 					<a class="button button-primary" href="<?php echo esc_url($settings_url . '#pixels'); ?>"><?php esc_html_e('Set up your first pixel', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></a>
 				</div>
-			<?php else : ?>
+			<?php elseif (!empty($active)) : ?>
 				<div class="pmw-dw-section-title"><?php esc_html_e('Active integrations', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
 				<ul class="pmw-dw-pixels">
 					<?php foreach ($active as $pixel) : ?>
@@ -117,6 +118,10 @@ class Dashboard_Widget {
 						</li>
 					<?php endforeach; ?>
 				</ul>
+			<?php endif; ?>
+
+			<?php if (!empty($paused)) : ?>
+				<?php self::render_paused_pixels($paused, $settings_url); ?>
 			<?php endif; ?>
 
 			<ul class="pmw-dw-checks">
@@ -141,6 +146,47 @@ class Dashboard_Widget {
 				<a href="<?php echo esc_url($settings_url . '#diagnostics'); ?>"><?php esc_html_e('Diagnostics', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></a>
 			</div>
 
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the paused pixels as a quiet reminder.
+	 *
+	 * Paused pixels keep their settings and send nothing. Listing them here
+	 * means a shop manager who wonders why a platform stopped reporting sees
+	 * the reason without opening the settings, and one click resumes them.
+	 *
+	 * @param array  $paused       Paused pixels from the get-tracking-status ability.
+	 * @param string $settings_url Pixel Manager settings URL.
+	 *
+	 * @return void
+	 * @since 1.71.1
+	 */
+	private static function render_paused_pixels( $paused, $settings_url ) {
+		?>
+		<div class="pmw-dw-paused">
+			<div class="pmw-dw-section-title"><?php esc_html_e('Paused', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></div>
+			<ul class="pmw-dw-pixels">
+				<?php foreach ($paused as $pixel) : ?>
+					<li class="pmw-dw-pixel pmw-dw-pixel--paused">
+						<span class="pmw-dw-pixel-label"><?php echo esc_html($pixel['label']); ?></span>
+						<span class="pmw-dw-pixel-since">
+							<?php
+							echo esc_html(sprintf(
+								/* translators: %s: human readable time span, for example "3 days" */
+								__('for %s', 'woocommerce-google-adwords-conversion-tracking-tag'),
+								human_time_diff((int) $pixel['paused_since'], time())
+							));
+							?>
+						</span>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+			<p class="pmw-dw-paused-note">
+				<?php esc_html_e('Paused pixels keep their settings but send no data.', 'woocommerce-google-adwords-conversion-tracking-tag'); ?>
+				<a href="<?php echo esc_url(add_query_arg('pmw_filter', 'paused', $settings_url) . '#pixels'); ?>"><?php esc_html_e('Review paused pixels', 'woocommerce-google-adwords-conversion-tracking-tag'); ?></a>
+			</p>
 		</div>
 		<?php
 	}
@@ -181,10 +227,8 @@ class Dashboard_Widget {
 			return null;
 		}
 
-		// Scope to enabled gateways; fall back to all gateways if none resolve.
-		$enabled_ids = array_map(function ( $gateway ) {
-			return $gateway->id;
-		}, Debug_Info::get_enabled_payment_gateways());
+		// Scope to active gateways (enabled, or with recent orders); fall back to all gateways if none resolve.
+		$enabled_ids = Debug_Info::get_active_payment_gateway_ids();
 
 		$rows = !empty($enabled_ids)
 			? Tracking_Accuracy_DB::get_accuracy_data($days, $enabled_ids)
@@ -272,6 +316,11 @@ class Dashboard_Widget {
 			.pmw-dw-check--fail .pmw-dw-check-icon { color: #8a8f94; background: rgba(120, 120, 120, .15); }
 			.pmw-dw-empty { padding: 14px; margin-bottom: 14px; text-align: center; border-radius: 6px; background: rgba(37, 99, 235, .04); box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .12); }
 			.pmw-dw-empty p { margin: 0 0 10px; color: #646970; }
+			.pmw-dw-paused { margin-bottom: 14px; }
+			.pmw-dw-paused .pmw-dw-pixels { margin-bottom: 6px; }
+			.pmw-dw-pixel--paused { color: #6b4f00; background: rgba(219, 166, 23, .1); box-shadow: inset 0 0 0 1px rgba(219, 166, 23, .4); }
+			.pmw-dw-pixel-since { font-size: 11px; color: #8a6d1a; }
+			.pmw-dw-paused-note { margin: 0; font-size: 12px; color: #646970; }
 			.pmw-dw-footer { display: flex; gap: 16px; padding-top: 12px; border-top: 1px solid #f0f0f1; }
 		</style>
 		<?php
