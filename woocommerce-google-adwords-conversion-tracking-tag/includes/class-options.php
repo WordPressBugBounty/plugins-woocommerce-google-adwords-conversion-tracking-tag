@@ -55,6 +55,7 @@ class Options {
 		'outbrain',
 		'taboola',
 		'groundtruth',
+		'rumble',
 		'criteo',
 		'nextdoor',
 		'spotify',
@@ -363,6 +364,13 @@ class Options {
 				],
 				'groundtruth' => [
 					'gtid' => '',
+				],
+				'rumble'     => [
+					'tag_id'         => '',
+					'conversion_ids' => [
+						'purchase'    => '',
+						'add_to_cart' => '',
+					],
 				],
 				'criteo'     => [
 					'account_id'        => '',
@@ -1336,6 +1344,56 @@ class Options {
 	public static function is_groundtruth_active() {
 		return (bool) self::get_groundtruth_gtid()
 			&& !self::is_pixel_paused('groundtruth');
+	}
+
+	/**
+	 * Rumble Ads
+	 */
+
+	/**
+	 * Get the Rumble Ads global site tag ID (AV-XXXX).
+	 *
+	 * @since 1.72.1
+	 *
+	 * @return string
+	 */
+	public static function get_rumble_tag_id() {
+		return self::get_options_obj()->pixels->rumble->tag_id;
+	}
+
+	/**
+	 * Check if the Rumble Ads pixel is active.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @return bool
+	 */
+	public static function is_rumble_active() {
+		return (bool) self::get_rumble_tag_id()
+			&& !self::is_pixel_paused('rumble');
+	}
+
+	/**
+	 * Get the Rumble Ads conversion action ID for one event.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @param string $event purchase or add_to_cart.
+	 * @return string
+	 */
+	public static function get_rumble_conversion_id( $event ) {
+		return self::get_options_obj()->pixels->rumble->conversion_ids->$event;
+	}
+
+	/**
+	 * Get all Rumble Ads conversion action IDs, keyed by event.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @return object
+	 */
+	public static function get_rumble_conversion_ids() {
+		return self::get_options_obj()->pixels->rumble->conversion_ids;
 	}
 
 	/**

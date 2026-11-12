@@ -1,18 +1,18 @@
 === Pixel Manager for WooCommerce – Conversion Tracking, Google Ads, GA4, TikTok, Dynamic Remarketing ===
 Contributors: alekv, wolfbaer, freemius
-Tags: conversion tracking, google ads, google analytics, facebook pixel, woocommerce
+Tags: conversion tracking, google ads, facebook pixel, meta pixel, conversions api
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.72.0
+Stable tag: 1.73.0
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
-Conversion tracking for WooCommerce. Google Ads, GA4, Meta, TikTok, OpenAI (ChatGPT) & more. Recover 30% more conversions with server-side tracking!
+WooCommerce conversion tracking: Google Ads, GA4, Meta Pixel & Conversions API, TikTok, OpenAI (ChatGPT). Recover 30% more conversions server-side.
 
 == Description ==
 
-The Pixel Manager is the most complete conversion tracking plugin for WooCommerce. Set up Google Ads conversion tracking, Google Analytics GA4 e-commerce tracking, Meta/Facebook Pixel, TikTok Pixel, and more – in minutes, not hours. No coding required.
+The Pixel Manager is the most complete conversion tracking plugin for WooCommerce. Set up Google Ads conversion tracking, Google Analytics GA4 e-commerce tracking, Meta Pixel (Facebook Pixel) and Conversions API, TikTok Pixel and Events API, and more – in minutes, not hours. No coding required.
 
 Unlike Google Tag Manager (GTM), which requires significant technical expertise to configure WooCommerce e-commerce tracking correctly, the Pixel Manager provides a turnkey solution with over 12 years of development. It automatically handles edge cases like payment gateway redirects, order duplication prevention, and consent mode – all the things that take hours to get right with manual tag management.
 
@@ -62,7 +62,7 @@ The Pro version adds server-side tracking (Conversion API / CAPI) that sends con
 
 * Google Ads Pixel – conversion value tracking, dynamic remarketing, cart item data
 * Google Analytics Pixel (GA4) – full Enhanced E-Commerce tracking
-* Meta Ads Pixel (Facebook Pixel) – remarketing events and custom audiences
+* Meta Pixel (Facebook Pixel) for Meta Ads – remarketing events and custom audiences
 * TikTok Pixel – full shopping funnel from product view to purchase
 * Microsoft Ads UET Tag (Bing Ads) – conversion tracking, dynamic remarketing and Microsoft Ads Consent Mode
 * Pinterest Tag – shopping funnel events with product data
@@ -109,6 +109,7 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 * Nextdoor Ads – conversion tracking through the Nextdoor Universal Pixel (beta)
 * Optimizely – experimentation and feature testing (beta)
 * Outbrain Ads
+* Rumble Ads – conversion tracking for purchases and add to cart events through the Rumble global site tag (beta)
 * Spotify Ads – conversion tracking through the Spotify Ad Analytics pixel, with the full shopping funnel and server-side events through the Conversions API (beta)
 * Taboola Ads
 * Triple Whale – browser pixel and checkout funnel for stores connected to Triple Whale (beta)
@@ -118,7 +119,7 @@ Have a look at the full feature list over [here](https://sweetcode.com/docs/pmw/
 **Premium Features**
 
 * [Automatic Conversion Recovery (ACR)](https://sweetcode.com/docs/pmw/features/acr?utm_source=wordpress.org&utm_medium=wpm-plugin-page&utm_campaign=pixel-manager-for-woocommerce-docs&utm_content=acr) – automatically recover missed conversions nightly
-* Server-side tracking (CAPI) – Meta, TikTok, Pinterest, Snapchat, Reddit, OpenAI, Nextdoor, Spotify, AppLovin, Microsoft Ads, GA4 Measurement Protocol
+* Server-side tracking – Meta Conversions API (CAPI), TikTok Events API, Pinterest, Snapchat, Reddit, OpenAI, Nextdoor, Spotify, AppLovin, Microsoft Ads, GA4 Measurement Protocol
 * Advanced Order Duplication Prevention
 * Google Ads Enhanced Conversions – first-party data for improved attribution
 * Google Ads Conversion Adjustments – send refund data back to Google Ads
@@ -208,7 +209,7 @@ While Google Tag Manager is free, it requires significant technical expertise an
 
 = What is server-side tracking (Conversion API / CAPI) and why does it matter? =
 
-Server-side tracking sends conversion data directly from your WooCommerce server to advertising platforms like Meta (Facebook), TikTok, Pinterest, Snapchat, Reddit, OpenAI, and Google Analytics 4 – rather than relying solely on browser-based pixels. This results in more reliable, accurate tracking because it works even when browser tracking is limited by ad blockers, Safari ITP cookie restrictions, browser privacy settings, VPNs, or network issues. Our Pro version typically recovers up to 30% more conversions compared to browser-only tracking, directly improving your campaign optimization and ROAS calculations.
+Server-side tracking sends conversion data directly from your WooCommerce server to advertising platforms like Meta (through the Meta Conversions API), TikTok (through the TikTok Events API), Pinterest, Snapchat, Reddit, OpenAI, and Google Analytics 4 – rather than relying solely on browser-based pixels. This results in more reliable, accurate tracking because it works even when browser tracking is limited by ad blockers, Safari ITP cookie restrictions, browser privacy settings, VPNs, or network issues. Our Pro version typically recovers up to 30% more conversions compared to browser-only tracking, directly improving your campaign optimization and ROAS calculations.
 
 = Can I track conversions from OpenAI ads on ChatGPT? =
 
@@ -229,6 +230,10 @@ The Pixel Manager tracks the complete e-commerce customer journey: product list 
 = Can I use the Pixel Manager to track Google Ads conversions on WooCommerce? =
 
 Yes. The Pixel Manager makes Google Ads conversion tracking setup on WooCommerce straightforward. Simply enter your Google Ads Conversion ID and Conversion Label, and the plugin automatically tracks purchase conversions with accurate order values, fires dynamic remarketing events for audience building, sends cart item data to optimize Performance Max and Shopping campaigns, tracks the Google Shopping new customer parameter for new customer acquisition campaigns, and supports Enhanced Conversions (Pro) for improved attribution using first-party data.
+
+= Can I track Meta Ads (Facebook and Instagram) conversions on WooCommerce with the Meta Pixel and Conversions API? =
+
+Yes. Enter your Meta Pixel ID and the free version installs the Meta Pixel (Facebook Pixel) with the shopping funnel events ViewContent, AddToCart, InitiateCheckout and Purchase, including the product data that dynamic remarketing ads and custom audiences need. The Pro version adds the Meta Conversions API (CAPI), which sends the same events from your server, and Advanced Matching for better event matching. Server-side events reach Meta even when ad blockers or browser privacy settings stop the browser pixel, so your Facebook and Instagram campaigns optimize on more complete purchase data.
 
 = Will the Pixel Manager slow down my WooCommerce store? =
 
@@ -338,6 +343,16 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.73.0  =
+*Release date - 12.11.2026*
+
+* Fix: With the legacy CookieYes (Cookie Law Info) banner, the Pixel Manager read consent as granted before the visitor answered and after a rejection, also in Google Consent Mode. It now waits for the visitor's answer, honors the "non-necessary" category and applies the answer on the same page
+* Fix: With the Google Tag Gateway running through the WordPress handler, GA4 and Google Ads hits were forwarded with HTML-escaped values, so landing pages with several URL parameters were stored as `?amp;gclid=...` and campaign attribution broke. Hits now reach Google exactly as the browser sent them
+* Fix: Microsoft UET Consent Mode no longer writes an empty _uetmsdns cookie before consent. Microsoft ignores that value, so the cookie had no effect; UET keeps running in Microsoft's denied state as specified
+* Tweak: Confirmed compatibility with WordPress 7.1 and WooCommerce 11.3.0
+* Tweak: Updated the bundled third-party libraries to their current releases
+* Tweak: Updated the translation template (.pot file)
 
 = 1.72.0  =
 *Release date - 04.11.2026*

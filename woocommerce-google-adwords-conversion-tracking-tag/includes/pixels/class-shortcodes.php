@@ -89,6 +89,7 @@ class Shortcodes {
 			'ms-ads-event-value'    => 0,
 			'outbrain-event'        => '',
 			'reddit-event'          => 'Lead',
+			'rumble-event'          => '',
 			'openai-event'          => 'lead_created',
 			'snap-event'            => 'SIGN_UP',
 			'spotify-event'         => 'lead',
@@ -134,6 +135,14 @@ class Shortcodes {
 			&& Options::is_linkedin_active()
 		) {
 			self::conversion_html_linkedin($shortcode_attributes);
+		}
+
+		// Rumble Ads
+		if (
+			self::should_tracking_event_be_injected($shortcode_attributes, 'rumble')
+			&& Options::is_rumble_active()
+		) {
+			self::conversion_html_rumble($shortcode_attributes);
 		}
 
 		// Meta (Facebook)
@@ -429,6 +438,35 @@ class Shortcodes {
 			pmwFunctionExists("lintrk").then(function () {
 					lintrk("track", {
 						conversion_id: <?php echo intval($shortcode_attributes['lintrk-event']); ?>,
+					});
+				},
+			);
+		</script>
+		<?php
+	}
+
+	/**
+	 * Output a Rumble Ads conversion for the conversion action ID passed in
+	 * the rumble-event attribute. Without the attribute nothing is sent,
+	 * because Rumble has no default lead event to fall back on.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @param array $shortcode_attributes
+	 * @return void
+	 */
+	private static function conversion_html_rumble( $shortcode_attributes ) {
+
+		if (empty($shortcode_attributes['rumble-event'])) {
+			return;
+		}
+
+		?>
+
+		<script>
+			pmwFunctionExists("ratag").then(function () {
+					ratag("conversion", {
+						to: <?php echo intval($shortcode_attributes['rumble-event']); ?>,
 					});
 				},
 			);

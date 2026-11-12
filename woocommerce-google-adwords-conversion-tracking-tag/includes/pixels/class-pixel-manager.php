@@ -159,6 +159,7 @@ class Pixel_Manager {
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Outbrain_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Taboola_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\GroundTruth_Descriptor',
+            'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Rumble_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Criteo_Descriptor',
             'SweetCode\\Pixel_Manager\\Pixels\\Descriptors\\Klaviyo_Descriptor',
             // Browser pixels whose server-side counterpart is a Pro adapter.
@@ -2046,6 +2047,20 @@ PMW_SENTINEL_JS;
     private static function get_groundtruth_pixel_data() {
         return [
             'gtid' => Options::get_groundtruth_gtid(),
+        ];
+    }
+
+    /**
+     * Data layer output for the Rumble Ads pixel.
+     *
+     * @since 1.72.1
+     *
+     * @return array
+     */
+    private static function get_rumble_pixel_data() {
+        return [
+            'tag_id'         => Options::get_rumble_tag_id(),
+            'conversion_ids' => Options::get_rumble_conversion_ids(),
         ];
     }
 

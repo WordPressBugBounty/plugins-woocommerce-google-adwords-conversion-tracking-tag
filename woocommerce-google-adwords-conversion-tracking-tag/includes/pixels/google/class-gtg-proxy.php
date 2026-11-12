@@ -296,7 +296,7 @@ class GTG_Proxy {
 		// Check if this is a secondary Google Tag request to the root
 		// These come as /?id=TAG_ID&cx=c&gtm=...
 		// They have 'id' parameter with a Google tag ID pattern and 'gtm' parameter
-		$_get = Helpers::get_input_vars(INPUT_GET);
+		$_get = self::get_forwarded_query();
 
 		if (
 			isset( $_get['id'] )
@@ -425,7 +425,7 @@ class GTG_Proxy {
 		}
 
 		// Get query parameters
-		$_get = Helpers::get_input_vars(INPUT_GET);
+		$_get = self::get_forwarded_query();
 
 		// Handle Google Tag Gateway service worker requests
 		// Google's tag registers a service worker at
@@ -651,6 +651,32 @@ class GTG_Proxy {
 	}
 
 	/**
+	 * The query of the current request, exactly as the browser sent it.
+	 *
+	 * The gateway only relays this query to Google and never prints it into
+	 * HTML, so it must not go through Helpers::get_input_vars(): that helper
+	 * HTML-escapes every value, which turned the `&` inside a forwarded page
+	 * URL (`dl`) into `&amp;` and made GA4 store parameters such as
+	 * `amp;gclid`, and mangled quotes in page titles (`dt`) the same way.
+	 * The reserved parameters (id, geo, mpath) are sanitized by their readers,
+	 * and the final URL is validated by is_valid_fps_url().
+	 *
+	 * Reads $_GET instead of filter_input_array() so tests can cover it.
+	 * WordPress adds slashes to $_GET, hence the wp_unslash().
+	 *
+	 * @return array The raw query parameters.
+	 *
+	 * @since 1.72.1
+	 */
+	private static function get_forwarded_query() {
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Relayed to Google unchanged, never output; a public tracking endpoint has no nonce.
+		$query = wp_unslash( $_GET );
+
+		return Helpers::generic_sanitization( $query, true );
+	}
+
+	/**
 	 * Process a proxy request coming through the measurement path
 	 *
 	 * @param string $path The path after the measurement path.
@@ -659,7 +685,7 @@ class GTG_Proxy {
 	private static function process_proxy_request( $path ) {
 
 		$_server = Helpers::get_input_vars(INPUT_SERVER);
-		$_get    = Helpers::get_input_vars(INPUT_GET);
+		$_get    = self::get_forwarded_query();
 
 		// Get the tag ID and other proxy params from query params
 		$tag_id = isset($_get['id']) ? sanitize_text_field($_get['id']) : '';

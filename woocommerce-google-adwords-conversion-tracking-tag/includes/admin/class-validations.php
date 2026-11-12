@@ -895,6 +895,25 @@ class Validations {
 			}
 		}
 
+		// Validate the Rumble Ads tag ID
+		if (isset($input['pixels']['rumble']['tag_id'])) {
+
+			// Trim space, newlines and quotes
+			$input['pixels']['rumble']['tag_id'] = Helpers::trim_string($input['pixels']['rumble']['tag_id']);
+
+			if (!self::is_rumble_tag_id($input['pixels']['rumble']['tag_id'])) {
+				$input['pixels']['rumble']['tag_id']
+					= Options::get_rumble_tag_id()
+					? Options::get_rumble_tag_id()
+					: '';
+				add_settings_error('wgact_plugin_options', 'invalid-rumble-tag-id', esc_html__('You have entered an invalid Rumble Ads tag ID.', 'woocommerce-google-adwords-conversion-tracking-tag'));
+			}
+		}
+
+		// Validate the Rumble Ads conversion action IDs
+		$input = self::validate_rumble_conversion_id($input, 'purchase');
+		$input = self::validate_rumble_conversion_id($input, 'add_to_cart');
+
 		// Validate the Criteo account ID
 		if (isset($input['pixels']['criteo']['account_id'])) {
 
@@ -1266,6 +1285,39 @@ class Validations {
 		return $input;
 	}
 
+	/**
+	 * Validate one Rumble Ads conversion action ID of the submitted options.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @param array  $input The submitted options.
+	 * @param string $event purchase or add_to_cart.
+	 * @return array
+	 */
+	private static function validate_rumble_conversion_id( $input, $event ) {
+
+		if (!isset($input['pixels']['rumble']['conversion_ids'][$event])) {
+			return $input;
+		}
+
+		// Trim space, newlines and quotes
+		$input['pixels']['rumble']['conversion_ids'][$event] = Helpers::trim_string($input['pixels']['rumble']['conversion_ids'][$event]);
+
+		if (!self::is_rumble_conversion_id($input['pixels']['rumble']['conversion_ids'][$event])) {
+			$input['pixels']['rumble']['conversion_ids'][$event]
+				= Options::get_rumble_conversion_id($event)
+				? Options::get_rumble_conversion_id($event)
+				: '';
+			add_settings_error(
+				'wgact_plugin_options',
+				'invalid-rumble-conversion-id',
+				esc_html__('You have entered an invalid Rumble Ads conversion action ID.', 'woocommerce-google-adwords-conversion-tracking-tag')
+			);
+		}
+
+		return $input;
+	}
+
 	private static function validate_linkedin_conversion_id( $input, $event ) {
 
 		if (isset($input['pixels']['linkedin']['conversion_ids'][$event])) {
@@ -1558,6 +1610,9 @@ class Validations {
 			'pixels.reddit.advanced_matching',
 			'pixels.reddit.capi.test_event_code',
 			'pixels.reddit.capi.token',
+			'pixels.rumble.conversion_ids.add_to_cart',
+			'pixels.rumble.conversion_ids.purchase',
+			'pixels.rumble.tag_id',
 			'pixels.applovin.advanced_matching',
 			'pixels.applovin.capi.token',
 			'pixels.applovin.event_key',
@@ -1930,6 +1985,38 @@ class Validations {
 	public static function is_klaviyo_events_api_token( $string ) {
 
 		$re = '/^pk_(?:[0-9a-f]{34}|[A-Za-z0-9]+_[0-9a-f]{34})$/';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	/**
+	 * Rumble Ads global site tag ID, in the form AV-1234.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_rumble_tag_id( $string ) {
+
+		// Rumble documents the ID as AV-XXXX. It ends up in the tag URL, so
+		// only the prefix plus letters and digits are accepted.
+		$re = '/^AV-[A-Za-z0-9]{1,20}$/';
+
+		return self::validate_with_regex($re, $string);
+	}
+
+	/**
+	 * Rumble Ads conversion action ID, a number.
+	 *
+	 * @since 1.72.1
+	 *
+	 * @param string $string
+	 * @return bool
+	 */
+	public static function is_rumble_conversion_id( $string ) {
+
+		$re = '/^\d{1,12}$/';
 
 		return self::validate_with_regex($re, $string);
 	}
@@ -2744,6 +2831,11 @@ class Validations {
 
 			// GroundTruth
 			'pixels.groundtruth.gtid'                           => [ 'is_groundtruth_gtid', __('Invalid GroundTruth GTID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+
+			// Rumble Ads
+			'pixels.rumble.tag_id'                              => [ 'is_rumble_tag_id', __('Invalid Rumble Ads tag ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.rumble.conversion_ids.purchase'             => [ 'is_rumble_conversion_id', __('Invalid Rumble Ads conversion action ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
+			'pixels.rumble.conversion_ids.add_to_cart'          => [ 'is_rumble_conversion_id', __('Invalid Rumble Ads conversion action ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],
 
 			// Criteo
 			'pixels.criteo.account_id'                          => [ 'is_criteo_account_id', __('Invalid Criteo account ID.', 'woocommerce-google-adwords-conversion-tracking-tag') ],

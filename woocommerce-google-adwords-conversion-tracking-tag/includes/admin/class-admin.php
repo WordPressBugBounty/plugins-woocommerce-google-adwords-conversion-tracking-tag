@@ -705,6 +705,28 @@ class Admin {
                 'wpm_plugin_options_page',
                 $section_ids['settings_name']
             );
+            // Add the fields for the Rumble Ads pixel
+            add_settings_field(
+                'pmw_plugin_rumble_tag_id',
+                esc_html__( 'Rumble Ads tag ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_rumble_tag_id'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+            add_settings_field(
+                'pmw_plugin_rumble_conversion_id_purchase',
+                esc_html__( 'Rumble Ads purchase conversion action ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_rumble_conversion_id_purchase'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
+            add_settings_field(
+                'pmw_plugin_rumble_conversion_id_add_to_cart',
+                esc_html__( 'Rumble Ads add to cart conversion action ID', 'woocommerce-google-adwords-conversion-tracking-tag' ) . self::html_beta(),
+                [__CLASS__, 'option_html_rumble_conversion_id_add_to_cart'],
+                'wpm_plugin_options_page',
+                $section_ids['settings_name']
+            );
             // Add the field for the LinkedIn partner ID
             add_settings_field(
                 'pmw_linkedin_partner_id',
@@ -4235,6 +4257,95 @@ class Admin {
         self::html_pro_feature();
         echo '<br><br>';
         esc_html_e( 'Enter the unique identifier (GTID) provided by your GroundTruth representative. One GTID covers all campaigns of your Ads Manager account.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Classic settings field for the Rumble Ads tag ID.
+     *
+     * @since 1.72.1
+     *
+     * @return void
+     */
+    public static function option_html_rumble_tag_id() {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_rumble_tag_id"
+				name="wgact_plugin_options[pixels][rumble][tag_id]"
+				size="40"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_rumble_tag_id() );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::is_rumble_active() );
+        self::get_documentation_html_by_key( 'rumble_tag_id' );
+        self::html_pro_feature();
+        echo '<br><br>';
+        esc_html_e( 'Enter the ID of your Rumble Ads global site tag, in the form AV-1234. One tag ID covers your whole advertiser account.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Classic settings field for the Rumble Ads purchase conversion action ID.
+     *
+     * @since 1.72.1
+     *
+     * @return void
+     */
+    public static function option_html_rumble_conversion_id_purchase() {
+        self::option_html_rumble_conversion_id( 'purchase' );
+        echo '<br><br>';
+        esc_html_e( 'The ID of the Rumble Ads conversion action that counts purchases. Set its value to Dynamic so the order value is recorded.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Classic settings field for the Rumble Ads add to cart conversion action ID.
+     *
+     * @since 1.72.1
+     *
+     * @return void
+     */
+    public static function option_html_rumble_conversion_id_add_to_cart() {
+        self::option_html_rumble_conversion_id( 'add_to_cart' );
+        echo '<br><br>';
+        esc_html_e( 'The ID of the Rumble Ads conversion action that counts add to cart events.', 'woocommerce-google-adwords-conversion-tracking-tag' );
+    }
+
+    /**
+     * Input for one Rumble Ads conversion action ID.
+     *
+     * @since 1.72.1
+     *
+     * @param string $event purchase or add_to_cart.
+     * @return void
+     */
+    private static function option_html_rumble_conversion_id( $event ) {
+        ?>
+		<input class="pmw mono"
+				id="pmw_plugin_rumble_conversion_id_<?php 
+        echo esc_attr( $event );
+        ?>"
+				name="wgact_plugin_options[pixels][rumble][conversion_ids][<?php 
+        echo esc_attr( $event );
+        ?>]"
+				size="20"
+				type="text"
+				value="<?php 
+        echo esc_html( Options::get_rumble_conversion_id( $event ) );
+        ?>"
+			<?php 
+        echo esc_html( self::disable_if_demo() );
+        ?>
+				onclick="this.select();"
+		/>
+		<?php 
+        self::display_status_icon( Options::get_rumble_conversion_id( $event ), Options::is_rumble_active() );
+        self::get_documentation_html_by_key( 'rumble_conversion_ids' );
+        self::html_pro_feature();
     }
 
     public static function option_html_criteo_account_id() {

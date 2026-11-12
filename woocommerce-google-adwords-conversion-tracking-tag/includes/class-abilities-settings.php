@@ -673,6 +673,36 @@ class Abilities_Settings {
 					],
 				],
 			],
+			'rumble'        => [
+				'label'    => 'Rumble Ads',
+				'category' => 'marketing',
+				'is_pixel' => true,
+				'settings' => [
+					'tag_id'                     => [
+						'path'        => 'pixels.rumble.tag_id',
+						'type'        => 'string',
+						'label'       => 'Tag ID',
+						'description' => 'Rumble Ads global site tag ID, in the form AV-1234. Found in the Rumble Advertising Center under Advertisers > Conversion Tracking, in the tracking code of any conversion action. One tag ID covers the whole advertiser account.',
+						'required'    => true,
+					],
+					'conversion_ids.purchase'    => [
+						'path'        => 'pixels.rumble.conversion_ids.purchase',
+						'type'        => 'string',
+						'label'       => 'Purchase conversion action ID',
+						'description' => 'Numeric ID of the Rumble Ads conversion action that counts purchases. Found in the Rumble Advertising Center under Advertisers > Conversion Tracking. Set the action value to Dynamic so the order value is recorded.',
+						'advanced'    => true,
+						'benefit'     => 'Reports purchases with their order value as Rumble Ads conversions.',
+					],
+					'conversion_ids.add_to_cart' => [
+						'path'        => 'pixels.rumble.conversion_ids.add_to_cart',
+						'type'        => 'string',
+						'label'       => 'Add to cart conversion action ID',
+						'description' => 'Numeric ID of the Rumble Ads conversion action that counts add to cart events. Found in the Rumble Advertising Center under Advertisers > Conversion Tracking.',
+						'advanced'    => true,
+						'benefit'     => 'Reports add to cart events as Rumble Ads conversions.',
+					],
+				],
+			],
 			'criteo'        => [
 				'label'    => 'Criteo',
 				'category' => 'marketing',

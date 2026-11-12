@@ -102,6 +102,8 @@ class Documentation {
 			'spotify_capi_connection_id'                        => '/docs/pmw/plugin-configuration/spotify#conversions-api-capi',
 			'spotify_capi_token'                                => '/docs/pmw/plugin-configuration/spotify#conversions-api-capi',
 			'groundtruth_gtid'                                  => '/docs/pmw/plugin-configuration/groundtruth',
+			'rumble_tag_id'                                     => '/docs/pmw/plugin-configuration/rumble',
+			'rumble_conversion_ids'                             => '/docs/pmw/plugin-configuration/rumble#conversion-actions',
 			'mixpanel_project_token'                            => '/docs/pmw/plugin-configuration/mixpanel',
 			'mixpanel_data_residency'                           => '/docs/pmw/plugin-configuration/mixpanel#data-residency',
 			'mixpanel_ingestion_api'                            => '/docs/pmw/plugin-configuration/mixpanel#ingestion-api',
