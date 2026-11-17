@@ -1662,7 +1662,7 @@ class Abilities_Settings {
 			$active = false;
 		}
 
-		return [
+		$status = [
 			'pixel'                 => $group_key,
 			'label'                 => $group['label'],
 			'category'              => $group['category'],
@@ -1675,6 +1675,67 @@ class Abilities_Settings {
 			'missing_required'      => $missing_required,
 			'advanced_available'    => $advanced_available,
 			'advanced_enabled'      => $advanced_enabled,
+		];
+
+		// Optimizely loads only after the shop manager confirmed the Project
+		// JavaScript check (DD-092), so an agent can tell why it is not active.
+		if ('optimizely' === $group_key) {
+			$status['security_check_confirmed'] = Optimizely_Security::is_acknowledged();
+		}
+
+		return $status;
+	}
+
+	/**
+	 * Execute callback for the pmw/enable-optimizely ability.
+	 *
+	 * Records the shop manager's confirmation that they checked their
+	 * Optimizely Project JavaScript for unknown code and resumes Optimizely.
+	 * Refused unless acknowledge_security_check is exactly true, the same
+	 * gate as the checkbox in the admin dialog (DD-092).
+	 *
+	 * @param array $input Ability input: [ 'acknowledge_security_check' => bool ]
+	 * @return array
+	 * @since 1.74.1
+	 */
+	public static function execute_enable_optimizely( $input ) {
+
+		if (!self::is_write_enabled()) {
+			return [
+				'enabled' => false,
+				'message' => 'Settings writes through the Abilities API are disabled on this site (pmw_abilities_allow_write filter).',
+			];
+		}
+
+		if (!isset($input['acknowledge_security_check']) || true !== $input['acknowledge_security_check']) {
+			return [
+				'enabled' => false,
+				'message' => 'Not enabled. The shop manager first has to check their Optimizely Project JavaScript (Settings > Implementation > Project JavaScript) for code they did not add, in particular anything containing "1688360", ".icu" or "track.js". Only call this again with acknowledge_security_check set to true after they confirmed that they found no unknown code.',
+			];
+		}
+
+		if (!Helpers::is_pmw_pro_version_active()) {
+			return [
+				'enabled' => false,
+				'message' => 'Optimizely requires an active Pro license. Report this to the user instead of retrying.',
+			];
+		}
+
+		if (!Options::get_optimizely_project_id()) {
+			return [
+				'enabled' => false,
+				'message' => 'No Optimizely project ID is set. Set it with pmw/configure-pixel first.',
+			];
+		}
+
+		Optimizely_Security::acknowledge(get_current_user_id());
+		Options::invalidate_cache();
+
+		return [
+			'enabled' => Options::is_optimizely_active(),
+			'message' => Options::is_optimizely_active()
+				? 'Optimizely is enabled. The confirmation was stored with the current user and time.'
+				: 'The confirmation was stored, but Optimizely is still not active. The site may block it with the pmw_optimizely_allow_loading filter.',
 		];
 	}
 
@@ -1863,6 +1924,17 @@ class Abilities_Settings {
 
 			$new_value     = $validation['value'];
 			$current_value = self::get_value_by_path($options, $path);
+
+			// Resuming Optimizely needs the shop manager's confirmed Project
+			// JavaScript check, which only pmw/enable-optimizely takes (DD-092).
+			if (Optimizely_Security::is_unconfirmed_resume($path, $new_value)) {
+				$results[] = [
+					'path'    => $path,
+					'status'  => 'forbidden',
+					'message' => 'Optimizely stays paused after the Optimizely security incident of 16 November 2026. Ask the shop manager to check their Optimizely Project JavaScript (Settings > Implementation > Project JavaScript) for unknown code, then call pmw/enable-optimizely with acknowledge_security_check set to true once they confirmed it. Never confirm it on their behalf.',
+				];
+				continue;
+			}
 
 			if ($current_value === $new_value) {
 				$results[] = [

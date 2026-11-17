@@ -1744,6 +1744,17 @@ class Environment {
 		return is_plugin_active('flying-press/flying-press.php');
 	}
 
+	/**
+	 * Whether Perfmatters is active.
+	 *
+	 * @return bool
+	 *
+	 * @since 1.73.1
+	 */
+	public static function is_perfmatters_active() {
+		return is_plugin_active('perfmatters/perfmatters.php');
+	}
+
 	/*
 	 * Check to find out what hosting provider is being used
 	 * */
@@ -2433,6 +2444,20 @@ class Environment {
 		}
 
 		/**
+		 * Perfmatters compatibility
+		 *
+		 * Perfmatters skips WooCommerce's own cart, checkout and order confirmation
+		 * pages on its own, but not custom thank-you pages (funnel builders, shop
+		 * built thank-you pages), where "Delay JavaScript" would hold back the purchase.
+		 *
+		 * @since 1.73.1
+		 */
+
+		if (self::is_perfmatters_active()) {
+			self::exclude_pmw_from_perfmatters_delay_js_on_critical_pages();
+		}
+
+		/**
 		 * Autoptimize compatibility
 		 *
 		 * Exclude PMW scripts from Autoptimize's JS minification and combination.
@@ -2890,6 +2915,32 @@ class Environment {
 
 		add_filter('pre_update_option_FLYING_PRESS_CONFIG', $filter_callback);
 		add_filter('option_FLYING_PRESS_CONFIG', $filter_callback);
+	}
+
+	/**
+	 * Exclude PMW scripts from Perfmatters' "Delay JavaScript" on critical pages.
+	 *
+	 * Perfmatters already leaves WooCommerce's cart, checkout and order-received
+	 * endpoint alone, so on a standard shop this changes nothing. It matters on custom
+	 * thank-you pages, which Perfmatters treats as ordinary pages and delays until the
+	 * visitor interacts. Buyers often leave that page without interacting, and the
+	 * purchase is never sent. Other pages stay delayed, as with WP Rocket and FlyingPress.
+	 *
+	 * Perfmatters matches each exclusion as a partial string against the script source
+	 * and the inline script content, so the plugin folder names and pmwDataLayer cover
+	 * the entry script, the chunks and the inline data layer.
+	 *
+	 * @return void
+	 *
+	 * @since 1.73.1
+	 */
+	protected static function exclude_pmw_from_perfmatters_delay_js_on_critical_pages() {
+		add_filter('perfmatters_delay_js_exclusions', function ( $exclusions ) {
+			if (is_array($exclusions) && Helpers::is_cart_or_checkout_page()) {
+				$exclusions = array_values(array_unique(array_merge($exclusions, self::get_pmw_script_identifiers())));
+			}
+			return $exclusions;
+		});
 	}
 
 	/**

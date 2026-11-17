@@ -1214,7 +1214,7 @@ class Pixel_Manager {
                 if ( Options::is_klaviyo_purchase_dispatch_active() ) {
                     Klaviyo_API::set_identifiers_on_session();
                 }
-                if ( Helpers::is_experiment() && Options::is_google_ads_dm_active() ) {
+                if ( Options::is_google_ads_dm_active() ) {
                     Google_DMA::set_identifiers_on_session();
                 }
             }
@@ -1977,8 +1977,11 @@ PMW_SENTINEL_JS;
             'capi'                => Options::is_facebook_capi_active(),
             'advanced_matching'   => Options::is_facebook_capi_advanced_matching_enabled(),
             'exclusion_patterns'  => apply_filters( 'pmw_facebook_tracking_exclusion_patterns', [] ),
-            'fbevents_js_url'     => Helpers::get_facebook_fbevents_js_url(),
         ];
+        // The standard fbevents.js URL stays out of the inline data layer, because
+        // content-matching script blockers would hold the whole configuration back
+        // as a Meta pixel. Only a filtered version or URL is output.
+        $data = array_merge( $data, Helpers::get_facebook_fbevents_data_layer_overrides() );
         // Meta's automatic configuration (autoConfig) is the opt-in for the
         // AutomaticSetup feature bundle of fbevents.js: automatic event
         // detection (InferredEvents), the microdata scraping and enrichment,
@@ -2335,7 +2338,8 @@ PMW_SENTINEL_JS;
 
     private static function get_optimizely_pixel_data() {
         return [
-            'project_id' => Options::get_optimizely_project_id(),
+            'project_id'      => Options::get_optimizely_project_id(),
+            'loading_allowed' => Options::is_optimizely_loading_allowed(),
         ];
     }
 

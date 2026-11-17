@@ -71,8 +71,8 @@ class Abilities_Admin {
 			self::ltv_definitions(),
 			$has_ssp ? self::ssp_definitions() : [],
 			$is_pro ? self::ga4_data_api_definitions() : [],
-			$is_pro && $is_experiment ? self::data_manager_definitions() : [],
-			$is_experiment ? self::google_connection_definitions() : [],
+			$is_pro ? self::data_manager_definitions() : [],
+			self::google_connection_definitions(),
 			$is_experiment ? self::meta_connection_definitions() : []
 		);
 

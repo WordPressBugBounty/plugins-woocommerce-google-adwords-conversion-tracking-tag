@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, facebook pixel, meta pixel, conversions a
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.73.0
+Stable tag: 1.74.1
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -344,6 +344,19 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 
 == Changelog ==
 
+= 1.74.1  =
+*Release date - 17.11.2026*
+
+* Tweak: The deprecation notice for the old window.wpm object now appears once per page. A script that read every property of it filled the browser console with hundreds of warnings on every page
+
+= 1.74.0  =
+*Release date - 16.11.2026*
+
+* New: Added a Google setup assistant. Connect a Google account once and pick or create the Google Ads conversion action and the GA4 data stream from a list, instead of copying conversion IDs, labels and measurement IDs by hand
+* Fix: Script blockers that scan inline scripts for vendor URLs, such as the one in WebToffee's GDPR Cookie Consent, mistook the Pixel Manager's configuration for a Meta pixel and held it back, which stopped all tracking until advertising cookies were accepted. The configuration no longer contains Meta's script URL, so each pixel follows its own consent category again
+* Fix: On custom thank-you pages, such as those of CartFlows or FunnelKit, the Pixel Manager is no longer delayed until visitor interaction by WP Rocket, FlyingPress or Perfmatters, which lost the purchase whenever the buyer left without clicking or scrolling
+* Fix: When WooCommerce is activated but fails to load, for example after an incomplete update, the Pixel Manager no longer stops the whole site with a fatal error
+
 = 1.73.0  =
 *Release date - 12.11.2026*
 
@@ -438,20 +451,6 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 * Fix: The Google Tag Gateway proxy no longer forwards the visitor's WordPress login and WooCommerce session cookies to Google's servers, no longer follows an upstream redirect on the server, and relays only the response headers a browser needs, so a policy header from upstream cannot apply to the shop's own origin
 * Tweak: A settings import now runs every field through the same validator as the settings page, drops keys that are not settings, refuses a schema version the plugin does not know and, on a free tier, keeps the stored values of Pro-only settings. It used to check that a few keys exist and store the file as it was
 * Tweak: The products data layer cache is capped at 50 entries per page, an order key must look like one before it is looked up, click IDs from the landing URL are validated like those from cookies, the settings version can no longer be written as if it were a setting, log downloads are limited to the plugin's own logs, the log redaction masks email addresses, and the Hyros referrer URL is encoded in full
-
-
-= 1.69.0  =
-*Release date - 21.09.2026*
-
-* Fix: A product a shopper adds while the plugin is reading the cart stays in the cart. WooCommerce serves the plugin's requests with the whole session loaded and writes all of it back at the end, so a request that only reads could still put the older cart back and the added item vanished in front of the shopper. The plugin's requests now persist nothing, and the one that has to write refreshes the cart first
-* Fix: On shops that run iubenda, the visitor's consent is read at last. iubenda names its cookie after the site ID by default, and the Pixel Manager knew only the older cookie policy ID name, so every category stayed denied and every marketing pixel blocked. It now also reads iubenda's legacy cookie, and ignores one that states no purposes instead of raising an error
-* Fix: An interface whose name carries no `Interface_` prefix is now found by the plugin's autoloader. Three of them, among them the pixel adapter contract every server-side pixel implements, were reachable only because four places required their file by hand, so any other code path that touched them ended in a fatal error
-* Fix: A checkout started from the mini cart now carries the cart's products, value and currency. The plugin left the cart empty while it re-read it from the server, and a checkout click is sent the moment it happens, so the event went out hollow on product and category pages
-* Fix: An add to cart or add to wishlist event that reaches the Facebook pixel without product data no longer disappears. The adapter read the missing product and threw, so the event was lost from the browser pixel and the Conversions API alike. Meta needs the product on both events, so a productless one is now skipped cleanly
-* Fix: The Diagnostics accuracy trend no longer crashes the admin interface when a custom date is typed rather than picked. A date field reports itself as empty for as long as a typed entry is incomplete, and that empty value reached the report's date arithmetic while the page was being drawn, so the whole interface dropped to its error screen
-* Fix: A blocked Google tag no longer fills the shop's error tracking with stackless noise. When a content blocker kept the tag from loading, every Google Ads and Google Analytics event raised a promise rejection that carried no message at all, so the recorded entries named neither a cause nor a source. The wait now fails with a reason, and every event handles it
-* Fix: The Google Tag Gateway health check can no longer be answered from a cache. It carried no cache headers at all, and a shop was found serving it from its CDN with a 30 day lifetime, so the check reported the gateway healthy by replaying the last time it had been
-* Tweak: The Tag Gateway measurement path field now recommends an unguessable path instead of suggesting `/metrics`. That is Google's own example, so a great many shops share one predictable path, which is what makes a blocker rule worth writing against all of them at once
 
 
 = Earlier versions =

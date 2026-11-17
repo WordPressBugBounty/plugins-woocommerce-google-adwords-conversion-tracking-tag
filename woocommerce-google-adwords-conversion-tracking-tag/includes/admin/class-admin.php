@@ -10,6 +10,7 @@ use SweetCode\Pixel_Manager\First_Event_Confirmation;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Optimizely_Security;
 use SweetCode\Pixel_Manager\Pixels\Google\Google_Helpers;
 use SweetCode\Pixel_Manager\Pixels\Pixel_Manager;
 use SweetCode\Pixel_Manager\Shop;
@@ -2466,6 +2467,7 @@ class Admin {
             'askForRating'                     => Ask_For_Rating::get_data_for_nova(),
             'onboarding'                       => Onboarding::get_data_for_nova(),
             'serverLoadWarning'                => Server_Load_Warning::get_data_for_nova(),
+            'optimizelySecurity'               => Optimizely_Security::get_data_for_nova(),
             'gadsConversionAdjustmentsFeedUrl' => get_site_url() . Pixel_Manager::get_instance()->get_google_ads_conversion_adjustments_endpoint(),
             'recentLogUrl'                     => (string) Helpers::get_admin_url_link_to_recent_wc_log( 'pmw' ),
             'wcLogging'                        => Logger::get_woocommerce_logging_for_nova(),

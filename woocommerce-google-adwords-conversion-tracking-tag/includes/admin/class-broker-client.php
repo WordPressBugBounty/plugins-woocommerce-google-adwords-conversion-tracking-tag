@@ -15,11 +15,13 @@ defined('ABSPATH') || exit; // Exit if accessed directly
  * stored encrypted on the broker and never reaches this site; this class only
  * holds the per-site bearer token issued during enrollment.
  *
- * EXPERIMENTAL: every route registers only while Helpers::is_experiment() is
- * true (EXPERIMENTAL_PMW / PMW_EXPERIMENTS in wp-config.php). Not part of the
- * public feature set until Google approves the OAuth consent screen for a
- * public audience. The manual conversion ID and label fields remain the
- * primary path and always win.
+ * The Google routes are public since 1.73.1: Google verified the OAuth
+ * consent screen for the adwords, analytics.edit and datamanager scopes on
+ * 2026-11-16, so any shop can connect, not only members of the Cloud project.
+ * The Meta routes stay behind Helpers::is_experiment() (EXPERIMENTAL_PMW /
+ * PMW_EXPERIMENTS in wp-config.php) until Meta App Review grants Advanced
+ * Access. The manual conversion ID and label fields remain the primary path
+ * and always win.
  *
  * Flow (see pmw-web docs/oauth-broker-design.md):
  *  1. enroll: the broker issues a challenge, this site serves it on a public
@@ -137,11 +139,6 @@ class Broker_Client {
 	}
 
 	public function register_routes() {
-
-		// Experimental feature flag: without it the broker endpoints do not exist.
-		if (!Helpers::is_experiment()) {
-			return;
-		}
 
 		/**
 		 * Public enrollment challenge endpoint. Public BY DESIGN: the value is
@@ -485,13 +482,12 @@ class Broker_Client {
 	}
 
 	/**
-	 * Keep the daily health check scheduled exactly while the feature is
-	 * active and the site is enrolled. Runs on admin_init; both checks are
-	 * cheap (one option read each).
+	 * Keep the daily health check scheduled exactly while the site is
+	 * enrolled. Runs on admin_init; the check is cheap (one option read).
 	 */
 	public static function manage_health_cron_schedule() {
 
-		$active    = Helpers::is_experiment() && self::is_enrolled();
+		$active    = self::is_enrolled();
 		$scheduled = wp_next_scheduled(self::HEALTH_CRON_HOOK);
 
 		if ($active && !$scheduled) {
@@ -508,7 +504,7 @@ class Broker_Client {
 	 */
 	public static function run_health_check() {
 
-		if (!Helpers::is_experiment() || !self::is_enrolled()) {
+		if (!self::is_enrolled()) {
 			self::save_health([]);
 			return;
 		}

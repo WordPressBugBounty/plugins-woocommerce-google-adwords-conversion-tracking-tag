@@ -12,6 +12,7 @@
 defined( 'ABSPATH' ) || exit;
 // Exit if accessed directly
 use SweetCode\Pixel_Manager\Abilities;
+use SweetCode\Pixel_Manager\Optimizely_Security;
 use SweetCode\Pixel_Manager\Admin\Admin;
 use SweetCode\Pixel_Manager\Admin\Admin_REST;
 use SweetCode\Pixel_Manager\Admin\Broker_Client;
@@ -378,11 +379,13 @@ class WCPM {
         // the server-side purchase hooks also fire on webhook, cron and admin requests.
         Split_Payments::get_instance();
         Admin_REST::get_instance();
-        // Broker connect (experimental, routes only exist with PMW_EXPERIMENTS)
+        // Broker connect: Google routes in every build, Meta routes only with PMW_EXPERIMENTS (DD-087)
         Broker_Client::get_instance();
         if ( is_admin() ) {
             // display admin views
             Admin::init();
+            // One-time pause of Optimizely after the November 2026 incident (DD-092).
+            Optimizely_Security::init();
             // ask visitor for rating
             Ask_For_Rating::get_instance();
             // Load admin notification handlers

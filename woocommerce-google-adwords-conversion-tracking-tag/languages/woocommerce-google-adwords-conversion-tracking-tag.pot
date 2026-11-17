@@ -2,14 +2,14 @@
 # This file is distributed under the GNU General Public License v3.0.
 msgid ""
 msgstr ""
-"Project-Id-Version: Pixel Manager for WooCommerce 1.73.0\n"
+"Project-Id-Version: Pixel Manager for WooCommerce 1.74.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/src\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-12T05:32:55+00:00\n"
+"POT-Creation-Date: 2026-11-16T21:17:11+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: woocommerce-google-adwords-conversion-tracking-tag\n"
@@ -2248,40 +2248,40 @@ msgid "Maybe later"
 msgstr ""
 
 #. translators: 1: site name, 2: provider name (Google or Meta)
-#: includes/admin/class-broker-client.php:627
+#: includes/admin/class-broker-client.php:623
 #, php-format
 msgid "[%1$s] Action needed: reconnect your %2$s account in the Pixel Manager"
 msgstr ""
 
 #. translators: 1: provider name (Google or Meta), 2: site name
-#: includes/admin/class-broker-client.php:634
+#: includes/admin/class-broker-client.php:630
 #, php-format
 msgid "The Pixel Manager connection to your %1$s account on %2$s is no longer valid and needs to be re-authorized. This happens when the authorization is revoked, the password is reset with a global sign-out, or the account that granted access is closed."
 msgstr ""
 
-#: includes/admin/class-broker-client.php:639
+#: includes/admin/class-broker-client.php:635
 msgid "Features that depend on this connection will not work until it is reconnected. Reconnecting takes one click plus a login:"
 msgstr ""
 
-#: includes/admin/class-broker-client.php:643
+#: includes/admin/class-broker-client.php:639
 msgid "You will only receive this email once per incident."
 msgstr ""
 
 #. translators: %s: provider name (Google or Meta)
-#: includes/admin/class-broker-client.php:674
+#: includes/admin/class-broker-client.php:670
 #, php-format
 msgid "Pixel Manager: The connection to your %s account needs to be re-authorized."
 msgstr ""
 
-#: includes/admin/class-broker-client.php:678
+#: includes/admin/class-broker-client.php:674
 msgid "Features that depend on it will not work until you reconnect."
 msgstr ""
 
-#: includes/admin/class-broker-client.php:680
+#: includes/admin/class-broker-client.php:676
 msgid "Reconnect now"
 msgstr ""
 
-#: includes/admin/class-broker-client.php:682
+#: includes/admin/class-broker-client.php:678
 #: includes/admin/notifications/class-notifications.php:300
 #: includes/admin/notifications/class-notifications.php:579
 #: includes/admin/notifications/class-trial-promotion-notification.php:319
@@ -2946,9 +2946,10 @@ msgstr ""
 #: includes/admin/notifications/class-cache-purge-failure-notification.php:86
 #: includes/admin/notifications/class-cookie-stripping-notification.php:62
 #: includes/admin/notifications/class-ga4-mp-measurement-id-notification.php:67
-#: includes/admin/notifications/class-google-dma-upload-error-notification.php:86
+#: includes/admin/notifications/class-google-dma-upload-error-notification.php:81
 #: includes/admin/notifications/class-google-tag-id-rejected-notification.php:122
 #: includes/admin/notifications/class-nova-wp-version-notification.php:55
+#: includes/admin/notifications/class-optimizely-precaution-notification.php:52
 #: includes/admin/notifications/class-ssp-destination-error-notification.php:108
 #: includes/admin/notifications/class-ssp-quota-exceeded-notification.php:97
 #: includes/admin/notifications/class-trial-promotion-notification.php:241
@@ -2983,23 +2984,23 @@ msgstr ""
 msgid "To send purchases server-side, enter the measurement ID from GA4 under Admin, Data streams, your web stream. It starts with G-. This notice disappears once the ID is changed."
 msgstr ""
 
-#: includes/admin/notifications/class-google-dma-upload-error-notification.php:60
+#: includes/admin/notifications/class-google-dma-upload-error-notification.php:55
 msgid "The most recent Google Ads conversion upload through the Data Manager API failed. Failed orders are retried on their next status change, but while the cause persists no conversions reach Google through the upload."
 msgstr ""
 
 #. translators: %s: the error message returned by the Google API
-#: includes/admin/notifications/class-google-dma-upload-error-notification.php:69
+#: includes/admin/notifications/class-google-dma-upload-error-notification.php:64
 #, php-format
 msgid "Reported error: %s"
 msgstr ""
 
 #. translators: %s: the order number of the failed upload
-#: includes/admin/notifications/class-google-dma-upload-error-notification.php:77
+#: includes/admin/notifications/class-google-dma-upload-error-notification.php:72
 #, php-format
 msgid "Last affected order: #%s. Use the \"Send test upload\" button in the settings to verify the fix."
 msgstr ""
 
-#: includes/admin/notifications/class-google-dma-upload-error-notification.php:84
+#: includes/admin/notifications/class-google-dma-upload-error-notification.php:79
 msgid "Google Ads API Conversion Upload - Upload Error"
 msgstr ""
 
@@ -3107,6 +3108,18 @@ msgstr ""
 
 #: includes/admin/notifications/class-nova-wp-version-notification.php:95
 msgid "Update WordPress"
+msgstr ""
+
+#: includes/admin/notifications/class-optimizely-precaution-notification.php:41
+msgid "Optimizely is paused as a security precaution"
+msgstr ""
+
+#: includes/admin/notifications/class-optimizely-precaution-notification.php:43
+msgid "Security researchers have reported that scripts served from cdn.optimizely.com on several large websites loaded code designed to steal credit card and crypto wallet details. Optimizely has not confirmed the incident yet, and it is not known which projects are affected."
+msgstr ""
+
+#: includes/admin/notifications/class-optimizely-precaution-notification.php:47
+msgid "To protect your checkout, the Pixel Manager has stopped loading Optimizely on your shop. Your Optimizely project ID stays saved, and we will switch Optimizely back on in an update once the incident is resolved. Until then, please check your Optimizely project's JavaScript settings for code you did not add, and remove Optimizely from your site if it is also added another way, for example through your theme or a tag manager."
 msgstr ""
 
 #. translators: %s: comma-separated list of ad platform names
@@ -3594,6 +3607,24 @@ msgstr ""
 
 #: includes/admin/opportunities/pro/class-google-ads-conversion-adjustments-opportunity.php:46
 msgid "Enabling Google Ads Conversion Adjustments will improve conversion value accuracy by adjusting existing conversion values after processing refunds and cancellations."
+msgstr ""
+
+#: includes/admin/opportunities/pro/class-google-ads-data-manager-upload-opportunity.php:94
+msgid "Google Ads purchase conversions are currently reported by the browser only. Customers who pay in an app and never return to the order confirmation page, ad blockers and closed tabs keep those purchases from Google Ads, so campaigns look weaker than they are and Smart Bidding learns from fewer conversions."
+msgstr ""
+
+#. translators: 1: number of days, 2: missed orders, 3: all orders
+#: includes/admin/opportunities/pro/class-google-ads-data-manager-upload-opportunity.php:105
+#, php-format
+msgid "In the last %1$d days, %2$s of your %3$s orders never reached a tracked order confirmation page."
+msgstr ""
+
+#: includes/admin/opportunities/pro/class-google-ads-data-manager-upload-opportunity.php:115
+msgid "Connect your Google account with the Google setup assistant on the Google card (Tracking Pixels tab). Every paid order is then also uploaded to Google Ads server-side through the Data Manager API, into the same conversion action, and Google deduplicates the two sources by order number."
+msgstr ""
+
+#: includes/admin/opportunities/pro/class-google-ads-data-manager-upload-opportunity.php:122
+msgid "Google Ads Server-Side Conversion Upload"
 msgstr ""
 
 #: includes/admin/opportunities/pro/class-google-enhanced-conversions-opportunity.php:42
@@ -4390,14 +4421,14 @@ msgstr ""
 msgid "Too many requests"
 msgstr ""
 
-#: includes/pixels/class-pixel-manager.php:883
+#: includes/pixels/class-pixel-manager.php:881
 msgid "You can not view private data."
 msgstr ""
 
-#: includes/pixels/class-pixel-manager.php:1011
+#: includes/pixels/class-pixel-manager.php:1009
 msgid "Try going through the setup process again."
 msgstr ""
 
-#: includes/pixels/class-pixel-manager.php:1917
+#: includes/pixels/class-pixel-manager.php:1915
 msgid "Authentication required"
 msgstr ""

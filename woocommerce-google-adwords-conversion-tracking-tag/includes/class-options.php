@@ -1291,7 +1291,35 @@ class Options {
 
 	public static function is_optimizely_active() {
 		return (bool) self::get_optimizely_project_id()
-			&& !self::is_pixel_paused('optimizely');
+			&& !self::is_pixel_paused('optimizely')
+			&& Optimizely_Security::is_acknowledged()
+			&& self::is_optimizely_loading_allowed();
+	}
+
+	/**
+	 * Whether the Optimizely script may load at all.
+	 *
+	 * 1.74.0 blocked Optimizely for every site after the Optimizely security
+	 * incident of 16 November 2026 (DD-091). Since 1.74.1 it loads again once
+	 * a shop manager confirmed the Project JavaScript check
+	 * (Optimizely_Security, DD-092). To block it again for every site, flip
+	 * this default back to false in a release.
+	 *
+	 * A site owner can keep Optimizely off regardless of the settings:
+	 *
+	 *     add_filter('pmw_optimizely_allow_loading', '__return_false');
+	 *
+	 * @return bool
+	 * @since 1.73.1
+	 */
+	public static function is_optimizely_loading_allowed() {
+		/**
+		 * Filters whether the Optimizely script may load at all.
+		 *
+		 * @param bool $allow Whether to load Optimizely. Default true since 1.74.1.
+		 * @since 1.73.1
+		 */
+		return (bool) apply_filters('pmw_optimizely_allow_loading', true);
 	}
 
 	/**

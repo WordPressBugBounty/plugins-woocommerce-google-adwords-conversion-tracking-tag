@@ -812,6 +812,47 @@ class Abilities {
 				'mcp'          => [ 'public' => true ],
 			],
 		]);
+
+		// Re-enable Optimizely after the Optimizely security incident of
+		// 16 November 2026. Needs the same explicit confirmation as the admin
+		// dialog, refused without it (DD-092). @since 1.74.1
+		\wp_register_ability('pmw/enable-optimizely', [
+			'label'               => __('Enable Optimizely', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'description'         => __('Re-enables the Optimizely integration, which stays paused after the Optimizely security incident of 16 November 2026, when malicious code was injected into some Optimizely projects. Before calling this, the shop manager must log in to Optimizely, open Settings > Implementation > Project JavaScript and check it for code they did not add, in particular anything containing "1688360", ".icu" or "track.js". Only set acknowledge_security_check to true after the shop manager explicitly confirmed that they found no unknown code. Never confirm it on their behalf.', 'woocommerce-google-adwords-conversion-tracking-tag'),
+			'category'            => self::CATEGORY,
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'acknowledge_security_check' => [
+						'type'        => 'boolean',
+						'description' => 'True only when the shop manager confirmed that they checked their Optimizely Project JavaScript and found no unknown code.',
+					],
+				],
+				'required'   => [ 'acknowledge_security_check' ],
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'enabled' => [ 'type' => 'boolean', 'description' => 'Whether Optimizely is active after the call' ],
+					'message' => [ 'type' => 'string' ],
+				],
+			],
+			'execute_callback'    => [ Abilities_Settings::class, 'execute_enable_optimizely' ],
+			'permission_callback' => function () {
+				// Always returns a strict boolean: current_user_can('manage_woocommerce') || current_user_can('manage_options').
+				// nosemgrep
+				return Environment::can_current_user_edit_options();
+			},
+			'meta'                => [
+				'annotations' => [
+					'readonly'    => false,
+					'destructive' => false,
+					'idempotent'  => true,
+				],
+				'show_in_rest' => true,
+				'mcp'          => [ 'public' => true ],
+			],
+		]);
 	}
 
 	/**

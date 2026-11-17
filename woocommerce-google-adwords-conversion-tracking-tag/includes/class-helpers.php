@@ -459,42 +459,44 @@ class Helpers {
     }
 
     /**
-     * Filter to return the Facebook fbevents.js script URL.
+     * The fbevents.js overrides that go into the inline data layer.
      *
-     * It allows to either return the latest version or a specific version.
+     * The standard fbevents.js URL is deliberately NOT part of the data layer. The
+     * script blockers of several consent and optimization plugins (WebToffee GDPR
+     * Cookie Consent, WPConsent, Flying Press) match their vendor URL patterns
+     * against the content of inline scripts. A Meta URL inside the pmwDataLayer
+     * made them treat the whole Pixel Manager configuration as a Meta pixel and
+     * hold it back, which stopped every pixel, not only Meta. The browser library
+     * knows the standard URL itself, so only a shop's explicit override is output:
+     * the version as a bare string, a custom URL as it was given.
      *
-     * @return string
-     * @since 1.30.0
+     * @return array
+     * @since 1.73.1
      */
-    public static function get_facebook_fbevents_js_url() {
-        $fbevents_standard_url = 'https://connect.facebook.net/en_US/fbevents.js';
+    public static function get_facebook_fbevents_data_layer_overrides() {
         /**
          * Filters Facebook fbevents script version.
          *
          * @since 1.58.5
          */
-        if ( apply_filters( 'pmw_facebook_fbevents_script_version', '' ) ) {
-            /**
-             * Filters Facebook fbevents script version.
-             *
-             * @since 1.58.5
-             */
-            return $fbevents_standard_url . '?v=' . apply_filters( 'pmw_facebook_fbevents_script_version', '' );
+        $version = apply_filters( 'pmw_facebook_fbevents_script_version', '' );
+        if ( $version ) {
+            return [
+                'fbevents_version' => (string) $version,
+            ];
         }
         /**
          * Filters Facebook fbevents script url.
          *
          * @since 1.58.5
          */
-        if ( apply_filters( 'pmw_facebook_fbevents_script_url', '' ) ) {
-            /**
-             * Filters Facebook fbevents script url.
-             *
-             * @since 1.58.5
-             */
-            return apply_filters( 'pmw_facebook_fbevents_script_url', '' );
+        $url = apply_filters( 'pmw_facebook_fbevents_script_url', '' );
+        if ( $url ) {
+            return [
+                'fbevents_js_url' => (string) $url,
+            ];
         }
-        return $fbevents_standard_url;
+        return [];
     }
 
     /**
@@ -1483,7 +1485,14 @@ class Helpers {
     /**
      * Check if the current page is a cart, checkout, or purchase confirmation page.
      *
+     * Custom thank-you pages count as well. Funnel builders (CartFlows, FunnelKit) and
+     * shops with their own thank-you page show the order confirmation on an ordinary
+     * page, where is_checkout() is false, yet that is the page that sends the purchase.
+     * Shop::pmw_is_order_received_page() recognizes them by the order key in the URL.
+     *
      * @return bool True if on cart, checkout, or order-received page.
+     *
+     * @since 1.73.1 Also true on custom thank-you pages.
      */
     public static function is_cart_or_checkout_page() {
         // WooCommerce functions may not be available yet
@@ -1491,7 +1500,19 @@ class Helpers {
             return false;
         }
         // is_checkout() returns true for both checkout and order-received (thank you) page
-        return is_cart() || is_checkout();
+        if ( is_cart() || is_checkout() ) {
+            return true;
+        }
+        /**
+         * Only ask once the main query is parsed. pmw_is_order_received_page() caches its
+         * answer for the request, and before the query its front-page and archive guard
+         * cannot run, so an early call would freeze an unguarded answer for the purchase
+         * tracking that relies on it later.
+         */
+        if ( !did_action( 'wp' ) ) {
+            return false;
+        }
+        return Shop::pmw_is_order_received_page();
     }
 
 }

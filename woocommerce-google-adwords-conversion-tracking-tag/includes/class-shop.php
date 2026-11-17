@@ -1343,7 +1343,14 @@ class Shop {
 
     // https://woocommerce.github.io/code-reference/files/woocommerce-includes-class-wc-order.html#source-view.364
     public static function get_order_paid_statuses() {
-        $statuses = wc_get_is_paid_statuses();
+        // WooCommerce can be active without having loaded, for example after an
+        // incomplete update. Calling its function then would be a fatal error that
+        // takes the whole site down, so fall back to WooCommerce's own defaults.
+        if ( function_exists( 'wc_get_is_paid_statuses' ) ) {
+            $statuses = wc_get_is_paid_statuses();
+        } else {
+            $statuses = (array) apply_filters( 'woocommerce_order_is_paid_statuses', ['processing', 'completed'] );
+        }
         // Add additional custom order statuses to trigger the Measurement Protocol purchase hit
         return apply_filters_deprecated(
             'wpm_register_custom_order_confirmation_statuses',

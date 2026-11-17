@@ -8,6 +8,7 @@ use SweetCode\Pixel_Manager\First_Event_Confirmation;
 use SweetCode\Pixel_Manager\Helpers;
 use SweetCode\Pixel_Manager\Logger;
 use SweetCode\Pixel_Manager\Options;
+use SweetCode\Pixel_Manager\Optimizely_Security;
 use SweetCode\Pixel_Manager\Tracking_Accuracy_DB;
 
 defined('ABSPATH') || exit; // Exit if accessed directly
@@ -462,6 +463,14 @@ class Admin_REST {
 			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
 		]);
 
+		// POST /optimizely/enable: confirm the Project JavaScript check after the
+		// Optimizely security incident and resume Optimizely (DD-092).
+		register_rest_route(self::$rest_namespace, '/optimizely/enable', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'handle_optimizely_enable' ],
+			'permission_callback' => [ $this, 'can_current_user_edit_options' ],
+		]);
+
 		// GET /options — return the full options tree
 		register_rest_route(self::$rest_namespace, '/options', [
 			'methods'             => 'GET',
@@ -655,6 +664,40 @@ class Admin_REST {
 	}
 
 	/**
+	 * Handle POST /pmw/v1/optimizely/enable.
+	 *
+	 * Expects { "acknowledged": true }, sent by the "Before you enable
+	 * Optimizely" dialog once its checkbox is ticked. Stores who confirmed the
+	 * Project JavaScript check and when, then resumes Optimizely. Without the
+	 * confirmation nothing changes.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 *
+	 * @return \WP_REST_Response
+	 *
+	 * @since 1.74.1
+	 */
+	public function handle_optimizely_enable( $request ) {
+
+		$data = $request->get_json_params();
+
+		if (!is_array($data) || !isset($data['acknowledged']) || true !== $data['acknowledged']) {
+			return new \WP_REST_Response([
+				'success' => false,
+				'message' => Optimizely_Security::get_refusal_message(),
+			], 400);
+		}
+
+		Optimizely_Security::acknowledge(get_current_user_id());
+
+		return new \WP_REST_Response([
+			'success'            => true,
+			'options'            => Options::get_options(),
+			'optimizelySecurity' => Optimizely_Security::get_data_for_nova(),
+		], 200);
+	}
+
+	/**
 	 * Apply a batch of option patches in a single read-modify-write.
 	 *
 	 * Each patch is authorized + validated independently; the valid ones are
@@ -822,6 +865,16 @@ class Admin_REST {
 				'ok'      => false,
 				'status'  => 400,
 				'message' => $validation['message'],
+			];
+		}
+
+		// Resuming Optimizely needs the confirmed Project JavaScript check,
+		// which only the enable dialog sends (DD-092).
+		if (Optimizely_Security::is_unconfirmed_resume($path, $validation['value'])) {
+			return [
+				'ok'      => false,
+				'status'  => 403,
+				'message' => Optimizely_Security::get_refusal_message(),
 			];
 		}
 

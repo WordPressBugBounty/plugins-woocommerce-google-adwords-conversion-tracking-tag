@@ -30,11 +30,6 @@ class Google_DMA_Upload_Error_Notification extends Notification {
 	 */
 	public static function should_notify() {
 
-		// The feature only exists behind the experiments flag.
-		if (!Helpers::is_experiment()) {
-			return false;
-		}
-
 		// Only show on the WP dashboard. The PMW settings page surfaces the
 		// upload status on the card itself.
 		if (!Helpers::is_dashboard()) {
