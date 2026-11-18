@@ -201,6 +201,8 @@ class Debug_Info {
                 }
             }
             //        $html .= PHP_EOL;
+            $html .= PHP_EOL . '## Google Connection (setup assistant) ##' . PHP_EOL . PHP_EOL;
+            $html .= Broker_Client::get_debug_info_text();
             $html .= PHP_EOL . '## Google Tag Gateway ##' . PHP_EOL . PHP_EOL;
             $measurement_path = Options::get_google_tag_gateway_measurement_path();
             $html .= 'Measurement path:                          ' . (( $measurement_path ? $measurement_path : 'not configured' )) . PHP_EOL;

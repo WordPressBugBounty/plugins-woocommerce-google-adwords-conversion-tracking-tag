@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, facebook pixel, meta pixel, conversions a
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.74.1
+Stable tag: 1.74.2
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -343,6 +343,11 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.74.2  =
+*Release date - 18.11.2026*
+
+* Fix: The Google setup assistant now connects shops behind Cloudflare's bot protection, a security plugin or password protection, which answered the connection service's site check and stopped the connection with "Connection service error (502)". When something in front of WordPress still blocks a connection request, the assistant says so instead of showing only an error code
 
 = 1.74.1  =
 *Release date - 17.11.2026*

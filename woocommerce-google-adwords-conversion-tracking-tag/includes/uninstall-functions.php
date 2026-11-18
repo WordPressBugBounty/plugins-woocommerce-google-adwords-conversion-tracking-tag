@@ -90,6 +90,7 @@ if (!function_exists('pmw_delete_plugin_data')) {
 			'pmw_default_admin_theme',
 			'pmw_broker',
 			'pmw_broker_health',
+			'pmw_broker_enroll_error',
 			'pmw_click_ids_capture_start',
 			'pmw_cookie_delivery',
 			'pmw_script_dependencies_missing',

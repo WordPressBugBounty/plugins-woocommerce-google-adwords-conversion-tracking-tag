@@ -83,6 +83,14 @@ class Broker_Client {
 	 */
 	const HEALTH_OPTION = 'pmw_broker_health';
 
+	/**
+	 * The most recent failed enrollment, kept for the debug report, so support
+	 * sees why a shop could not connect without asking for screenshots.
+	 *
+	 * @since 1.74.2
+	 */
+	const ENROLL_ERROR_OPTION = 'pmw_broker_enroll_error';
+
 	/** Daily WP-Cron hook polling the broker for verified reconnect flags. */
 	const HEALTH_CRON_HOOK = 'pmw_broker_health_check';
 
@@ -1281,6 +1289,12 @@ class Broker_Client {
 				'enrollmentId' => $enrollment_id,
 				'distro'       => defined('PMW_DISTRO') ? PMW_DISTRO : '',
 				'version'      => defined('PMW_CURRENT_VERSION') ? PMW_CURRENT_VERSION : '',
+				// When a firewall or CDN keeps the broker from reading the
+				// challenge route (Cloudflare's bot check, Basic Auth), enroll
+				// as an unverified site instead of failing. An unverified site
+				// can never replace a verified one for the same URL (pmw-web
+				// design doc §6.1). @since 1.74.2
+				'fallback'     => 'unverified',
 			],
 			false
 		);
@@ -1288,8 +1302,11 @@ class Broker_Client {
 		delete_transient(self::CHALLENGE_TRANSIENT);
 
 		if (!$complete['ok']) {
+			self::record_enroll_error($complete);
 			return $complete;
 		}
+
+		delete_option(self::ENROLL_ERROR_OPTION);
 
 		$body = $complete['body'];
 
@@ -1307,9 +1324,13 @@ class Broker_Client {
 		}
 
 		self::save_state([
-			'site_id'     => $body['siteId'],
-			'site_token'  => $body['siteToken'],
-			'enrolled_at' => time(),
+			'site_id'        => $body['siteId'],
+			'site_token'     => $body['siteToken'],
+			'enrolled_at'    => time(),
+			// false when the broker could not read the challenge route and
+			// enrolled the site unverified (shown in the debug report). @since 1.74.2
+			'verified'       => !isset($body['verified']) || (bool) $body['verified'],
+			'verify_failure' => isset($body['verifyFailure']) ? sanitize_key($body['verifyFailure']) : '',
 		]);
 
 		return $complete;
@@ -1510,6 +1531,70 @@ class Broker_Client {
 	 * @param array $result
 	 * @return \WP_REST_Response
 	 */
+	/**
+	 * Remember why the last enrollment failed, for the debug report.
+	 *
+	 * @param array $result A broker_request() result that is not ok.
+	 * @return void
+	 *
+	 * @since 1.74.2
+	 */
+	private static function record_enroll_error( $result ) {
+
+		$body = is_array($result['body']) ? $result['body'] : [];
+
+		update_option(
+			self::ENROLL_ERROR_OPTION,
+			[
+				'time'       => time(),
+				'status'     => (int) $result['status'],
+				'code'       => isset($body['code']) ? sanitize_text_field((string) $body['code']) : '',
+				'message'    => isset($body['message']) ? sanitize_text_field(substr((string) $body['message'], 0, 300)) : '',
+				'request_id' => $result['requestId'] ? sanitize_text_field((string) $result['requestId']) : '',
+			],
+			false
+		);
+	}
+
+	/**
+	 * The Google connection section of the debug report.
+	 *
+	 * @return string
+	 *
+	 * @since 1.74.2
+	 */
+	public static function get_debug_info_text() {
+
+		$state = self::get_state();
+		$text  = '';
+
+		if (self::is_enrolled()) {
+			$verified = !isset($state['verified']) || $state['verified'];
+			$text    .= 'Enrolled with the connection service: yes' . PHP_EOL;
+			$text    .= 'Site ID: ' . ( isset($state['site_id']) ? $state['site_id'] : '' ) . PHP_EOL;
+			$text    .= 'Site verified: ' . ( $verified ? 'yes' : 'no, the site check was blocked (' . ( !empty($state['verify_failure']) ? $state['verify_failure'] : 'unknown' ) . ')' ) . PHP_EOL;
+			$text    .= 'Google account connected: ' . ( self::is_google_connected() ? 'yes' : 'no' ) . PHP_EOL;
+		} else {
+			$text .= 'Enrolled with the connection service: no' . PHP_EOL;
+		}
+
+		$text .= 'Site check address: ' . self::get_site_base_url() . '/wp-json/' . self::$rest_namespace . '/broker/challenge' . PHP_EOL;
+
+		$error = get_option(self::ENROLL_ERROR_OPTION);
+
+		if (is_array($error) && !empty($error['time'])) {
+			$text .= 'Last failed connection attempt: ' . gmdate('Y-m-d H:i', (int) $error['time']) . ' UTC, HTTP ' . (int) $error['status']
+				. ( !empty($error['code']) ? ', ' . $error['code'] : '' )
+				. ( !empty($error['request_id']) ? ', Support ID ' . $error['request_id'] : '' ) . PHP_EOL;
+
+			if (!empty($error['message'])) {
+				$text .= '  ' . $error['message'] . PHP_EOL;
+			}
+		}
+
+		return $text;
+	}
+
 	private static function error_response( $result ) {
 
 		$body = $result['body'];
@@ -1518,7 +1603,16 @@ class Broker_Client {
 			$body['requestId'] = $result['requestId'];
 		}
 
-		$status = $result['status'] >= 400 ? $result['status'] : 502;
+		// Never hand the browser a 5xx. Cloudflare, nginx and many hosts swap
+		// the body of a 5xx for their own error page, so the broker's message
+		// and Support ID never reached the merchant, who saw only "Connection
+		// service error (502)". 424 (Failed Dependency) says the same thing,
+		// a service this request depends on failed, and survives those layers.
+		// The original status stays in the body for diagnosis. @since 1.74.2
+		$upstream_status        = (int) $result['status'];
+		$body['upstreamStatus'] = $upstream_status;
+
+		$status = ( $upstream_status >= 400 && $upstream_status < 500 ) ? $upstream_status : 424;
 
 		return new \WP_REST_Response($body, $status);
 	}
