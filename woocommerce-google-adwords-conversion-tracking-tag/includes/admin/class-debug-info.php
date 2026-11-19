@@ -111,15 +111,15 @@ class Debug_Info {
                 $html .= 'Cart URL:         ' . wc_get_cart_url() . PHP_EOL;
                 $html .= 'Checkout URL:     ' . wc_get_checkout_url() . PHP_EOL;
                 $html .= PHP_EOL;
-                $html .= 'Purchase confirmation endpoint: ' . wc_get_endpoint_url( 'order-received' ) . PHP_EOL;
-                $order_received_page_url = wc_get_checkout_url() . ltrim( wc_get_endpoint_url( 'order-received' ), '/' );
+                $html .= 'Purchase confirmation endpoint: /' . user_trailingslashit( self::get_order_received_endpoint_slug() ) . PHP_EOL;
+                $order_received_page_url = self::build_order_received_url( wc_get_checkout_url() );
                 $html .= 'is_order_received_page():       ' . $order_received_page_url . PHP_EOL . PHP_EOL;
                 if ( Environment::does_one_order_exist() ) {
                     $last_order_url = Environment::get_last_order_url();
                     $html .= 'Last order URL:   ' . $last_order_url . '&nodedupe&pmwloggeron' . PHP_EOL;
                     $html .= 'Last order email: ' . Environment::get_last_order()->get_billing_email() . PHP_EOL;
                     $html .= PHP_EOL;
-                    $last_order_url_contains_order_received_page_url = ( strpos( Environment::get_last_order_url(), $order_received_page_url ) !== false ? 'yes' : 'no' );
+                    $last_order_url_contains_order_received_page_url = ( self::is_url_under_order_received_url( $last_order_url, $order_received_page_url ) ? 'yes' : 'no' );
                     $html .= 'Purchase confirmation uses is_order_received(): ' . $last_order_url_contains_order_received_page_url . PHP_EOL;
                     $redirect_report = self::get_purchase_confirmation_redirect_report( $last_order_url );
                     $redirect_hops = [];
@@ -1132,11 +1132,91 @@ class Debug_Info {
         if ( $order_key && false !== strpos( $url, $order_key ) ) {
             return true;
         }
-        $endpoint = get_option( 'woocommerce_checkout_order_received_endpoint', 'order-received' );
+        $endpoint = self::get_order_received_endpoint_slug();
         if ( false !== strpos( $url, '/' . $endpoint . '/' . $order->get_id() ) ) {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Get the slug of the WooCommerce order-received endpoint.
+     *
+     * Shops can rename it under WooCommerce > Settings > Advanced. An empty
+     * setting falls back to the default, like wc_get_endpoint_url() does.
+     *
+     * @return string
+     *
+     * @since 1.74.3
+     */
+    public static function get_order_received_endpoint_slug() {
+        $endpoint = get_option( 'woocommerce_checkout_order_received_endpoint', 'order-received' );
+        if ( !is_string( $endpoint ) || '' === $endpoint ) {
+            return 'order-received';
+        }
+        return $endpoint;
+    }
+
+    /**
+     * Build the URL of the order-received endpoint below the checkout page.
+     *
+     * Mirrors wc_get_endpoint_url() with the checkout URL as permalink, so the
+     * result is right whether or not the checkout URL ends with a slash, with a
+     * query string on the checkout URL (language parameters) and with plain
+     * permalinks. Concatenating the two parts, as before 1.74.3, produced
+     * ".../checkoutorder-received" on shops without a trailing slash.
+     *
+     * @param string      $checkout_url The checkout page URL.
+     * @param string|null $endpoint     The endpoint slug, defaults to the shop's setting.
+     * @return string
+     *
+     * @since 1.74.3
+     */
+    public static function build_order_received_url( $checkout_url, $endpoint = null ) {
+        $checkout_url = (string) $checkout_url;
+        if ( null === $endpoint || '' === $endpoint ) {
+            $endpoint = self::get_order_received_endpoint_slug();
+        }
+        // Plain permalinks: the endpoint is a query argument.
+        if ( !get_option( 'permalink_structure' ) ) {
+            return add_query_arg( $endpoint, '', $checkout_url );
+        }
+        $query_string = '';
+        if ( false !== strpos( $checkout_url, '?' ) ) {
+            $parts = explode( '?', $checkout_url, 2 );
+            $checkout_url = $parts[0];
+            $query_string = '?' . $parts[1];
+        }
+        return trailingslashit( $checkout_url ) . user_trailingslashit( $endpoint ) . $query_string;
+    }
+
+    /**
+     * Check if a URL sits under the given order-received endpoint URL.
+     *
+     * With pretty permalinks only the paths are compared, on a segment boundary,
+     * so the order ID and key that follow the endpoint, a query string on the
+     * checkout URL and the trailing slash style do not matter. With plain
+     * permalinks the endpoint is a query argument that the order URL continues
+     * with "=<order id>".
+     *
+     * @param string $url                The URL to test, usually the last order's confirmation URL.
+     * @param string $order_received_url The expected endpoint URL from build_order_received_url().
+     * @return bool
+     *
+     * @since 1.74.3
+     */
+    public static function is_url_under_order_received_url( $url, $order_received_url ) {
+        $url = (string) $url;
+        $order_received_url = (string) $order_received_url;
+        if ( '' === $url || '' === $order_received_url ) {
+            return false;
+        }
+        if ( !get_option( 'permalink_structure' ) ) {
+            return false !== strpos( $url, $order_received_url );
+        }
+        $url_parts = explode( '?', $url, 2 );
+        $expected_parts = explode( '?', $order_received_url, 2 );
+        return false !== strpos( trailingslashit( $url_parts[0] ), trailingslashit( $expected_parts[0] ) );
     }
 
     private static function show_warning( $test = false ) {

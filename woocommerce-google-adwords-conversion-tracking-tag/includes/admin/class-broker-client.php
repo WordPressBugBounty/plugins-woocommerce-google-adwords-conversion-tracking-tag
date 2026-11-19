@@ -1067,7 +1067,7 @@ class Broker_Client {
 	 *                         orderId, adjustmentType, adjustmentDateTime,
 	 *                         adjustedValue?, currencyCode? }
 	 *
-	 * @return array { success: bool, code: int, error_message: string }
+	 * @return array { success: bool, code: int, error_message: string, reason: string }
 	 *
 	 * @since 1.66.0
 	 */
@@ -1085,6 +1085,9 @@ class Broker_Client {
 			'success'       => $result['ok'],
 			'code'          => (int) $result['status'],
 			'error_message' => $error_message,
+			// A finer cause next to the error code, e.g. CONVERSION_NOT_FOUND
+			// when Google never recorded a conversion for the order. @since 1.74.3
+			'reason'        => ( !$result['ok'] && isset($result['body']['reason']) ) ? (string) $result['body']['reason'] : '',
 		];
 	}
 

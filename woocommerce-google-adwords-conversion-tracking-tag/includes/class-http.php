@@ -18,6 +18,55 @@ class HTTP {
 
 	private $request_args;
 
+	/**
+	 * Upper bound, in seconds, for the timeout of every POST while it is set.
+	 *
+	 * @var float|int|null
+	 * @since 1.74.3
+	 */
+	private static $timeout_cap = null;
+
+	/**
+	 * Caps the timeout of every POST sent from now on, or lifts the cap.
+	 *
+	 * The CAPI classes build their HTTP object once and reuse it, so a
+	 * timeout for one code path cannot be set at construction. The relay of
+	 * browser events sets the cap around its sends and lifts it afterwards;
+	 * purchase sends never run under it. See DD-094.
+	 *
+	 * @param float|int|null $seconds Null lifts the cap.
+	 * @return void
+	 *
+	 * @since 1.74.3
+	 */
+	public static function set_timeout_cap( $seconds ) {
+		self::$timeout_cap = null === $seconds ? null : max(1, $seconds);
+	}
+
+	/**
+	 * Applies the timeout cap to a set of request args.
+	 *
+	 * The cap is skipped while S2S requests are sent blocking (the debug
+	 * logging mode), where the full response is the point.
+	 *
+	 * @param array $request_args
+	 * @return array
+	 *
+	 * @since 1.74.3
+	 */
+	public static function apply_timeout_cap( $request_args ) {
+
+		if (null === self::$timeout_cap || !empty($request_args['blocking'])) {
+			return $request_args;
+		}
+
+		if (!isset($request_args['timeout']) || $request_args['timeout'] > self::$timeout_cap) {
+			$request_args['timeout'] = self::$timeout_cap;
+		}
+
+		return $request_args;
+	}
+
 	public function __construct( $request_args_override = [] ) {
 
 		// Set the default options and allow these to be overridden upon instantiation
@@ -105,7 +154,7 @@ class HTTP {
 
 		$this->request_args = array_merge($this->request_args, $request_args_override);
 
-		$response = wp_safe_remote_post($url, $this->request_args);
+		$response = wp_safe_remote_post($url, self::apply_timeout_cap($this->request_args));
 
 		if (Options::is_http_request_logging_enabled()) {
 			$this->log_request($url, $response, $payload, $request_args_override);

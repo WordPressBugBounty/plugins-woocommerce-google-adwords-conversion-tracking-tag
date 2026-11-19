@@ -4,7 +4,7 @@ Tags: conversion tracking, google ads, facebook pixel, meta pixel, conversions a
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.3
-Stable tag: 1.74.2
+Stable tag: 1.74.3
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
@@ -343,6 +343,12 @@ You can report security bugs through the Patchstack Vulnerability Disclosure Pro
 6. Opportunities – prioritized, actionable suggestions to improve your tracking and campaign performance
 
 == Changelog ==
+
+= 1.74.3  =
+*Release date - 18.11.2026*
+
+* Tweak: Before sending you to Google, the Google setup assistant now explains which account to sign in with, why to allow all three permissions, and what to do when a company Google account shows "Access blocked". If you come back without finishing, it lists the usual reasons and offers to try again
+* Fix: The debug info now reports the purchase confirmation page correctly on shops whose checkout URL has no trailing slash. It showed a broken `checkoutorder-received` address there and wrongly answered "no" on the `is_order_received()` line
 
 = 1.74.2  =
 *Release date - 18.11.2026*
